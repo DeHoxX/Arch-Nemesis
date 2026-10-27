@@ -41,7 +41,7 @@ async def main() -> int:
     print("Checking live Gemini API connectivity...")
     client: LLMClient = GeminiClient(
         api_key=api_key,
-        model_map=model_map,
+        model_names=model_map,
         timeout_seconds=settings.llm_timeout_seconds,
     )
 
