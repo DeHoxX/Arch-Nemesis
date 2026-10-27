@@ -1,0 +1,25 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Databases
+*.db
+*.db-journal
+*.sqlite
+
+# Python virtual environment and caches
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node and frontend build artifacts
+node_modules/
+.next/
+coverage/
+
+# Logs
+*.log
+

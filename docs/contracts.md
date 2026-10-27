@@ -1,0 +1,70 @@
+# Data Contracts and System Limits
+
+## 5. Data contracts
+
+These are the load-bearing decisions. Changing them later means rewriting validation, prompts and the UI.
+
+### RequirementBrief (module intake)
+
+- `summary`, `users`, `data_involved` (list), `domain_hint` (free text).
+- `stated_constraints`: list of `{id, text}`. Each is something the user said must hold (for example "answers must never expose personal data").
+- `unverifiable_requirements`: list of text. Things the user wants that code cannot check. Shown to the user honestly as "not verified by checks".
+- `numbers_given`: list of `{label, value, unit}`. The only numbers the explanation may repeat.
+- `assumptions`: list of text (filled when the follow-up cap is hit).
+
+### ArchitectureSpec (module validation, pure Pydantic)
+
+- `nodes`: `{id, name, type, role, inputs[], outputs[], tech_options[] (optional), needs_model (bool)}`. `id` matches `^[a-z][a-z0-9_]{1,40}$`. `name` max 60, `type` max 40 (free text), `role` max 300, each input or output max 120, max 8 each, max 5 tech_options.
+- `edges`: `{from, to, flows}`. `flows` max 200. No self-loops, no duplicate `(from, to)`.
+- `constraints`: `{id, text, kind, node_id (optional), a (optional), b (optional), covers[]}`. `covers` lists the brief constraint ids this one satisfies.
+- `entry_ids[]`, `exit_ids[]`.
+- Limits (configurable constants): more than 15 nodes or 40 edges is an error (`E_NODE_LIMIT`, `E_EDGE_LIMIT`); fewer than 3 nodes is only a warning (`W_TOO_FEW_NODES`).
+- v1 specs are acyclic (DAG). Feedback loops are described in a node's role, not drawn. Record as an ADR.
+
+### Constraint kinds (closed set, nothing else is accepted)
+
+| kind | params | passes when |
+| --- | --- | --- |
+| must_exist | node_id | the node exists |
+| must_pass_through | node_id | removing the node leaves no path from any entry to any exit |
+| must_not_connect | a, b | there is no path from a to b |
+| must_precede | a, b | with a removed, b is unreachable from every entry |
+
+A user requirement that fits no kind goes to `unverifiable_requirements`. It is never turned into a constraint that code cannot check.
+
+### Validation error codes (blocking)
+`E_SCHEMA`, `E_DUP_ID`, `E_BAD_REF`, `E_NO_ENTRY`, `E_NO_EXIT`, `E_ORPHAN`, `E_UNREACHABLE_FROM_ENTRY`, `E_CANNOT_REACH_EXIT`, `E_CYCLE`, `E_SELF_LOOP`, `E_DUP_EDGE`, `E_NODE_LIMIT`, `E_EDGE_LIMIT`, `E_UNKNOWN_CONSTRAINT_KIND`, `E_CONSTRAINT_BAD_PARAM`, `E_CONSTRAINT_VIOLATED`, `E_BRIEF_CONSTRAINT_UNCOVERED`.
+Each error carries a code, a plain message and the ids involved.
+
+### Lints (warnings, never block)
+`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`.
+Shown as "Notes".
+
+### Stored per design version
+`brief_json`, `spec_json`, `explanation_json`, `prompt_version`, model names used, `warnings`, `created_at`, `version_no`, `change_note`.
+Versions are immutable. A lead points to an exact version.
+
+### LLM error codes
+`LLM_UNAVAILABLE` (503), `LLM_RATE_LIMITED` (429), `LLM_TIMEOUT`, `LLM_BAD_OUTPUT`.
+Each maps to a friendly user message. Retry only on 503, 429 and timeout: up to 3 attempts with backoff. Schema failures are handled only by the repair loop.
+
+---
+
+## System Limits and Defaults
+
+These live only in `settings.py` as environment-overridable settings, never as numbers inside other code:
+
+| Setting | Default | Used for |
+| --- | --- | --- |
+| MAX_NODES | 15 | Largest allowed design |
+| MAX_EDGES | 40 | Largest allowed design |
+| MAX_INPUT_CHARS | 4000 | One user message in intake |
+| MAX_FOLLOWUP_ROUNDS | 3 | Intake questions before it must proceed |
+| MAX_REPAIR_ATTEMPTS | 2 | Generator repairs after the first try |
+| LLM_MAX_ATTEMPTS | 3 | Tries per LLM call on 503, 429 or timeout |
+| LLM_TIMEOUT_SECONDS | 60 | One LLM call, converted to the SDK's unit |
+| LEAD_NOTE_MAX_CHARS | 500 | Optional note on the contact form |
+| MAX_PATCH_OPS | 20 | Operations in one change proposal |
+| MAX_REFINEMENT_TURNS | 20 | User messages per design |
+| MAX_VERSIONS | 15 | Versions per design |
+
