@@ -1,0 +1,17 @@
+{
+  "nodes": [
+    {"id": "entry", "name": "Entry", "type": "type", "role": "Role", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "worker", "name": "Worker", "type": "type", "role": "Role", "inputs": ["d"], "outputs": ["out"], "needs_model": false},
+    {"id": "dead_end", "name": "Dead End Node", "type": "type", "role": "Role", "inputs": ["d"], "outputs": [], "needs_model": false},
+    {"id": "exit", "name": "Exit", "type": "type", "role": "Role", "inputs": ["out"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry", "to": "worker", "flows": "f1"},
+    {"from": "worker", "to": "exit", "flows": "f2"},
+    {"from": "entry", "to": "dead_end", "flows": "f3"}
+  ],
+  "constraints": [],
+  "entry_ids": ["entry"],
+  "exit_ids": ["exit"]
+}
+

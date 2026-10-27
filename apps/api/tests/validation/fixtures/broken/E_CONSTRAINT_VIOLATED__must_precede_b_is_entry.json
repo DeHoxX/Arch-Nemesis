@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {"id": "entry_a", "name": "Entry A", "type": "entry", "role": "Entry A", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "entry_b", "name": "Entry B", "type": "entry", "role": "Entry B", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "worker", "name": "Worker", "type": "worker", "role": "Worker", "inputs": ["d"], "outputs": ["out"], "needs_model": false},
+    {"id": "exit", "name": "Exit", "type": "exit", "role": "Exit", "inputs": ["out"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry_a", "to": "worker", "flows": "f1"},
+    {"from": "entry_b", "to": "worker", "flows": "f2"},
+    {"from": "worker", "to": "exit", "flows": "f3"}
+  ],
+  "constraints": [
+    {
+      "id": "c_precede_b_is_entry",
+      "text": "Entry A must precede Entry B",
+      "kind": "must_precede",
+      "a": "entry_a",
+      "b": "entry_b",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry_a", "entry_b"],
+  "exit_ids": ["exit"]
+}
+

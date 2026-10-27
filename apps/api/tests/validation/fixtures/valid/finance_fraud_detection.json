@@ -1,0 +1,90 @@
+{
+  "nodes": [
+    {
+      "id": "ingress",
+      "name": "API Gateway",
+      "type": "gateway",
+      "role": "Receives inbound financial transactions",
+      "inputs": ["raw_transaction"],
+      "outputs": ["parsed_tx"],
+      "tech_options": ["Kong", "Envoy"],
+      "needs_model": false
+    },
+    {
+      "id": "enricher",
+      "name": "Data Enricher",
+      "type": "processor",
+      "role": "Enriches transaction with customer account history",
+      "inputs": ["parsed_tx"],
+      "outputs": ["enriched_tx"],
+      "needs_model": false
+    },
+    {
+      "id": "detector",
+      "name": "Fraud Detection Model",
+      "type": "ai_analyzer",
+      "role": "Evaluates probability of fraudulent activity",
+      "inputs": ["enriched_tx"],
+      "outputs": ["fraud_score"],
+      "needs_model": true
+    },
+    {
+      "id": "decision_engine",
+      "name": "Decision Engine",
+      "type": "rules_service",
+      "role": "Applies regulatory and risk policies",
+      "inputs": ["fraud_score"],
+      "outputs": ["decision"],
+      "needs_model": false
+    },
+    {
+      "id": "audit_sink",
+      "name": "Audit Logger",
+      "type": "storage_sink",
+      "role": "Persists audit trail and decisions",
+      "inputs": ["decision"],
+      "outputs": ["ack"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "ingress", "to": "enricher", "flows": "parsed transaction payload"},
+    {"from": "enricher", "to": "detector", "flows": "enriched financial record"},
+    {"from": "detector", "to": "decision_engine", "flows": "scored anomaly vector"},
+    {"from": "decision_engine", "to": "audit_sink", "flows": "final regulatory verdict"}
+  ],
+  "constraints": [
+    {
+      "id": "c_exist",
+      "text": "Audit logger must exist",
+      "kind": "must_exist",
+      "node_id": "audit_sink",
+      "covers": ["bc_audit"]
+    },
+    {
+      "id": "c_pass",
+      "text": "All transactions must pass through decision engine",
+      "kind": "must_pass_through",
+      "node_id": "decision_engine",
+      "covers": ["bc_policy"]
+    },
+    {
+      "id": "c_no_conn",
+      "text": "Audit sink must not connect back to raw ingress",
+      "kind": "must_not_connect",
+      "a": "audit_sink",
+      "b": "ingress",
+      "covers": []
+    },
+    {
+      "id": "c_precede",
+      "text": "Data enricher must precede fraud detector",
+      "kind": "must_precede",
+      "a": "enricher",
+      "b": "detector",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["ingress"],
+  "exit_ids": ["audit_sink"]
+}

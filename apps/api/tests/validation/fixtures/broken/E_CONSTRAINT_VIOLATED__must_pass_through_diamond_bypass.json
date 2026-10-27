@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {"id": "entry", "name": "Entry", "type": "entry", "role": "Entry", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "branch_a", "name": "Branch A", "type": "worker", "role": "Worker A", "inputs": ["d"], "outputs": ["res1"], "needs_model": false},
+    {"id": "branch_b", "name": "Branch B", "type": "worker", "role": "Worker B", "inputs": ["d"], "outputs": ["res2"], "needs_model": false},
+    {"id": "exit", "name": "Exit", "type": "exit", "role": "Exit", "inputs": ["res1", "res2"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry", "to": "branch_a", "flows": "f1"},
+    {"from": "entry", "to": "branch_b", "flows": "f2"},
+    {"from": "branch_a", "to": "exit", "flows": "f3"},
+    {"from": "branch_b", "to": "exit", "flows": "f4"}
+  ],
+  "constraints": [
+    {
+      "id": "c_fail_pass",
+      "text": "Must pass through branch A",
+      "kind": "must_pass_through",
+      "node_id": "branch_a",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry"],
+  "exit_ids": ["exit"]
+}
+

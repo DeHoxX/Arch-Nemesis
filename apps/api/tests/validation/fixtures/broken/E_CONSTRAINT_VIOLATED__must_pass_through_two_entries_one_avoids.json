@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {"id": "entry_1", "name": "Entry One", "type": "entry", "role": "First entry point", "inputs": [], "outputs": ["out1"], "needs_model": false},
+    {"id": "entry_2", "name": "Entry Two", "type": "entry", "role": "Second entry point", "inputs": [], "outputs": ["out2"], "needs_model": false},
+    {"id": "mandatory_node", "name": "Mandatory Node", "type": "processor", "role": "Must pass through", "inputs": ["out1"], "outputs": ["processed"], "needs_model": false},
+    {"id": "exit_node", "name": "Exit Node", "type": "exit", "role": "Terminal exit", "inputs": ["processed", "out2"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry_1", "to": "mandatory_node", "flows": "f1"},
+    {"from": "mandatory_node", "to": "exit_node", "flows": "f2"},
+    {"from": "entry_2", "to": "exit_node", "flows": "f3_bypass"}
+  ],
+  "constraints": [
+    {
+      "id": "c_must_pass",
+      "text": "All entries must pass through Mandatory Node",
+      "kind": "must_pass_through",
+      "node_id": "mandatory_node",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry_1", "entry_2"],
+  "exit_ids": ["exit_node"]
+}
+

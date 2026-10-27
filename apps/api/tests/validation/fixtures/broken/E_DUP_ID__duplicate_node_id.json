@@ -1,0 +1,11 @@
+{
+  "nodes": [
+    {"id": "node_a", "name": "Node 1", "type": "type", "role": "Role", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "node_a", "name": "Node 2", "type": "type", "role": "Role", "inputs": ["d"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [],
+  "constraints": [],
+  "entry_ids": ["node_a"],
+  "exit_ids": ["node_a"]
+}
+

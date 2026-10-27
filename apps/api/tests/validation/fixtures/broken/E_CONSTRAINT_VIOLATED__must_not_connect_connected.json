@@ -1,0 +1,24 @@
+{
+  "nodes": [
+    {"id": "node_a", "name": "Node A", "type": "type", "role": "Role", "inputs": [], "outputs": ["f"], "needs_model": false},
+    {"id": "node_b", "name": "Node B", "type": "type", "role": "Role", "inputs": ["f"], "outputs": ["f"], "needs_model": false},
+    {"id": "node_c", "name": "Node C", "type": "type", "role": "Role", "inputs": ["f"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "node_a", "to": "node_b", "flows": "f1"},
+    {"from": "node_b", "to": "node_c", "flows": "f2"}
+  ],
+  "constraints": [
+    {
+      "id": "c_fail_connect",
+      "text": "Node A must not connect to Node C",
+      "kind": "must_not_connect",
+      "a": "node_a",
+      "b": "node_c",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["node_a"],
+  "exit_ids": ["node_c"]
+}
+

@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {"id": "entry_1", "name": "Entry 1", "type": "entry", "role": "First entry", "inputs": [], "outputs": ["d1"], "needs_model": false},
+    {"id": "entry_2", "name": "Entry 2", "type": "entry", "role": "Second entry", "inputs": [], "outputs": ["d2"], "needs_model": false},
+    {"id": "bottleneck", "name": "Central Gateway", "type": "gateway", "role": "Mandatory transit", "inputs": ["d1", "d2"], "outputs": ["merged"], "needs_model": false},
+    {"id": "exit", "name": "Exit Node", "type": "exit", "role": "Exit", "inputs": ["merged"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry_1", "to": "bottleneck", "flows": "stream 1"},
+    {"from": "entry_2", "to": "bottleneck", "flows": "stream 2"},
+    {"from": "bottleneck", "to": "exit", "flows": "merged stream"}
+  ],
+  "constraints": [
+    {
+      "id": "c_both",
+      "text": "All entries must pass through central gateway",
+      "kind": "must_pass_through",
+      "node_id": "bottleneck",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry_1", "entry_2"],
+  "exit_ids": ["exit"]
+}
+

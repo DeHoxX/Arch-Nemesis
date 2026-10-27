@@ -1,0 +1,74 @@
+{
+  "nodes": [
+    {
+      "id": "chat_ui",
+      "name": "Customer Chat UI",
+      "type": "client_interface",
+      "role": "Customer interface for submitting queries",
+      "inputs": ["user_message"],
+      "outputs": ["raw_query"],
+      "needs_model": false
+    },
+    {
+      "id": "router",
+      "name": "Intent Classifier",
+      "type": "classifier",
+      "role": "Classifies intent into billing, tech, or general",
+      "inputs": ["raw_query"],
+      "outputs": ["intent", "clean_query"],
+      "needs_model": true
+    },
+    {
+      "id": "kb_retriever",
+      "name": "Knowledge Base Retriever",
+      "type": "search_service",
+      "role": "Fetches verified solution documents",
+      "inputs": ["clean_query"],
+      "outputs": ["kb_articles"],
+      "needs_model": false
+    },
+    {
+      "id": "response_generator",
+      "name": "Support Answer Generator",
+      "type": "llm_agent",
+      "role": "Generates natural language response citing knowledge base",
+      "inputs": ["clean_query", "kb_articles", "intent"],
+      "outputs": ["support_response"],
+      "needs_model": true
+    },
+    {
+      "id": "responder",
+      "name": "Message Dispatcher",
+      "type": "gateway",
+      "role": "Delivers formatted answer back to customer",
+      "inputs": ["support_response"],
+      "outputs": ["delivered_message"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "chat_ui", "to": "router", "flows": "inbound user inquiry"},
+    {"from": "router", "to": "kb_retriever", "flows": "classified search query and intent"},
+    {"from": "kb_retriever", "to": "response_generator", "flows": "relevant knowledge articles and intent"},
+    {"from": "response_generator", "to": "responder", "flows": "synthesized response"}
+  ],
+  "constraints": [
+    {
+      "id": "c_pass_router",
+      "text": "Every query must pass through Intent Classifier",
+      "kind": "must_pass_through",
+      "node_id": "router",
+      "covers": ["bc_intent"]
+    },
+    {
+      "id": "c_precede_kb",
+      "text": "Knowledge retrieval must precede answer generation",
+      "kind": "must_precede",
+      "a": "kb_retriever",
+      "b": "response_generator",
+      "covers": ["bc_grounding"]
+    }
+  ],
+  "entry_ids": ["chat_ui"],
+  "exit_ids": ["responder"]
+}

@@ -1,0 +1,64 @@
+{
+  "nodes": [
+    {
+      "id": "sensor_ingest",
+      "name": "MQTT Telemetry Ingress",
+      "type": "broker",
+      "role": "Ingests high-frequency sensor readings",
+      "inputs": ["mqtt_packet"],
+      "outputs": ["sensor_event"],
+      "needs_model": false
+    },
+    {
+      "id": "stream_filter",
+      "name": "Stream Window Filter",
+      "type": "stream_processor",
+      "role": "Computes rolling 5-minute aggregations",
+      "inputs": ["sensor_event"],
+      "outputs": ["windowed_metrics"],
+      "needs_model": false
+    },
+    {
+      "id": "anomaly_detector",
+      "name": "Edge Anomaly Detector",
+      "type": "ai_inference",
+      "role": "Detects thermal runaway or vibration spikes",
+      "inputs": ["windowed_metrics"],
+      "outputs": ["anomaly_flag"],
+      "needs_model": true
+    },
+    {
+      "id": "alert_dispatcher",
+      "name": "Emergency Alert Dispatcher",
+      "type": "notifier",
+      "role": "Triggers paging alerts and automatic circuit shutdown",
+      "inputs": ["anomaly_flag"],
+      "outputs": ["pager_alert"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "sensor_ingest", "to": "stream_filter", "flows": "raw telemetry frames"},
+    {"from": "stream_filter", "to": "anomaly_detector", "flows": "aggregated metric stream"},
+    {"from": "anomaly_detector", "to": "alert_dispatcher", "flows": "high priority anomaly alert"}
+  ],
+  "constraints": [
+    {
+      "id": "c_exist_alert",
+      "text": "Emergency Alert Dispatcher must exist",
+      "kind": "must_exist",
+      "node_id": "alert_dispatcher",
+      "covers": ["bc_alerting"]
+    },
+    {
+      "id": "c_no_conn_back",
+      "text": "Alert dispatcher must not connect back to sensor ingest",
+      "kind": "must_not_connect",
+      "a": "alert_dispatcher",
+      "b": "sensor_ingest",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["sensor_ingest"],
+  "exit_ids": ["alert_dispatcher"]
+}

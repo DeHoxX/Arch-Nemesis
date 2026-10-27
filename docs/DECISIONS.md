@@ -464,6 +464,118 @@ If we removed it: Developers running `scripts/llm_smoke.py` to manually verify G
 Decided by: user reported
 Status: active
 
+### D-050 — Phase 2 — dependency
+What: Add `networkx` to production dependencies in `apps/api`.
+Why: NetworkX provides robust, battle-tested directed graph algorithms for DAG validation, cycle detection, reachability analysis, and shortest-path witness generation without hand-rolling graph traversal algorithms.
+Alternatives considered: Writing custom DFS/BFS algorithms. Rejected because custom graph traversal is prone to edge-case bugs and performance pitfalls compared to a well-tested graph library.
+If we removed it: Graph structure and path-based constraint validation would require complex custom graph algorithms.
+Decided by: plan
+Status: active
+
+### D-051 — Phase 2 — dependency
+What: Add `hypothesis` to development dependencies in `apps/api`.
+Why: Hypothesis enables property-based testing across thousands of generated DAG structures, verifying that graph validation invariants hold across random topologies and adversarial inputs.
+Alternatives considered: Hand-written unit test fixtures only. Rejected because property-based testing discovers subtle graph topology edge cases that hand-written fixtures miss.
+If we removed it: Validation edge-case testing would be limited to manually constructed fixtures.
+Decided by: plan
+Status: active
+
+### D-052 — Phase 2 — dependency
+What: Add `types-networkx` to development dependencies in `apps/api`.
+Why: `networkx` does not bundle inline PEP 561 type stubs, triggering `import-untyped` errors under mypy strict mode. Installing `types-networkx` preserves strict type checking across all graph operations.
+Alternatives considered: Setting `ignore_missing_imports = true` for `networkx.*`. Rejected because it disables type verification across our primary graph algorithms.
+If we removed it: Mypy strict mode fails on every `networkx` import or requires untyped escape hatches.
+Decided by: user approved
+Status: active
+
+### D-053 — Phase 2 — design
+What: Establish a closed set of four verifiable constraint kinds (`must_exist`, `must_pass_through`, `must_not_connect`, `must_precede`).
+Why: Code can only verify assertions that have clear, deterministic graph-theoretic semantics. User requirements that cannot be formulated into these four kinds are classified as unverifiable rather than faking code verification.
+Alternatives considered: Open-ended constraint evaluation or arbitrary Python expressions. Rejected to prevent untrusted code execution and maintain deterministic verification.
+If we removed it: Validation would either allow unprovable constraints or crash on unrecognized semantic rules.
+Decided by: plan
+Status: active
+
+### D-054 — Phase 2 — design
+What: Implement an 8-stage validation pipeline with explicit skip rules.
+Why: Structural checks depend on clean schemas and valid node IDs. Skipping graph traversal when duplicate IDs or bad references exist prevents confusing cascade errors and unhandled exceptions.
+Alternatives considered: Running all checks simultaneously regardless of prior failures. Rejected because invalid node references crash graph traversal or produce misleading secondary errors.
+If we removed it: Malformed specifications would crash in graph algorithms with tracebacks instead of returning structured issue lists.
+Decided by: plan
+Status: active
+
+### D-055 — Phase 2 — design
+What: Configure `extra='ignore'` on validation Pydantic models.
+Why: LLM outputs may include hallucinated metadata fields. Ignoring extraneous fields prevents schema failure while strictly validating all required structural properties.
+Alternatives considered: `extra='forbid'`. Rejected because minor harmless LLM hallucinated keys would fail otherwise structurally sound architectures.
+If we removed it: Slight variations in LLM JSON generation would cause frequent schema validation failures.
+Decided by: plan
+Status: active
+
+### D-056 — Phase 2 — design
+What: Define `ConstraintSpec.kind` as a plain `str` rather than an enum.
+Why: Storing `kind` as a plain string allows unrecognized constraint kinds to pass Pydantic parsing and trigger a structured `E_UNKNOWN_CONSTRAINT_KIND` issue with targeted guidance, rather than a generic schema error.
+Alternatives considered: Using a Python `Enum`. Rejected because invalid enum values raise generic Pydantic `ValidationError` before business checks can inspect them.
+If we removed it: Unrecognized constraint kinds would produce noisy `E_SCHEMA` errors that lack specific recovery instructions for the repair loop.
+Decided by: plan
+Status: active
+
+### D-057 — Phase 2 — design
+What: Enforce deterministic sorting of nodes and edges by ID in graph building and Kahn's algorithm.
+Why: NetworkX and dictionary ordering must produce identical witness paths and topological sorts across different Python runs and operating systems.
+Alternatives considered: Inserting nodes and edges in raw input order. Rejected because dict iteration order or input shuffling would produce non-deterministic witness paths and orderings.
+If we removed it: Identical specs could produce fluctuating topological orders or differing witness explanations across runs.
+Decided by: plan
+Status: active
+
+### D-058 — Phase 2 — design
+What: Enforce fixed verbatim validation error and lint message templates.
+Why: Validation error messages feed directly into LLM repair prompts and user-facing notifications. Verbatim consistency ensures the LLM repair prompt is tested against exact error patterns.
+Alternatives considered: Dynamic or parameterized prose generation. Rejected because varying wording breaks automated prompt repair regexes and unit assertions.
+If we removed it: Inconsistent error messaging would degrade LLM generator repair accuracy.
+Decided by: plan
+Status: active
+
+### D-059 — Phase 2 — file
+What: Configure import-linter contract isolating `archnemesis.modules.validation`.
+Why: The validation module must remain mathematically pure, importing only Pydantic, NetworkX, and the standard library, completely insulated from database, HTTP, settings, and LLM dependencies.
+Alternatives considered: Relying solely on developer discipline. Rejected because architectural boundaries require automated CI verification to prevent accidental coupling.
+If we removed it: Developers could inadvertently import database engines or settings into pure validation logic.
+Decided by: plan
+Status: active
+
+### D-060 — Phase 2 — file
+What: Create validation module package and submodules in `apps/api/src/archnemesis/modules/validation/`.
+Why: Modularizes validation into single-responsibility units: `models.py` (schemas), `graph.py` (graph builder), `checks.py` (structural rules), `constraints.py` (semantic constraints), `lints.py` (style warnings), `ordering.py` (topological sort), and `validate.py` (pipeline coordinator).
+Alternatives considered: A single monolithic `validate.py` file. Rejected because separating models, graph traversals, and checks simplifies unit testing and maintainability.
+If we removed it: All validation logic would be tangled in one large file, making testing and reasoning difficult.
+Decided by: plan
+Status: active
+
+### D-061 — Phase 2 — file
+What: Create validation test suite and fixtures in `apps/api/tests/validation/`.
+Why: Houses comprehensive domain fixtures (8 valid industry specs across diverse domains and 20+ broken test cases), bounded property-based hypothesis tests, and verbatim message assertion tests.
+Alternatives considered: Ad-hoc inline test dicts. Rejected because real JSON fixtures mirror live API payloads and can be reused by frontend tests and evals.
+If we removed it: Edge cases across constraint kinds and malformed graph topologies would lack reproducible verification.
+Decided by: plan
+Status: active
+
+### D-062 — Phase 2 — design
+What: Configure Pydantic alias for `EdgeSpec.from_node` with `populate_by_name=True` and serialization by alias.
+Why: Python reserves `from` as a keyword. Aliasing the field allows Python code to use `edge.from_node` while seamlessly serializing and deserializing JSON payloads using the standard contract key `"from"`.
+Alternatives considered: Using `from_` with manual dict manipulation. Rejected because Pydantic's native `Field(alias="from")` with `model_dump(by_alias=True)` handles round-tripping declaratively.
+If we removed it: Edge JSON parsing would fail or require manual key translation layers.
+Decided by: plan
+Status: active
+
+### D-063 — Phase 2 — file
+What: Separate diagnostic lint test fixtures into dedicated directory `apps/api/tests/validation/fixtures/lints/`.
+Why: Lints (`W_*`) are non-blocking warnings where `result.ok` remains True and `result.errors` is empty. Moving lint fixtures out of `fixtures/broken/` avoids semantic ambiguity and allows dedicated parametrization asserting that warnings are captured without failing validation.
+Alternatives considered: Keeping lint fixtures inside `fixtures/broken/` with conditional checking for code prefix `W_`. Rejected because files in `broken/` should strictly represent invalid specifications that fail with `result.ok == False`.
+If we removed it: Lint fixtures mixed into `broken/` would blur the contract boundary between blocking errors and advisory notes.
+Decided by: user requested
+Status: active
+
 ## Phase 1 Summary
 
 Phase 1 established the end-to-end technical foundation for Arch-Nemesis:

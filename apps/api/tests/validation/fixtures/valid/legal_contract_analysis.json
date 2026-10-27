@@ -1,0 +1,75 @@
+{
+  "nodes": [
+    {
+      "id": "doc_upload",
+      "name": "Contract Ingestion Portal",
+      "type": "uploader",
+      "role": "Receives signed PDF contracts",
+      "inputs": ["pdf_stream"],
+      "outputs": ["raw_contract"],
+      "needs_model": false
+    },
+    {
+      "id": "ocr_parser",
+      "name": "OCR Document Parser",
+      "type": "ocr_worker",
+      "role": "Extracts text blocks and page layout hierarchy",
+      "inputs": ["raw_contract"],
+      "outputs": ["extracted_sections"],
+      "needs_model": false
+    },
+    {
+      "id": "clause_extractor",
+      "name": "Clause Extraction Model",
+      "type": "ai_extractor",
+      "role": "Identifies liabilities, indemnities, and termination clauses",
+      "inputs": ["extracted_sections"],
+      "outputs": ["clause_map"],
+      "needs_model": true
+    },
+    {
+      "id": "risk_scorer",
+      "name": "Legal Risk Scorer",
+      "type": "risk_analyzer",
+      "role": "Computes composite compliance risk score",
+      "inputs": ["clause_map"],
+      "outputs": ["risk_report"],
+      "needs_model": false
+    },
+    {
+      "id": "legal_dashboard",
+      "name": "Counsel Review Dashboard",
+      "type": "dashboard",
+      "role": "Displays highlighted clauses and flags high-risk contracts",
+      "inputs": ["risk_report"],
+      "outputs": ["acknowledged_verdict"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "doc_upload", "to": "ocr_parser", "flows": "binary PDF upload"},
+    {"from": "ocr_parser", "to": "clause_extractor", "flows": "structured legal text"},
+    {"from": "clause_extractor", "to": "risk_scorer", "flows": "extracted clause metadata"},
+    {"from": "risk_scorer", "to": "legal_dashboard", "flows": "final risk summary report"}
+  ],
+  "constraints": [
+    {
+      "id": "c_precede_ocr",
+      "text": "OCR must precede clause extraction",
+      "kind": "must_precede",
+      "a": "ocr_parser",
+      "b": "clause_extractor",
+      "covers": ["bc_ocr"]
+    },
+    {
+      "id": "c_no_conn_back",
+      "text": "Legal dashboard must not connect back to document upload",
+      "kind": "must_not_connect",
+      "a": "legal_dashboard",
+      "b": "doc_upload",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["doc_upload"],
+  "exit_ids": ["legal_dashboard"]
+}

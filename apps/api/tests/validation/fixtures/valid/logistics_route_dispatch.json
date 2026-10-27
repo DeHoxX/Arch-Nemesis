@@ -1,0 +1,64 @@
+{
+  "nodes": [
+    {
+      "id": "order_feed",
+      "name": "Warehouse Order Queue",
+      "type": "queue",
+      "role": "Consumes verified purchase orders ready for shipping",
+      "inputs": ["order_event"],
+      "outputs": ["unrouted_order"],
+      "needs_model": false
+    },
+    {
+      "id": "inventory_checker",
+      "name": "Inventory Allocator",
+      "type": "database_lookup",
+      "role": "Checks regional distribution hub stock levels",
+      "inputs": ["unrouted_order"],
+      "outputs": ["allocated_order"],
+      "needs_model": false
+    },
+    {
+      "id": "route_optimizer",
+      "name": "Carrier Route Optimizer",
+      "type": "optimizer",
+      "role": "Computes lowest-cost delivery window and optimal carrier",
+      "inputs": ["allocated_order"],
+      "outputs": ["manifest_order"],
+      "needs_model": false
+    },
+    {
+      "id": "dispatch_notifier",
+      "name": "Carrier Dispatch Gateway",
+      "type": "api_client",
+      "role": "Dispatches electronic manifest to carrier API",
+      "inputs": ["manifest_order"],
+      "outputs": ["tracking_number"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "order_feed", "to": "inventory_checker", "flows": "incoming order details"},
+    {"from": "inventory_checker", "to": "route_optimizer", "flows": "fulfilled inventory reservation"},
+    {"from": "route_optimizer", "to": "dispatch_notifier", "flows": "optimized carrier assignment"}
+  ],
+  "constraints": [
+    {
+      "id": "c_exist_inv",
+      "text": "Inventory Allocator must exist",
+      "kind": "must_exist",
+      "node_id": "inventory_checker",
+      "covers": ["bc_inventory"]
+    },
+    {
+      "id": "c_pass_optimizer",
+      "text": "All dispatches must pass through Carrier Route Optimizer",
+      "kind": "must_pass_through",
+      "node_id": "route_optimizer",
+      "covers": ["bc_cost"]
+    }
+  ],
+  "entry_ids": ["order_feed"],
+  "exit_ids": ["dispatch_notifier"]
+}
+

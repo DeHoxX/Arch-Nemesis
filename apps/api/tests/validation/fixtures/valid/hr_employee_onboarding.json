@@ -1,0 +1,65 @@
+{
+  "nodes": [
+    {
+      "id": "hire_form",
+      "name": "Candidate Offer Acceptance",
+      "type": "hr_portal",
+      "role": "Captures candidate signed offer and personal records",
+      "inputs": ["signed_offer"],
+      "outputs": ["new_hire_profile"],
+      "needs_model": false
+    },
+    {
+      "id": "doc_verifier",
+      "name": "Identity & Background Verifier",
+      "type": "verification_service",
+      "role": "Verifies identity documents and background check clear status",
+      "inputs": ["new_hire_profile"],
+      "outputs": ["verified_identity"],
+      "needs_model": false
+    },
+    {
+      "id": "welcome_bot",
+      "name": "Onboarding Guide Assistant",
+      "type": "ai_assistant",
+      "role": "Prepares personalized first-week onboarding schedule",
+      "inputs": ["verified_identity"],
+      "outputs": ["onboarding_plan"],
+      "needs_model": true
+    },
+    {
+      "id": "it_provisioner",
+      "name": "IT Account Provisioner",
+      "type": "directory_service",
+      "role": "Provisions enterprise email, laptop, and security badge access",
+      "inputs": ["onboarding_plan"],
+      "outputs": ["credentials_pack"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "hire_form", "to": "doc_verifier", "flows": "candidate submitted documents"},
+    {"from": "doc_verifier", "to": "welcome_bot", "flows": "verified legal employee record"},
+    {"from": "welcome_bot", "to": "it_provisioner", "flows": "provisioning checklist"}
+  ],
+  "constraints": [
+    {
+      "id": "c_pass_verifier",
+      "text": "Every employee must pass through Identity Verifier",
+      "kind": "must_pass_through",
+      "node_id": "doc_verifier",
+      "covers": ["bc_security"]
+    },
+    {
+      "id": "c_precede_id",
+      "text": "Doc verifier must precede IT account provisioner",
+      "kind": "must_precede",
+      "a": "doc_verifier",
+      "b": "it_provisioner",
+      "covers": ["bc_compliance"]
+    }
+  ],
+  "entry_ids": ["hire_form"],
+  "exit_ids": ["it_provisioner"]
+}
+

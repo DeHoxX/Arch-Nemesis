@@ -1,0 +1,13 @@
+{
+  "nodes": [
+    {"id": "1invalid_id", "name": "Node 1", "type": "type", "role": "Role", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "node_b", "name": "Node 2", "type": "type", "role": "Role", "inputs": ["d"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "1invalid_id", "to": "node_b", "flows": "f"}
+  ],
+  "constraints": [],
+  "entry_ids": ["1invalid_id"],
+  "exit_ids": ["node_b"]
+}
+

@@ -1,0 +1,25 @@
+{
+  "nodes": [
+    {"id": "entry_1", "name": "Entry 1", "type": "entry", "role": "Entry 1", "inputs": [], "outputs": ["d1"], "needs_model": false},
+    {"id": "entry_2", "name": "Entry 2", "type": "entry", "role": "Entry 2", "inputs": [], "outputs": ["d2"], "needs_model": false},
+    {"id": "worker", "name": "Worker", "type": "worker", "role": "Processes", "inputs": ["d1", "d2"], "outputs": ["res"], "needs_model": false},
+    {"id": "exit", "name": "Exit", "type": "exit", "role": "Exit", "inputs": ["res"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry_1", "to": "worker", "flows": "f1"},
+    {"from": "entry_2", "to": "worker", "flows": "f2"},
+    {"from": "worker", "to": "exit", "flows": "f3"}
+  ],
+  "constraints": [
+    {
+      "id": "c_fail_entry_pass",
+      "text": "All flows must pass through entry 1",
+      "kind": "must_pass_through",
+      "node_id": "entry_1",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry_1", "entry_2"],
+  "exit_ids": ["exit"]
+}
+

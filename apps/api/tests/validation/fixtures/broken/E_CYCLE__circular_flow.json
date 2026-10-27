@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {"id": "node_a", "name": "Node A", "type": "type", "role": "Role", "inputs": ["f3"], "outputs": ["f1"], "needs_model": false},
+    {"id": "node_b", "name": "Node B", "type": "type", "role": "Role", "inputs": ["f1"], "outputs": ["f2"], "needs_model": false},
+    {"id": "node_c", "name": "Node C", "type": "type", "role": "Role", "inputs": ["f2"], "outputs": ["f3"], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "node_a", "to": "node_b", "flows": "f1"},
+    {"from": "node_b", "to": "node_c", "flows": "f2"},
+    {"from": "node_c", "to": "node_a", "flows": "f3"}
+  ],
+  "constraints": [],
+  "entry_ids": ["node_a"],
+  "exit_ids": ["node_c"]
+}
+

@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {"id": "entry_only", "name": "Sole Entry", "type": "entry", "role": "Entry", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "worker", "name": "Worker", "type": "worker", "role": "Processes", "inputs": ["d"], "outputs": ["res"], "needs_model": false},
+    {"id": "exit", "name": "Exit", "type": "exit", "role": "Exit", "inputs": ["res"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry_only", "to": "worker", "flows": "f1"},
+    {"from": "worker", "to": "exit", "flows": "f2"}
+  ],
+  "constraints": [
+    {
+      "id": "c_entry_pass",
+      "text": "Sole entry must pass through itself",
+      "kind": "must_pass_through",
+      "node_id": "entry_only",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry_only"],
+  "exit_ids": ["exit"]
+}
+

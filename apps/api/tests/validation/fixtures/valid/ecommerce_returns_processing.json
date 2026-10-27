@@ -1,0 +1,65 @@
+{
+  "nodes": [
+    {
+      "id": "return_request",
+      "name": "Customer Return Portal",
+      "type": "portal",
+      "role": "Customer initiates item return with reason and photo",
+      "inputs": ["order_id", "photo_url", "reason_code"],
+      "outputs": ["return_ticket"],
+      "needs_model": false
+    },
+    {
+      "id": "image_evaluator",
+      "name": "Damage Assessment Vision Model",
+      "type": "vision_ai",
+      "role": "Analyzes item condition from uploaded photos",
+      "inputs": ["return_ticket"],
+      "outputs": ["condition_assessment"],
+      "needs_model": true
+    },
+    {
+      "id": "policy_checker",
+      "name": "Return Policy Validator",
+      "type": "rules_service",
+      "role": "Validates return window and warranty eligibility",
+      "inputs": ["condition_assessment"],
+      "outputs": ["return_decision"],
+      "needs_model": false
+    },
+    {
+      "id": "refund_issuer",
+      "name": "Refund & RMA Generator",
+      "type": "payment_service",
+      "role": "Generates return shipping label and triggers merchant refund",
+      "inputs": ["return_decision"],
+      "outputs": ["rma_label", "refund_receipt"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {"from": "return_request", "to": "image_evaluator", "flows": "customer return submission"},
+    {"from": "image_evaluator", "to": "policy_checker", "flows": "item visual damage assessment"},
+    {"from": "policy_checker", "to": "refund_issuer", "flows": "policy approved return authorization"}
+  ],
+  "constraints": [
+    {
+      "id": "c_precede_eval",
+      "text": "Image evaluation must precede policy checker",
+      "kind": "must_precede",
+      "a": "image_evaluator",
+      "b": "policy_checker",
+      "covers": ["bc_visual_proof"]
+    },
+    {
+      "id": "c_not_conn_back",
+      "text": "Refund issuer must not connect back to return portal",
+      "kind": "must_not_connect",
+      "a": "refund_issuer",
+      "b": "return_request",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["return_request"],
+  "exit_ids": ["refund_issuer"]
+}

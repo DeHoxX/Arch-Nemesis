@@ -1,0 +1,30 @@
+{
+  "nodes": [
+    {"id": "entry", "name": "Entry", "type": "entry", "role": "Entry", "inputs": [], "outputs": ["d"], "needs_model": false},
+    {"id": "split", "name": "Splitter", "type": "router", "role": "Routes", "inputs": ["d"], "outputs": ["d1", "d2"], "needs_model": false},
+    {"id": "branch_a", "name": "Branch A", "type": "worker", "role": "Worker A", "inputs": ["d1"], "outputs": ["res1"], "needs_model": false},
+    {"id": "branch_b", "name": "Branch B", "type": "worker", "role": "Worker B", "inputs": ["d2"], "outputs": ["res2"], "needs_model": false},
+    {"id": "join", "name": "Joiner", "type": "aggregator", "role": "Joins", "inputs": ["res1", "res2"], "outputs": ["out"], "needs_model": false},
+    {"id": "exit", "name": "Exit", "type": "exit", "role": "Exit", "inputs": ["out"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "entry", "to": "split", "flows": "f1"},
+    {"from": "split", "to": "branch_a", "flows": "f2"},
+    {"from": "split", "to": "branch_b", "flows": "f3"},
+    {"from": "branch_a", "to": "join", "flows": "f4"},
+    {"from": "branch_b", "to": "join", "flows": "f5"},
+    {"from": "join", "to": "exit", "flows": "f6"}
+  ],
+  "constraints": [
+    {
+      "id": "c1",
+      "text": "All flows must pass through join",
+      "kind": "must_pass_through",
+      "node_id": "join",
+      "covers": []
+    }
+  ],
+  "entry_ids": ["entry"],
+  "exit_ids": ["exit"]
+}
+

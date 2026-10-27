@@ -1,0 +1,16 @@
+{
+  "nodes": [
+    {"id": "node_ai", "name": "AI Node", "type": "ai", "role": "AI Role", "inputs": [], "outputs": ["out"], "needs_model": true},
+    {"id": "node_exit", "name": "Exit Node", "type": "exit", "role": "Exit Role", "inputs": ["out"], "outputs": [], "needs_model": false},
+    {"id": "node_c", "name": "Node C", "type": "worker", "role": "Role C", "inputs": ["out"], "outputs": ["out2"], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "node_ai", "to": "node_exit", "flows": "f1"},
+    {"from": "node_ai", "to": "node_c", "flows": "f2"},
+    {"from": "node_c", "to": "node_exit", "flows": "f3"}
+  ],
+  "constraints": [],
+  "entry_ids": ["node_ai"],
+  "exit_ids": ["node_exit"]
+}
+

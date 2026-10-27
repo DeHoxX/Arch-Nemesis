@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {"id": "node_a", "name": "Duplicate Name", "type": "type", "role": "Role A", "inputs": [], "outputs": ["out"], "needs_model": false},
+    {"id": "node_b", "name": "duplicate name", "type": "type", "role": "Role B", "inputs": ["out"], "outputs": ["out2"], "needs_model": false},
+    {"id": "node_exit", "name": "Exit", "type": "exit", "role": "Exit", "inputs": ["out2"], "outputs": [], "needs_model": false}
+  ],
+  "edges": [
+    {"from": "node_a", "to": "node_b", "flows": "f1"},
+    {"from": "node_b", "to": "node_exit", "flows": "f2"}
+  ],
+  "constraints": [],
+  "entry_ids": ["node_a"],
+  "exit_ids": ["node_exit"]
+}
+
