@@ -1,0 +1,61 @@
+[project]
+name = "archnemesis"
+version = "0.1.0"
+description = "Arch-Nemesis pre-sales architecture generation and validation tool"
+requires-python = ">=3.12"
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "alembic>=1.20.1",
+    "fastapi>=0.162.0",
+    "google-genai>=2.33.0",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.1",
+    "sqlalchemy[asyncio]>=2.1.6",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "import-linter>=2.15",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.1",
+    "respx>=0.23.1",
+    "ruff>=0.17.3",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.importlinter]
+root_packages = ["archnemesis"]
+
+[[tool.importlinter.contracts]]
+name = "LLM layer imports no application modules"
+type = "forbidden"
+source_modules = ["archnemesis.llm"]
+forbidden_modules = [
+    "archnemesis.settings",
+    "archnemesis.logging",
+    "archnemesis.errors",
+    "archnemesis.db",
+    "archnemesis.health",
+    "archnemesis.main",
+]

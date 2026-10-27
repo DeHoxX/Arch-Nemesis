@@ -207,3 +207,259 @@ Alternatives considered: Allowing the agent to set up a GitHub remote and automa
 If we removed it: The agent might attempt to push code or create remotes automatically, bypassing user review and violating personal repository control.
 Decided by: user approved
 Status: active
+
+### D-018 — Phase 1 — dependency
+What: Install `fastapi` and `uvicorn[standard]` for the backend HTTP server.
+Why: FastAPI provides asynchronous routing and automatic request validation using Python type hints. Uvicorn is the high-performance ASGI server that runs the FastAPI application.
+Alternatives considered: Flask or Django. Rejected because Flask lacks native async support and Django is overly heavy for a lightweight API.
+If we removed it: We would have no web server to handle HTTP requests or route endpoints from the frontend.
+Decided by: plan
+Status: active
+
+### D-019 — Phase 1 — dependency
+What: Install `pydantic` and `pydantic-settings` for data models and configuration.
+Why: Pydantic enforces strict type checking and data validation at runtime. Pydantic-settings automatically loads and parses environment variables from `.env` files into strongly-typed settings objects.
+Alternatives considered: Python dataclasses and python-dotenv. Rejected because dataclasses do not validate runtime types and dotenv requires manual parsing for complex types.
+If we removed it: Invalid user inputs or broken environment variables would enter the system undetected, causing runtime crashes.
+Decided by: plan
+Status: active
+
+### D-020 — Phase 1 — dependency
+What: Install `sqlalchemy[asyncio]` and `aiosqlite` for database persistence.
+Why: SQLAlchemy provides a structured object-relational mapping and connection pooling layer. The `aiosqlite` driver enables asynchronous, non-blocking database queries to our local SQLite database.
+Alternatives considered: Synchronous SQLite via the built-in `sqlite3` module. Rejected because synchronous disk I/O blocks the FastAPI async event loop during database operations.
+If we removed it: Every database read or write would stall the entire server, degrading response times under concurrency.
+Decided by: plan
+Status: active
+
+### D-021 — Phase 1 — dependency
+What: Install `alembic` for database schema migrations.
+Why: Alembic tracks and applies changes to the database structure over time in versioned script files. It ensures database tables can be consistently created and upgraded across machines.
+Alternatives considered: Running raw SQL `CREATE TABLE` scripts at application startup. Rejected because startup scripts cannot safely track schema modifications or perform rollbacks.
+If we removed it: Updating database tables in later phases would risk corrupting existing databases or requiring manual file deletion.
+Decided by: plan
+Status: active
+
+### D-022 — Phase 1 — dependency
+What: Install `structlog` for structured logging and sensitive data redaction.
+Why: Structlog outputs structured JSON log entries with consistent contextual fields like request IDs. It allows registering a custom processor that automatically censors sensitive keys (such as email, tokens, and prompts) before anything is printed.
+Alternatives considered: Python standard library `logging`. Rejected because standard logging requires cumbersome boilerplate to format JSON and recursively redact nested dictionary values.
+If we removed it: Sensitive user text or credentials could accidentally leak into server logs, violating our strict privacy rules.
+Decided by: plan
+Status: active
+
+### D-023 — Phase 1 — dependency
+What: Install `google-genai` for communicating with Google Gemini AI models.
+Why: `google-genai` is the official Google SDK supporting the latest Gemini API features, including structured JSON schema outputs. It provides the native client used behind our provider-neutral `LLMClient` protocol.
+Alternatives considered: Sending raw HTTP requests with `httpx` or using legacy `google-generativeai`. Rejected because raw requests require manual authentication and message formatting, while legacy libraries do not support modern schema features.
+If we removed it: The backend would be unable to connect to Gemini to generate architectures or explanations.
+Decided by: plan
+Status: active
+
+### D-024 — Phase 1 — dependency
+What: Install backend development tools `pytest`, `pytest-asyncio`, `httpx`, `respx`, `ruff`, `mypy`, and `import-linter`.
+Why: Pytest and pytest-asyncio run automated tests; httpx and respx allow fast in-memory HTTP testing without real network calls; ruff formats and lints code rapidly; mypy enforces strict type safety; and import-linter enforces architectural layer isolation.
+Alternatives considered: Flake8, black, and unittest. Rejected because ruff is vastly faster and replaces multiple linters, while pytest provides superior async fixtures.
+If we removed it: We would have no automated way to verify code correctness, type integrity, or architectural boundaries.
+Decided by: plan
+Status: active
+
+### D-025 — Phase 1 — dependency
+What: Install Next.js (`next`), `react`, and `react-dom` for the frontend web application.
+Why: Next.js provides a modern React framework with file-system App Routing and built-in API proxy rewriting. It handles server rendering, asset compilation, and client-side page updates seamlessly.
+Alternatives considered: Vite with a standalone React Single Page App (SPA). Rejected because Next.js simplifies routing and local `/api` path rewriting out of the box.
+If we removed it: We would have no frontend user interface framework to render interactive diagrams or forms.
+Decided by: plan
+Status: active
+
+### D-026 — Phase 1 — dependency
+What: Install `typescript`, `@types/node`, `@types/react`, and `@types/react-dom` installed by create-next-app.
+Why: TypeScript adds static type checking to JavaScript to prevent bugs before code runs. The `@types/*` packages provide type definitions for Node.js runtime and React primitives.
+Alternatives considered: Plain JavaScript without TypeScript. Rejected because the project rules require strict TypeScript to prevent null reference errors.
+If we removed it: Frontend code would lack compile-time type verification, allowing undetected runtime type errors.
+Decided by: plan
+Status: active
+
+### D-027 — Phase 1 — dependency
+What: Install `eslint` and `eslint-config-next` installed by create-next-app.
+Why: ESLint analyzes frontend JavaScript and TypeScript code to catch problematic patterns and style inconsistencies. `eslint-config-next` provides Next.js-specific linting rules, including detecting unoptimized images and unsafe script injections.
+Alternatives considered: Biome or running without a frontend linter. Rejected because Next.js standard tooling integrates ESLint natively into build verification.
+If we removed it: Unsafe patterns (like dangerous inner HTML or missing React hooks dependencies) could slip into frontend code.
+Decided by: plan
+Status: active
+
+### D-028 — Phase 1 — dependency
+What: Install Tailwind CSS and `@tailwindcss/postcss` for frontend styling.
+Why: Tailwind CSS provides utility-first CSS classes directly in markup for consistent, responsive styling. `@tailwindcss/postcss` integrates Tailwind compilation into Next.js's PostCSS asset pipeline.
+Alternatives considered: Traditional CSS files or CSS Modules. Rejected because utility classes ensure faster styling without naming collisions or dead stylesheet accumulation.
+If we removed it: We would have no utility styling system to build layout panels and diagram cards.
+Decided by: plan
+Status: active
+
+### D-029 — Phase 1 — dependency
+What: Install `lucide-react`, `clsx`, and `tailwind-merge` installed by shadcn/ui.
+Why: Lucide-react provides lightweight, accessible SVG icons; clsx allows constructing conditional className strings; and tailwind-merge resolves conflicting Tailwind class names without style leakage.
+Alternatives considered: FontAwesome or custom SVG strings. Rejected because Lucide icons are tree-shakeable and natively supported by shadcn component templates.
+If we removed it: Dynamic styling on buttons and cards would cause CSS class specificity conflicts.
+Decided by: plan
+Status: active
+
+### D-030 — Phase 1 — dependency
+What: Install `@tanstack/react-query` for frontend server-state management.
+Why: TanStack Query manages asynchronous server state in React, automatically handling loading indicators, error states, and cache invalidation. It eliminates boilerplate `useEffect` hooks for API requests.
+Alternatives considered: Native `fetch` inside `useEffect` or SWR. Rejected because native fetch lacks built-in caching and request deduplication, while TanStack Query provides superior mutation handling.
+If we removed it: Frontend network code would require extensive manual state tracking for loading, error, and caching behavior.
+Decided by: plan
+Status: active
+
+### D-031 — Phase 1 — dependency
+What: Install `vitest`, `jsdom`, and `@testing-library/react` for frontend unit testing.
+Why: Vitest provides a fast, ESM-native unit test runner compatible with TypeScript and React. JSDOM simulates a browser DOM in Node, and Testing Library provides utilities to render components and assert on user-visible elements.
+Alternatives considered: Jest with ts-jest. Rejected because Jest requires complex Babel transforms to parse Next.js TypeScript and ESM packages.
+If we removed it: We would have no automated way to verify frontend UI components like the health check card.
+Decided by: plan
+Status: active
+
+### D-032 — Phase 1 — dependency
+What: Install `@vitejs/plugin-react` as a dev dependency for Vitest.
+Why: `@vitejs/plugin-react` provides the JSX/TSX transformation pipeline for Vitest, allowing it to parse and compile React components during test runs without Vite application build dependencies.
+Alternatives considered: ts-node or custom Babel transforms. Rejected because `@vitejs/plugin-react` is the officially supported transform plugin for Vitest in Vite/React environments.
+If we removed it: Vitest would fail with syntax errors whenever loading components containing JSX tags like `<Card />`.
+Decided by: user approved
+Status: active
+
+### D-033 — Phase 1 — step
+What: Use `hatchling` as the Python package build backend chosen by `uv init --package`.
+Why: When `uv init --package` scaffolds a standard Python package with `src` layout, it configures `hatchling` as the PEP 517 build backend. Hatchling is fast, lightweight, standard, and supported natively by `uv`.
+Alternatives considered: Setuptools, flit, or poetry. Rejected because hatchling is the modern default for uv package scaffolding and requires minimal configuration.
+If we removed it: The package could not be installed or built in editable mode for local testing.
+Decided by: plan
+Status: active
+
+### D-034 — Phase 1 — design
+What: Configure shadcn/ui with Radix UI base and the neutral base color palette (Option A).
+Why: The build plan specifies classic shadcn/ui with neutral base color. Using `-b radix` preserves compatibility with Radix accessibility primitives and matches the UI specification in Section 4.
+Alternatives considered: Base-nova preset. Rejected per user decision in favor of classic Radix with neutral styling.
+If we removed it: The UI styling would diverge from the design specification in the build plan.
+Decided by: user approved
+Status: active
+
+### D-035 — Phase 1 — step
+What: Prevent or delete `apps/web/AGENTS.md` generated by create-next-app.
+Why: Create-next-app includes `--agents-md` by default. Deleting this file prevents Antigravity from discovering a competing project rule file, preserving `GEMINI.md` as the authoritative project constitution as established in `D-014`.
+Alternatives considered: Keeping `apps/web/AGENTS.md`. Rejected because Antigravity loads directory-level rules hierarchically, creating potential rule conflicts with `GEMINI.md`.
+If we removed it: Next.js-generated agent rules could override or conflict with our strict project constitution.
+Decided by: user approved
+Status: active
+
+### D-036 — Phase 1 — risk
+What: Record `vitest` and `tinypool` advisory findings from `npm audit` as dev-only risks without running `npm audit fix --force`.
+Why: Running `npm audit fix --force` would install a breaking major version (`vitest@5`), whereas Vitest is only used in dev/test environments and never bundled into production client artifacts.
+Alternatives considered: Running `npm audit fix --force`. Rejected because breaking major version changes can destabilize testing and peer dependencies.
+If we removed it: Unvetted automated fixes would alter dev toolchains unexpectedly.
+Decided by: user approved
+Status: active
+
+### D-037 — Phase 1 — step
+What: Delete corrupted `apps/web/package-lock.json` with plain `Remove-Item`.
+Why: An aborted installation left 69 package entries without version strings in `package-lock.json`, causing npm's Arborist engine to throw `TypeError: Invalid Version:` during `canDedupe`. Removing the lockfile allows npm to resolve a clean tree.
+Alternatives considered: Manually repairing 69 entries in the lockfile. Rejected as fragile and error-prone compared to a clean lockfile generation.
+If we removed it: Every subsequent `npm install` command fails immediately due to invalid version parsing.
+Decided by: user approved
+Status: active
+
+### D-038 — Phase 1 — step
+What: Enforce standard peer dependency resolution in `apps/web` without `--legacy-peer-deps`.
+Why: Running without `--legacy-peer-deps` verifies whether actual peer conflicts exist in the tree rather than masking them.
+Alternatives considered: Passing `--legacy-peer-deps` by default. Rejected because silent dependency relaxation can hide real incompatibilities.
+If we removed it: Incompatible React or toolchain versions could go unnoticed.
+Decided by: user approved
+Status: active
+
+### D-039 — Phase 1 — step
+What: Delete partially written `apps/web/node_modules` directory using plain `Remove-Item`.
+Why: Interrupted installation left empty platform-specific optional dependency directories (such as `@tailwindcss/oxide-android-arm64`) lacking `package.json`, which caused npm's Arborist engine to assign `version = ""` and crash on `semver.gte` during deduplication.
+Alternatives considered: Manually creating placeholder `package.json` files in empty directories. Rejected as fragile compared to a clean reinstall.
+If we removed it: `npm install` continuously crashes on `TypeError: Invalid Version:`.
+Decided by: user approved
+Status: active
+
+### D-040 — Phase 1 — file
+What: Create development, verification, and smoke-testing operational scripts (`scripts/dev.ps1`, `scripts/check.ps1`, `scripts/llm_smoke.py`).
+Why: `dev.ps1` automates running both FastAPI and Next.js concurrently in development mode. `check.ps1` provides a single authoritative command to run all quality and contract checks across both apps. `llm_smoke.py` provides a safe, standalone manual probe for live Gemini API credentials without risking prompt/response leaks in test logs.
+Alternatives considered: Relying on manual multiline shell commands across directories. Rejected because consolidated scripts guarantee consistent execution across team environments.
+If we removed it: Developers and CI would lack a unified check pipeline, increasing the risk of unverified code changes.
+Decided by: plan
+Status: active
+
+### D-041 — Phase 1 — risk
+What: Clarify that `respx` mock tests in `apps/api` rely on `aiohttp` NOT being installed in the environment.
+Why: The Google GenAI SDK checks `has_aiohttp` at runtime. If `aiohttp` were installed, the SDK would route async calls through `aiohttp.ClientSession` instead of `httpx.AsyncClient`, bypassing `respx` mocks.
+Alternatives considered: Installing `aiohttp` or building custom protocol-level mocks. Rejected because `httpx` is standard for FastAPI/Starlette test clients and avoids redundant HTTP transport libraries.
+If we removed it: Installing `aiohttp` in the environment would silently break `respx` unit tests for `GeminiClient`.
+Decided by: user requested
+Status: active
+
+### D-042 — Phase 1 — step
+What: Remove `.gitkeep` placeholders from `apps/api`, `apps/web`, and `scripts` directories as real source files landed (superseding `D-015` for populated folders).
+Why: Git tracks folders automatically once real files are placed inside them; retaining `.gitkeep` in populated directories is redundant.
+Alternatives considered: Leaving `.gitkeep` in populated folders. Rejected to keep directory structures clean.
+If we removed it: Redundant placeholder files would remain tracked in populated directories.
+Decided by: plan
+Status: active
+
+### D-043 — Phase 1 — deviation
+What: Map `httpx.ConnectError` to `LLMUnavailable` so transport-level connection failures trigger retry logic alongside HTTP 503, 429, and timeouts.
+Why: Network-level socket connection drops or transient DNS glitches when connecting to the Gemini API endpoint are transient network events identical in practical failure semantics to HTTP 503 unavailability. Retrying connection drops prevents premature fatal failures on momentary network blips.
+Alternatives considered: Raising an immediate fatal un-retried exception on connection drops. Rejected because network transport blips to cloud providers are common and inherently transient.
+If we removed it: Any transient TCP reset or connection glitch would immediately fail an architecture generation request instead of cleanly attempting retry.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-044 — Phase 1 — design
+What: Map upstream HTTP 500 and 502 server responses to base `LLMError` rather than `LLMUnavailable`, preventing automated retries for internal upstream errors.
+Why: The architecture design plan strictly specifies automated retries only for HTTP 503, HTTP 429, and timeouts. Internal server errors (500) and bad gateways (502) represent upstream server bugs or unexpected service states where immediate repeated execution does not resolve the condition and wastes quota.
+Alternatives considered: Catching all `code >= 500` as retryable `LLMUnavailable`. Rejected because it violated the specification to only retry 503, 429, and timeouts.
+If we removed it: Upstream 500 Internal Server Errors would be retried repeatedly, increasing latency and burning call quota unnecessarily.
+Decided by: user approved
+Status: active
+
+### D-045 — Phase 1 — step
+What: Implement case-insensitive and delimiter-agnostic key normalization in structured logging redaction.
+Why: Configuration keys, query parameters, and JSON payloads can represent sensitive identifiers in various formats (e.g., `apiKey`, `ApiKey`, `api_key`, `API_KEY`). Stripping underscores and lowering characters ensures all casing variants are reliably scrubbed before log emission.
+Alternatives considered: Exact string casing matching or explicit enumeration of every possible casing variant. Rejected as brittle and prone to accidental leakage if an unexpected casing is introduced.
+If we removed it: CamelCase or PascalCase API keys would bypass logging redaction filters and appear in plaintext logs.
+Decided by: user requested
+Status: active
+
+### D-046 — Phase 1 — step
+What: Align LLM timeout configuration to `llm_timeout_seconds = 60` across `Settings` and verification scripts.
+Why: The build specification explicitly mandates a default LLM timeout of 60 seconds (`LLM_TIMEOUT_SECONDS = 60`). Setting this default directly on Pydantic settings and referencing it in manual smoke tests ensures consistent timeout behavior across environments.
+Alternatives considered: Retaining a 30-second default or separate `gemini_timeout_seconds`. Rejected to adhere strictly to the build contract specification.
+If we removed it: Large LLM architecture generation requests could prematurely time out before Gemini finishes returning complex multi-node specifications.
+Decided by: user requested
+Status: active
+
+### D-047 — Phase 1 — step
+What: Standardize application server invocation on `uvicorn archnemesis.main:create_app --factory` across documentation, development scripts, and guidelines.
+Why: Using the `--factory` flag guarantees that FastAPI lifecycle events, dependency overrides, and configuration bindings are cleanly instantiated per worker without relying on global module-level import side effects, ensuring uniform behavior between development and test environments.
+Alternatives considered: Running `uvicorn archnemesis.main:app` directly. Rejected to maintain strict consistency across `GEMINI.md`, `README.md`, and `scripts/dev.ps1`.
+If we removed it: Documentation and dev scripts would drift in how the ASGI application instance is discovered and initialized.
+Decided by: user requested
+Status: active
+
+### D-048 — Phase 1 — bugfix
+What: Enforce exclusive conditional rendering in frontend health status card (`error ? <ErrorState /> : data ? <HealthyState /> : null`).
+Why: TanStack Query preserves previous successful data in its cache upon subsequent refetch errors. Independent `{error && ...}` and `{data && ...}` expressions caused contradictory states where both "API not reachable" and previous "API healthy" components rendered simultaneously when the backend was stopped.
+Alternatives considered: Calling `queryClient.removeQueries()` on every error or disabling query caching entirely. Rejected because exclusive conditional rendering solves the root presentation bug cleanly while maintaining standard cache behavior.
+If we removed it: Network dropouts or backend restarts would display confusing, contradictory UI states to the user.
+Decided by: user reported
+Status: active
+
+## Phase 1 Summary
+
+Phase 1 established the end-to-end technical foundation for Arch-Nemesis:
+1. **Backend Foundation (`apps/api`):** Configured Python 3.12 package using `uv`, FastAPI, async SQLAlchemy with SQLite, Alembic baseline migration, Pydantic settings with secret masking, structured logging with sensitive key redaction, unified error envelopes, and an abstract LLM interface (`FakeLLMClient` and `GeminiClient` with exponential backoff and jitter). Built GET `/api/health` returning DB connectivity and LLM configuration status.
+2. **Frontend Foundation (`apps/web`):** Initialized Next.js 16 (App Router), React 19, Tailwind CSS v4, and classic shadcn/ui configured with Radix UI base and neutral OKLCH palette. Built client-side TanStack Query provider, `System Health` card querying `/api/health` with clean error state exclusivity, and comprehensive unit tests with Vitest and Testing Library.
+3. **Operational Tooling (`scripts/`):** Implemented `dev.ps1` for local multi-service launch, `check.ps1` for unified static analysis and testing across both apps, and `llm_smoke.py` for safe manual live LLM verification.
+4. **Validation:** 39 backend tests passed, 3 frontend tests passed, Ruff check/format clean, Mypy strict mode clean across all source files, import-linter architectural contracts verified.

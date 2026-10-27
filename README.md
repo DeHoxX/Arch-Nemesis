@@ -20,7 +20,7 @@ Open two terminal windows:
 **Terminal 1 (Backend API):**
 ```powershell
 cd apps\api
-uv run uvicorn archnemesis.main:app --reload --port 8000
+uv run uvicorn archnemesis.main:create_app --factory --reload --port 8000
 ```
 
 **Terminal 2 (Frontend Web):**

@@ -109,7 +109,29 @@ Import rules (enforced by import-linter):
 
 ## Commands
 
-*(To be filled in Phase 1)*
+### Full Verification
+- `powershell scripts/check.ps1` — Runs backend checks (ruff, mypy, import-linter, pytest) and frontend checks (eslint, tsc, vitest).
+
+### Local Development
+- `powershell scripts/dev.ps1` — Launches both the FastAPI backend and Next.js frontend in separate PowerShell windows.
+- Backend alone: `cd apps/api && uv run uvicorn archnemesis.main:create_app --factory --reload --port 8000`
+- Frontend alone: `cd apps/web && npm run dev`
+
+### Backend Testing & Tooling
+- `cd apps/api && uv run pytest -q` — Run backend pytest test suite.
+- `cd apps/api && uv run ruff check` — Run backend linter.
+- `cd apps/api && uv run ruff format --check` — Run backend formatter check.
+- `cd apps/api && uv run mypy src tests` — Run backend type checker.
+- `cd apps/api && uv run lint-imports` — Check architectural layer boundaries.
+- `cd apps/api && uv run alembic upgrade head` — Run database migrations.
+
+### Frontend Testing & Tooling
+- `cd apps/web && npm test` — Run Vitest suite.
+- `cd apps/web && npm run lint` — Run ESLint.
+- `cd apps/web && npx tsc --noEmit` — Run TypeScript compiler type-check.
+
+### Manual Verification
+- `uv run python scripts/llm_smoke.py` — Run live Gemini smoke test (manual developer test; requires backend .env).
 
 ## Where decisions live
 - All architectural, implementation, dependency, and process decisions live in [docs/DECISIONS.md](docs/DECISIONS.md).
