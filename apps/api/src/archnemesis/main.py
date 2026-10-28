@@ -9,6 +9,8 @@ from fastapi import FastAPI, Request, Response
 from archnemesis.errors import AppError, app_error_handler, unhandled_exception_handler
 from archnemesis.health import router as health_router
 from archnemesis.logging import setup_logging
+from archnemesis.modules.designs.router import router as designs_router
+from archnemesis.modules.intake.router import router as intake_router
 from archnemesis.settings import get_settings
 
 
@@ -56,6 +58,8 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health_router)
+    app.include_router(intake_router)
+    app.include_router(designs_router)
 
     return app
 

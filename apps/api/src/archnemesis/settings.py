@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     max_edges: int = 40
     max_input_chars: int = 4000
     max_followup_rounds: int = 3
+    max_questions_per_round: int = 3
     max_repair_attempts: int = 2
     llm_max_attempts: int = 3
     llm_timeout_seconds: int = 60

@@ -68,3 +68,67 @@ These live only in `settings.py` as environment-overridable settings, never as n
 | MAX_REFINEMENT_TURNS | 20 | User messages per design |
 | MAX_VERSIONS | 15 | Versions per design |
 
+---
+
+## Phase 3 Intake & Design Contracts
+
+### Intake Round Definition and Lifecycle Trace
+
+A round represents a discrete interaction cycle in the discovery dialogue:
+- **Round Definition**: Each round begins with a user message and ends with an assistant response (either clarifying questions or a synthesized `RequirementBrief`).
+- **Round Cap**: `MAX_FOLLOWUP_ROUNDS = 3`. Once round 3 is reached, the system prompt instructs the assistant that this is the final turn and it MUST return a `RequirementBrief`. Further questions are strictly forbidden.
+
+#### Example Lifecycle Trace
+1. **Turn 1 (Round 1)**:
+   - User: *"We need a customer support bot with ticket escalation."*
+   - Assistant (action: `ask`): Returns 3 concise questions regarding scale, ticket system APIs, and channels.
+   - Status: `needs_info`, Round: 1.
+2. **Turn 2 (Round 2)**:
+   - User: *"We use Zendesk, expect 1,000 tickets daily, web chat only."*
+   - Assistant (action: `ask`): Returns questions on auth and escalation policies.
+   - Status: `needs_info`, Round: 2.
+3. **Turn 3 (Round 3, Final)**:
+   - User: *"Escalate to tier 2 after 2 failed attempts, single sign-on via OAuth2."*
+   - Assistant (action: `ready`): Synthesizes `RequirementBrief` with summary, assumptions, and stated constraints. Code assigns IDs `bc1`, `bc2`, etc.
+   - Status: `ready`, Round: 3.
+
+### API Error Envelopes for Phase 3
+
+| Error Code | HTTP Status | Trigger Condition | Response Payload |
+| --- | --- | --- | --- |
+| `VALIDATION_ERROR` | 422 | Input message empty, whitespace-only, or exceeding `MAX_INPUT_CHARS` | `{"code": "VALIDATION_ERROR", "message": "..."}` |
+| `NOT_FOUND` | 404 | Unknown `session_id` or `design_id` | `{"code": "NOT_FOUND", "message": "..."}` |
+| `SESSION_CLOSED` | 409 | Sending turn to session with status `ready`, `designed`, or `abandoned` | `{"code": "SESSION_CLOSED", "message": "..."}` |
+| `NOT_READY` | 409 | Attempting design generation when session status is not `ready` | `{"code": "NOT_READY", "message": "..."}` |
+| `DESIGN_FAILED` | 422 | Generator + repair loop exhausted 3 LLM calls without passing validation | `{"code": "DESIGN_FAILED", "message": "...", "issues": [...]}` |
+| `LLM_NOT_CONFIGURED` | 503 | Missing API key or task model name in backend settings | `{"code": "LLM_NOT_CONFIGURED", "message": "..."}` |
+
+### Database Tables (Phase 3)
+
+- **`intake_sessions`**:
+  - `id`: `String(36)` (UUID, primary key)
+  - `status`: `String(20)` (`"collecting"`, `"ready"`, `"designed"`, `"abandoned"`)
+  - `rounds`: `Integer` (current round count, default 1)
+  - `turns_json`: `Text` (serialized JSON list of speaker turns)
+  - `brief_json`: `Text` (nullable, serialized JSON of `RequirementBrief`)
+  - `created_at`: `String(30)` (ISO 8601 UTC timestamp)
+  - `updated_at`: `String(30)` (ISO 8601 UTC timestamp)
+- **`designs`**:
+  - `id`: `String(36)` (UUID, primary key)
+  - `intake_session_id`: `String(36)` (UUID, unique foreign key to `intake_sessions.id`)
+  - `current_version`: `Integer` (default 1)
+  - `created_at`: `String(30)` (ISO 8601 UTC timestamp)
+- **`design_versions`**:
+  - `id`: `String(36)` (UUID, primary key)
+  - `design_id`: `String(36)` (UUID, foreign key to `designs.id`)
+  - `version_no`: `Integer` (1 for initial creation; unique per `design_id`)
+  - `brief_json`: `Text` (snapshot of `RequirementBrief`)
+  - `spec_json`: `Text` (serialized `ArchitectureSpec`)
+  - `explanation_json`: `Text` (nullable, for Phase 4)
+  - `prompt_version`: `String(50)` (`"architect_v1"` or `"architect_v1+architect_repair_v1"`)
+  - `models_json`: `Text` (JSON map of model names used)
+  - `warnings_json`: `Text` (JSON list of diagnostic warnings)
+  - `change_note`: `Text` (nullable)
+  - `created_at`: `String(30)` (ISO 8601 UTC timestamp)
+
+

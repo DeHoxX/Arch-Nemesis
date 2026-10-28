@@ -1,10 +1,9 @@
-import asyncio
 from logging.config import fileConfig
 
-from sqlalchemy.engine import Connection
+from sqlalchemy import create_engine
 
 from alembic import context
-from archnemesis.db.engine import engine
+from archnemesis.settings import get_settings
 
 config = context.config
 
@@ -14,20 +13,17 @@ if config.config_file_name is not None:
 target_metadata = None
 
 
-def do_run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
-    with context.begin_transaction():
-        context.run_migrations()
-
-
-async def run_async_migrations() -> None:
-    async with engine.connect() as connection:
-        await connection.run_sync(do_run_migrations)
-    await engine.dispose()
-
-
 def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
+    """Run migrations in 'online' mode using a synchronous engine."""
+    # Convert async sqlite URL to synchronous sqlite for reliable, instant migration execution
+    sync_url = get_settings().database_url.replace("+aiosqlite", "")
+    connectable = create_engine(sync_url)
+
+    with connectable.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+    connectable.dispose()
 
 
 if context.is_offline_mode():

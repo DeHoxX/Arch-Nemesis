@@ -51,11 +51,14 @@ class LLMBadOutputError(AppError):
         )
 
 
+LLMBadOutput = LLMBadOutputError
+
+
 class LLMNotConfiguredError(AppError):
-    def __init__(self) -> None:
+    def __init__(self, message: str = "The AI service is not set up on this server.") -> None:
         super().__init__(
             code="LLM_NOT_CONFIGURED",
-            message="The AI service is not set up on this server.",
+            message=message,
             status_code=503,
         )
 
@@ -69,6 +72,21 @@ class InputInvalidError(AppError):
         )
 
 
+ValidationError = InputInvalidError
+
+
+class InternalLLMError(AppError):
+    def __init__(self, message: str = "An error occurred with the AI service.") -> None:
+        super().__init__(
+            code="LLM_ERROR",
+            message=message,
+            status_code=500,
+        )
+
+
+LLMError = InternalLLMError
+
+
 class NotFoundError(AppError):
     def __init__(self, message: str = "We could not find that.") -> None:
         super().__init__(
@@ -76,6 +94,38 @@ class NotFoundError(AppError):
             message=message,
             status_code=404,
         )
+
+
+class NotReadyError(AppError):
+    def __init__(
+        self, message: str = "The intake session is not ready for design generation."
+    ) -> None:
+        super().__init__(
+            code="NOT_READY",
+            message=message,
+            status_code=409,
+        )
+
+
+class SessionClosedError(AppError):
+    def __init__(
+        self, message: str = "Intake session is already finalized; cannot accept additional turns."
+    ) -> None:
+        super().__init__(
+            code="SESSION_CLOSED",
+            message=message,
+            status_code=409,
+        )
+
+
+class DesignFailedError(AppError):
+    def __init__(self, issues: list[str] | None = None) -> None:
+        super().__init__(
+            code="DESIGN_FAILED",
+            message="I could not produce a design that passes all checks. Please rephrase your need or try again.",
+            status_code=422,
+        )
+        self.issues = issues[:5] if issues else []
 
 
 class InternalError(AppError):
@@ -89,9 +139,12 @@ class InternalError(AppError):
 
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     """Return uniform error envelope: {"error": {"code": "...", "message": "..."}}."""
+    data: dict[str, object] = {"code": exc.code, "message": exc.message}
+    if hasattr(exc, "issues") and exc.issues:
+        data["issues"] = exc.issues
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": {"code": exc.code, "message": exc.message}},
+        content={"error": data},
     )
 
 

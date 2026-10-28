@@ -16,6 +16,7 @@ from archnemesis.errors import (
     NotFoundError,
 )
 from archnemesis.main import create_app
+from tests.conftest import error_body
 
 mock_error_router = APIRouter(prefix="/test")
 
@@ -68,8 +69,7 @@ async def test_error_envelope_and_status(
         response = await client.get(path)
 
     assert response.status_code == expected_status
-    data = response.json()
-    assert "error" in data
-    assert data["error"]["code"] == expected_code
-    assert "message" in data["error"]
-    assert isinstance(data["error"]["message"], str)
+    err = error_body(response)
+    assert err["code"] == expected_code
+    assert "message" in err
+    assert isinstance(err["message"], str)

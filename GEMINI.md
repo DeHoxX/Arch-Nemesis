@@ -131,7 +131,8 @@ Import rules (enforced by import-linter):
 - `cd apps/web && npx tsc --noEmit` — Run TypeScript compiler type-check.
 
 ### Manual Verification
-- `uv run python scripts/llm_smoke.py` — Run live Gemini smoke test (manual developer test; requires backend .env).
+- `cd apps/api && uv run python ../../scripts/schema_probe.py` — Run live schema probe against configured Gemini models (requires backend .env).
+- `cd apps/api && uv run python ../../scripts/llm_smoke.py` — Run live Gemini smoke test (manual developer test; requires backend .env).
 
 ## Where decisions live
 - All architectural, implementation, dependency, and process decisions live in [docs/DECISIONS.md](docs/DECISIONS.md).

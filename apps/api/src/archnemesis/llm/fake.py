@@ -10,6 +10,13 @@ from archnemesis.llm.base import LLMClient, LLMError, LLMTask
 class FakeScriptExhausted(LLMError):
     """Raised when the scripted responses in FakeLLMClient are exhausted."""
 
+    def __init__(self, task: str, call_count: int) -> None:
+        super().__init__(
+            f"FakeLLMClient script exhausted for task '{task}' after {call_count} calls."
+        )
+        self.task = task
+        self.call_count = call_count
+
 
 class FakeLLMClient(LLMClient):
     """Fake LLM client that returns scripted responses or raises scripted errors."""
@@ -21,7 +28,7 @@ class FakeLLMClient(LLMClient):
     def _next_item(self, task: LLMTask, system: str, user: str) -> str | dict[str, Any]:
         self.calls.append({"task": task, "system": system, "user": user})
         if not self.script:
-            raise FakeScriptExhausted("FakeLLMClient script has been exhausted.")
+            raise FakeScriptExhausted(str(task), len(self.calls))
         item = self.script.pop(0)
         if isinstance(item, Exception):
             raise item
