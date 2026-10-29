@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.dependencies import get_db_session, get_llm_client
 from archnemesis.errors import ValidationError
-from archnemesis.llm.base import LLMTask
+from archnemesis.llm.base import LLMRateLimited, LLMTask, LLMTimeout, LLMUnavailable
 from archnemesis.llm.fake import FakeLLMClient, FakeScriptExhausted
 from archnemesis.main import create_app
 from archnemesis.modules.intake import repo, service
@@ -443,3 +443,64 @@ async def test_fake_llm_exhaustion_gives_clear_error() -> None:
     assert str(exc) == "FakeLLMClient script exhausted for task 'intake' after 2 calls."
     assert "prompt" not in str(exc)
     assert "secret" not in str(exc)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "exc_to_raise,expected_status,expected_code,expected_message",
+    [
+        (
+            LLMUnavailable("Gemini service 503 high demand"),
+            503,
+            "LLM_UNAVAILABLE",
+            "The AI service is busy right now. Please try again in a minute.",
+        ),
+        (
+            LLMRateLimited("Gemini quota 429 exceeded"),
+            429,
+            "LLM_RATE_LIMITED",
+            "The AI service is limiting requests. Please wait a minute and try again.",
+        ),
+        (
+            LLMTimeout("Gemini 504 deadline exceeded"),
+            504,
+            "LLM_TIMEOUT",
+            "The AI service took too long to answer. Please try again.",
+        ),
+    ],
+)
+async def test_intake_turn_llm_errors_return_friendly_envelope_and_store_nothing(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+    exc_to_raise: Exception,
+    expected_status: int,
+    expected_code: str,
+    expected_message: str,
+) -> None:
+    secret_text = "HighlyConfidentialUserText12345"
+    async with temp_db_session_factory() as session:
+        db_session = await repo.create_session(session, transcript=[], status="collecting")
+
+    fake_llm = FakeLLMClient([exc_to_raise])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(
+            "/api/intake/turn",
+            json={"session_id": db_session.id, "text": secret_text},
+        )
+
+    assert res.status_code == expected_status, res.text
+    err = error_body(res)
+    assert err["code"] == expected_code
+    assert err["message"] == expected_message
+
+    # Assert nothing is stored in session transcript or state
+    async with temp_db_session_factory() as session:
+        session_obj = await repo.get_session(session, db_session.id)
+        assert session_obj is not None
+        assert session_obj.status == "collecting"
+        assert session_obj.turns_json == "[]"
+
+    # Assert logs contain no user text
+    assert secret_text not in caplog.text

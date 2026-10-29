@@ -13,7 +13,14 @@ from archnemesis.errors import (
     SessionClosedError,
     ValidationError,
 )
-from archnemesis.llm.base import LLMClient, LLMNotConfigured, LLMTask
+from archnemesis.llm.base import (
+    LLMClient,
+    LLMNotConfigured,
+    LLMRateLimited,
+    LLMTask,
+    LLMTimeout,
+    LLMUnavailable,
+)
 from archnemesis.llm.fake import FakeScriptExhausted
 from archnemesis.modules.intake import repo
 from archnemesis.modules.intake.schemas import (
@@ -27,6 +34,14 @@ from archnemesis.shared.brief import BriefConstraint, RequirementBrief
 
 MAX_INTAKE_ROUNDS: int = 3
 MAX_QUESTION_LENGTH: int = 200
+
+TRANSIENT_LLM_ERRORS = (
+    LLMUnavailable,
+    LLMRateLimited,
+    LLMTimeout,
+    LLMNotConfigured,
+    FakeScriptExhausted,
+)
 
 
 def _validate_llm_output(output: IntakeLLMOutput, must_be_ready: bool = False) -> tuple[bool, str]:
@@ -85,7 +100,7 @@ async def _invoke_intake_llm(
         )
         output = IntakeLLMOutput.model_validate(raw_dict)
         is_valid, reason = _validate_llm_output(output, must_be_ready=must_be_ready)
-    except (LLMNotConfigured, FakeScriptExhausted):
+    except TRANSIENT_LLM_ERRORS:
         raise
     except (PydanticValidationError, Exception) as exc:  # noqa: BLE001
         is_valid = False
@@ -116,7 +131,7 @@ async def _invoke_intake_llm(
         if retry_valid:
             return retry_output
         raise LLMBadOutputError()
-    except (LLMNotConfigured, FakeScriptExhausted, LLMBadOutputError):
+    except (*TRANSIENT_LLM_ERRORS, LLMBadOutputError):
         raise
     except Exception as exc:
         raise LLMBadOutputError() from exc

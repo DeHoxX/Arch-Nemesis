@@ -5,13 +5,52 @@ from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
-from archnemesis.errors import AppError, app_error_handler, unhandled_exception_handler
+from archnemesis.errors import (
+    AppError,
+    InternalLLMError,
+    LLMBadOutputError,
+    LLMNotConfiguredError,
+    LLMRateLimitedError,
+    LLMTimeoutError,
+    LLMUnavailableError,
+    app_error_handler,
+    unhandled_exception_handler,
+)
 from archnemesis.health import router as health_router
+from archnemesis.llm.base import (
+    LLMBadOutput,
+    LLMNotConfigured,
+    LLMRateLimited,
+    LLMTimeout,
+    LLMUnavailable,
+)
+from archnemesis.llm.base import (
+    LLMError as LLMClientError,
+)
 from archnemesis.logging import setup_logging
 from archnemesis.modules.designs.router import router as designs_router
 from archnemesis.modules.intake.router import router as intake_router
 from archnemesis.settings import get_settings
+
+
+async def llm_client_error_handler(request: Request, exc: LLMClientError) -> JSONResponse:
+    """Map low-level LLM client exceptions to canonical AppError HTTP responses."""
+    app_err: AppError
+    if isinstance(exc, LLMUnavailable):
+        app_err = LLMUnavailableError()
+    elif isinstance(exc, LLMRateLimited):
+        app_err = LLMRateLimitedError()
+    elif isinstance(exc, LLMTimeout):
+        app_err = LLMTimeoutError()
+    elif isinstance(exc, LLMBadOutput):
+        app_err = LLMBadOutputError()
+    elif isinstance(exc, LLMNotConfigured):
+        app_err = LLMNotConfiguredError(str(exc))
+    else:
+        app_err = InternalLLMError(str(exc))
+    return await app_error_handler(request, app_err)
 
 
 def create_app() -> FastAPI:
@@ -39,6 +78,10 @@ def create_app() -> FastAPI:
 
         try:
             response = await call_next(request)
+        except LLMClientError as exc:
+            response = await llm_client_error_handler(request, exc)
+        except AppError as exc:
+            response = await app_error_handler(request, exc)
         except Exception as exc:  # noqa: BLE001
             response = await unhandled_exception_handler(request, exc)
 
@@ -54,6 +97,7 @@ def create_app() -> FastAPI:
 
     # Exception handlers
     app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(LLMClientError, llm_client_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)
 
     # Routers

@@ -1017,6 +1017,14 @@ If we removed it: Brief display markup would have to be inlined directly inside 
 Decided by: deviation
 Status: active
 
+### D-118 — Phase 3 — bugfix
+What: Register `LLMError` exception handler in `apps/api/src/archnemesis/main.py` mapping low-level LLM client exceptions (`LLMUnavailable`, `LLMRateLimited`, `LLMTimeout`, `LLMBadOutput`, `LLMNotConfigured`) to canonical `AppError` HTTP envelopes, and prevent transient LLM error swallowing in `apps/api/src/archnemesis/modules/intake/service.py`.
+Why: When Gemini API raises 503 (high demand spike / unavailable), 429 (rate limit), or 504 (timeout), the LLM client layer raises `archnemesis.llm.base.LLMError` subclasses (`LLMUnavailable`, `LLMRateLimited`, `LLMTimeout`). Because these inherit from Python's base `Exception` rather than `AppError` (enforced by import-linter rules forbidding `llm` from importing `errors`), unhandled exceptions bubbled past `app.add_exception_handler(AppError, ...)` to the generic `unhandled_exception_handler` and returned HTTP 500 `INTERNAL_ERROR`. Furthermore, in `intake/service.py`, `_invoke_intake_llm` caught generic `Exception`, incorrectly triggering a prompt repair loop and transforming 503/429/504 errors into 502 `LLMBadOutputError`. Adding the centralized `LLMError` handler in `main.py` and bypassing transient LLM errors in `intake/service.py` ensures both `/api/designs` and `/api/intake/turn` consistently return friendly, contract-compliant responses (503 `LLM_UNAVAILABLE`, 429 `LLM_RATE_LIMITED`, 504 `LLM_TIMEOUT`) without saving corrupted or partial state.
+Alternatives considered: Having `archnemesis.llm.base.LLMError` inherit directly from `AppError`. Rejected because `pyproject.toml` and `GEMINI.md` architectural layer rules strictly forbid `archnemesis.llm` from importing `archnemesis.errors` or other application modules.
+If we removed it: Live LLM spikes (503) or rate limits (429) would surface as unhandled 500 Internal Server Errors on `/api/designs` and misleading 502 Bad Output errors on `/api/intake/turn`.
+Decided by: user approved (Phase 3 bugfix)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
