@@ -18,6 +18,7 @@ export class ApiError extends Error {
     this.code = code;
     this.status = status;
     this.issues = issues;
+    Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
 
@@ -125,11 +126,19 @@ async function parseErrorResponse(res: Response): Promise<ApiError> {
         parsed.data.error.issues,
       );
     }
-    // Fallback if error body didn't match envelope
+    // Fallback if error body didn't match envelope:
+    // Extract issues if present in either flat json or error sub-object
+    const issues = Array.isArray(json?.issues)
+      ? (json.issues as string[])
+      : Array.isArray(json?.error?.issues)
+        ? (json.error.issues as string[])
+        : undefined;
+
     return new ApiError(
-      json?.message || `HTTP ${res.status}`,
-      json?.code || "HTTP_ERROR",
+      json?.message || json?.error?.message || `HTTP ${res.status}`,
+      json?.code || json?.error?.code || "HTTP_ERROR",
       res.status,
+      issues,
     );
   } catch {
     return new ApiError(`HTTP error ${res.status}`, "NETWORK_ERROR", res.status);

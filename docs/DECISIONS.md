@@ -977,6 +977,46 @@ If we removed it: D-111 would remain unapproved and unrequested license-sensitiv
 Decided by: user approved
 Status: active
 
+### D-113 — Phase 4 — dependency
+What: Add shadcn UI components `textarea`, `alert`, and `skeleton` to `apps/web/src/components/ui/` for Stage 4C1.
+Why: The intake chat interface and home page require multi-line user input (`textarea`), accessible alert banners for validation and API error notifications (`alert`), and accessible placeholder loading states (`skeleton`). Adding only these three components keeps the dependency footprint minimal for Stage 4C1 (leaving `tabs` for Stage 4C2).
+Alternatives considered: Ad-hoc raw HTML elements with custom utility styling. Rejected because shadcn UI components adhere to shared design tokens and Radix ARIA accessibility primitives.
+If we removed it: Input fields and error messages would require custom styling and bespoke ARIA attributes, duplicating component logic.
+Decided by: plan
+Status: active
+
+### D-114 — Phase 4 — design
+What: Configure typography with `next/font/google` using Space Grotesk (headings and display) and JetBrains Mono (technical specifications, code, and badges).
+Why: Next.js Google Fonts integration automatically downloads font files at build time and self-hosts them alongside static assets, eliminating external runtime requests to Google servers, preventing privacy/GDPR concerns, and preventing layout shift (CLS) via automatic size-adjust fallbacks.
+Alternatives considered: Runtime CDN `@import` or Google Fonts `<link>` tags. Rejected because external runtime font fetches introduce network latency, external third-party tracking, and potential layout shifts.
+If we removed it: The application would fall back to generic system fonts, diverging from the approved design system.
+Decided by: user approved
+Status: active
+
+### D-115 — Phase 4 — design
+What: Implement page chrome aesthetic with obsidian dark background and neon lime (`#ccff00`) accents for page chrome only, retaining glass blur, with subtle static grid, no grain, no animated grid, and honoring `prefers-reduced-motion` (referring to D-100).
+Why: User approved the obsidian tech-minimalist aesthetic for outer page chrome, headers, and primary action buttons in Phase 4 decisions (D-100). Graph node border colors remain strictly tied to the four structural plan colors (`emerald`, `violet`, `amber`, `slate`). Disabling grain and animated canvas grids preserves rendering performance and respects user motion preferences (`motion-reduce`).
+Alternatives considered: Full animated canvas grid and heavy noise textures. Rejected per user instructions to avoid visual distraction and excess GPU utilization.
+If we removed it: The home page would lack the visual cohesion of the approved dark tech theme.
+Decided by: user approved
+Status: active
+
+### D-116 — Phase 4 — design
+What: Enforce loading overlay copy "Designing your system. This can take up to a minute, sometimes longer." with an active elapsed-seconds counter and motion-safe spinner.
+Why: Multi-step LLM architecture synthesis and repair loops can take between 15 and 60 seconds depending on model response latency. Setting clear, truthful expectations with an active elapsed timer reassures the user that generation is in progress without hardcoding arbitrary timeout estimates.
+Alternatives considered: Indeterminate spinner without elapsed timer or with fake progress percentage. Rejected because fake percentages violate Rule 1 (code validates and produces numbers, no invented figures).
+If we removed it: Users might perceive slow LLM responses as application freezes and abandon generation prematurely.
+Decided by: user approved
+Status: active
+
+### D-117 — Phase 4 — deviation
+What: Extract `BriefCard` component (`apps/web/src/components/BriefCard.tsx`) to display the synthesized requirement brief and "Generate design" action, as a structural deviation from the BUILD_PLAN.md:434 file list.
+Why: BUILD_PLAN.md:434 lists `apps/web/src/components/chat/IntakeChat.tsx` and `LoadingOverlay.tsx` but does not explicitly name `BriefCard.tsx`. Extracting the brief presentation, constraint list, unverifiable requirement callouts, and "Generate design" action into a dedicated subcomponent keeps `page.tsx` and chat state modular, readable, and cleanly unit-testable.
+Alternatives considered: Inlining all brief presentation markup directly inside `page.tsx`. Rejected because embedding 150+ lines of card formatting, list mapping, and conditional dividers within `page.tsx` obscures top-level chat orchestrator logic.
+If we removed it: Brief display markup would have to be inlined directly inside `page.tsx`.
+Decided by: deviation
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
