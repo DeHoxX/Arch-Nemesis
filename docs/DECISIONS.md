@@ -881,6 +881,46 @@ If we removed it: The user interface would lack the obsidian tech-minimalist aes
 Decided by: user approved
 Status: active
 
+### D-101 — Phase 4 — deviation
+What: Replace third-party npm package "cn" with the standard shadcn helper using `clsx` and `tailwind-merge` in `src/lib/utils.ts`.
+Why: Initial project scaffolding imported an external third-party package `"cn"` (`^0.5.0`) in `button.tsx:3`, `card.tsx:2`, and `utils.ts:1`. Standard shadcn component design implements `cn` locally by combining `clsx` and `tailwind-merge` (both already installed in `apps/web/package.json`), avoiding an unnecessary, unvetted external dependency for simple class concatenation.
+Alternatives considered: Keeping `"cn": "^0.5.0"`. Rejected because externalizing trivial utility functions creates unnecessary supply-chain risk and diverges from standard shadcn conventions.
+If we removed it: The project would retain an extraneous external dependency that duplicates functionality already provided by `clsx` and `tailwind-merge`.
+Decided by: user approved
+Status: active
+
+### D-102 — Phase 4 — dependency
+What: Install `@dagrejs/dagre` for client-side directed acyclic graph layout computation.
+Why: Directed graph visualization requires calculating exact 2D coordinates (x, y) for nodes and routing points for edges so that data flows cleanly left-to-right without node overlapping. `@dagrejs/dagre` is a modern, TypeScript-native fork of Dagre that runs purely in memory and computes deterministic positions based on configured node separations (`nodesep: 40`, `ranksep: 80`).
+Alternatives considered: Legacy `dagre` package (v0.8.5). Rejected because legacy dagre lacks bundled TypeScript definitions and is unmaintained, whereas `@dagrejs/dagre` provides native typing.
+If we removed it: Graph nodes would have to be positioned manually or stacked haphazardly, causing visual collisions and overlapping edges.
+Decided by: plan
+Status: active
+
+### D-103 — Phase 4 — dependency
+What: Install `zod` for strict runtime validation of backend API response payloads.
+Why: TypeScript types exist only at compile time and disappear in the browser. When the frontend receives data over the network from `/api/intake/turn`, `/api/designs`, or `/api/health`, `zod` parses and validates the JSON structure against expected schemas before rendering. If the backend returns malformed data or unexpected errors, Zod catches the mismatch immediately and surfaces a clean, typed `ApiError` rather than crashing the React render loop with undefined property errors.
+Alternatives considered: Manual type assertions (`as DesignResponse`) or Yup. Rejected because type assertions provide zero runtime safety and Yup is less seamlessly integrated with TypeScript type inference than Zod.
+If we removed it: Unexpected API response shapes or null fields would cause uncaught client-side JavaScript crashes during component rendering.
+Decided by: plan
+Status: active
+
+### D-104 — Phase 4 — design
+What: Derive node card border colors and status badges strictly from graph structure and topological roles.
+Why: Node functional types are free-text strings invented per use case (e.g. "api_gateway", "queue_worker", "vector_store") and must never be constrained to a hardcoded enum or dictate visual styles. Instead, visual styling derives purely from structural properties: Entry nodes (emerald), Exit nodes (violet), AI model nodes (amber), and internal nodes (slate), with lock icons marking constraint participants (`node_id`, `a`, `b`).
+Alternatives considered: Keyword matching on node type strings (e.g., turning "database" blue). Rejected because rule 3 strictly mandates that node types are free text and never drive styling.
+If we removed it: The UI would couple visual styling to arbitrary English words, breaking when novel component types are invented by the LLM.
+Decided by: plan
+Status: active
+
+### D-105 — Phase 4 — design
+What: Enforce fixed node card dimensions of 220 by 72 pixels for all diagram components.
+Why: Dagre requires predefined node bounding boxes to calculate collision-free graph coordinates and edge routing. Standardizing all node cards to 220x72 pixels ensures predictable, deterministic layouts across varying screen sizes and zoom levels, truncating lengthy labels on the card while revealing full details in the detail panel.
+Alternatives considered: Dynamic auto-sizing node cards based on text length. Rejected because dynamic dimensions introduce layout jitter, node overlap, and nondeterministic edge route crossings.
+If we removed it: Variable text lengths would cause Dagre to compute inconsistent layouts, and node cards could overlap or produce jagged diagram rows.
+Decided by: plan
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
