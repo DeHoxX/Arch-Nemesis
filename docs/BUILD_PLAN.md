@@ -108,7 +108,7 @@ These are the load-bearing decisions. Changing them later means rewriting valida
 - assumptions: list of text (filled when the follow-up cap is hit).
 **ArchitectureSpec** (module validation, pure Pydantic)
 
-- nodes: {id, name, type, role, inputs[], outputs[], tech_options[] (optional), needs_model (bool)}. id matches ^[a-z][a-z0-9_]{1,40}$. name max 60, type max 40 (free text), role max 300, each input or output max 120, max 8 each, max 5 tech_options.
+- nodes: {id, name, type, role, inputs[], outputs[], tech_options[] (optional), needs_model (bool)}. id matches ^[a-z][a-z0-9_]{1,40}$. name max 60, type max 40 (free text), role max 300, each input or output max 120 (data labels describing what the part consumes or emits, not node IDs; connectivity comes only from edges), max 8 each, max 5 tech_options.
 - edges: {from, to, flows}. flows max 200. No self-loops, no duplicate (from, to).
 - constraints: {id, text, kind, node_id (optional), a (optional), b (optional), covers[]}. covers lists the brief constraint ids this one satisfies.
 - entry_ids[], exit_ids[].
@@ -438,7 +438,7 @@ The exceptions are LLMUnavailable, LLMRateLimited, LLMTimeout, LLMBadOutput and 
 - The diagram is read-only: no dragging, no connecting. Pan and zoom are allowed. fitView with padding 0.2. Zoom controls shown. No minimap.
 - Selecting: click, or Enter or Space on a focused node. Escape clears the selection. Nodes are reachable with Tab and have the label Node: {name}, {type}.
 - Edge label is the flows text, cut to 40 characters, full text on hover and on keyboard focus.
-- Detail panel: right column at 1024 pixels wide or more, below the diagram otherwise. Sections in this order: name and type; role; inputs; outputs; Suggestions (not verified) for tech options (hidden when empty); Rules this part takes part in with each rule's plain text. A needs_model node also shows the sentence This part uses an AI model. There is no sizing button.
+- Detail panel: right column at 1024 pixels wide or more, below the diagram otherwise. Sections in this order: name and type; role; Connected from and Sends to (names taken from edges); inputs; outputs (data labels); Suggestions (not verified) for tech options (hidden when empty); Rules this part takes part in with each rule's plain text. A needs_model node also shows the sentence This part uses an AI model. There is no sizing button.
 - Below 768 pixels the canvas is replaced by FallbackList: items in flow_order, each with name, type, role and the names it sends to.
 - Banner text, exactly, always visible, not dismissible, above the tabs: Structurally checked, not guaranteed to be the best design. This is not a compliance claim.
 - NotesPanel shows lint warnings under the heading Notes and the brief's unverifiable requirements under Not verified by checks. Each section is hidden when empty.
