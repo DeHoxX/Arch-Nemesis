@@ -1,0 +1,237 @@
+Page: Arch-Nemesis UI - Linked
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arch-Nemesis</title>
+  <meta name="view-transition" content="same-origin">
+  <link rel="prefetch" href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-fdae335e-b676-41d1-b7d9-436145ccd5a3.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-978e5fd6-adf5-4c06-9f5d-3412bda33176.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-77a34c2f-8a6e-4568-981c-8ed7d4828daf.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-41e239a1-528d-4074-80a5-178007693996.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-7e54a23f-4e81-4896-bf7c-8b41a8321e26.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-03f5cd4e-ef6a-4990-87b8-92467ae50309.preview.superdesign.dev" as="document">
+  <link rel="prefetch" href="https://draft-0df18ed5-a911-44a7-90a4-5bc8c7848f49.preview.superdesign.dev" as="document">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: '#0a0a0a',
+            neon: '#ccff00',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { 
+      background-color: #0a0a0a; 
+      color: #9ca3af; /* text-gray-400 */
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .glass {
+      background-color: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .neon-glow:focus-within {
+      box-shadow: 0 0 20px rgba(204, 255, 0, 0.3);
+      border-color: #ccff00;
+    }
+
+    .grain {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E");
+    }
+
+    /* View Transitions */
+    html { background-color: #0a0a0a; }
+    @view-transition { navigation: auto; }
+    ::view-transition { background-color: #0a0a0a; }
+    ::view-transition-old(header-nav),
+    ::view-transition-new(header-nav) {
+      animation: none;
+      mix-blend-mode: normal;
+    }
+    ::view-transition-old(main-content) {
+      animation: 0.25s ease-out both fade-out;
+    }
+    ::view-transition-new(main-content) {
+      animation: 0.25s ease-in 0.1s both fade-in;
+    }
+    @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    ::view-transition-old(root),
+    ::view-transition-new(root) {
+      animation: none;
+      mix-blend-mode: normal;
+    }
+  </style>
+  <style>sd-component { display: block; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.iife.js" defer init></script>
+</head>
+<body class="font-sans min-h-screen flex flex-col leading-relaxed relative overflow-x-hidden">
+
+  <!-- Background layers -->
+  <!-- component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+<div v-scope="{ ...{&quot;showGrid&quot;:true,&quot;showGrain&quot;:true}, $emit() {} }">
+<div><div v-if="showGrid" class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:60px_60px] z-[-2]"></div><div v-if="showGrain" class="fixed inset-0 pointer-events-none z-[-1]" style="background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E&quot;);"></div></div>
+</div>
+<!-- /component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+
+  <!-- App Header -->
+  <!-- component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+<div v-scope="{ ...{&quot;activeItem&quot;:&quot;new-chat&quot;,&quot;homeHref&quot;:&quot;https://draft-0df18ed5-a911-44a7-90a4-5bc8c7848f49.preview.superdesign.dev&quot;}, $emit() {} }" style="view-transition-name: header-nav;">
+<header class="sticky top-6 z-50 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-white/[0.03] backdrop-blur-[16px] border border-white/[0.08] rounded-full h-16 flex items-center justify-between px-6 shadow-2xl">
+      <a :href="homeHref" class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-[#ccff00]/10 border border-[#ccff00]/30 text-[#ccff00] flex items-center justify-center">
+          <iconify-icon icon="lucide:layers" class="text-xl drop-shadow-[0_0_8px_rgba(204,255,0,0.5)]"></iconify-icon>
+        </div>
+        <span class="font-bold text-xl tracking-[-0.05em] text-white">Arch-Nemesis</span>
+      </a>
+      <nav class="flex gap-6 items-center">
+        <button 
+          @click="$emit('navigate', { item: 'new-chat' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'new-chat', 'text-gray-400': activeItem !== 'new-chat' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          New Chat
+        </button>
+        <button 
+          @click="$emit('navigate', { item: 'history' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'history', 'text-gray-400': activeItem !== 'history' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          History
+        </button>
+      </nav>
+    </div>
+  </header>
+</div>
+<!-- /component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+
+  <!-- Main Content Area -->
+  <main style="view-transition-name: main-content;" class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex flex-col items-center min-h-[calc(100vh-4rem)]">
+
+    <!-- Screen 1: Home / Chat -->
+    <div class="w-full max-w-2xl flex flex-col gap-12">
+      
+      <!-- Hero Section -->
+      <div class="flex flex-col items-center text-center space-y-6">
+        <div class="glass rounded-full px-4 py-1.5 flex items-center gap-2 font-mono text-xs text-gray-400 uppercase tracking-wider">
+          <span class="w-2 h-2 rounded-full bg-neon animate-pulse drop-shadow-[0_0_5px_rgba(204,255,0,0.8)]"></span>
+          v2.0
+        </div>
+        <h1 class="text-6xl sm:text-7xl font-bold tracking-[-0.05em] bg-gradient-to-b from-white to-gray-500 bg-clip-text text-transparent max-w-2xl leading-[0.9]">
+          Describe the system you need
+        </h1>
+        <p class="text-lg text-gray-400 max-w-xl font-mono">
+          Plain language description to architecture diagram.
+        </p>
+      </div>
+
+      <!-- Input Area -->
+      <div class="glass rounded-2xl overflow-hidden transition-all duration-300 neon-glow relative">
+        <!-- Subtle background glow behind input -->
+        <div class="absolute -inset-4 bg-gradient-to-r from-neon/0 via-neon/5 to-cyan-500/5 blur-xl pointer-events-none opacity-0 transition-opacity duration-300" id="input-glow"></div>
+        
+        <textarea class="relative w-full p-6 min-h-[140px] bg-transparent resize-none outline-none text-white placeholder-gray-600 leading-relaxed font-sans text-lg" placeholder="For example: a support assistant that answers customers from our help articles and hands hard cases to a person."></textarea>
+        <div class="relative px-6 py-4 border-t border-white/5 flex justify-end bg-black/40">
+          <button class="bg-neon hover:bg-[#b3e600] text-black px-6 py-2 rounded-md text-sm font-bold transition-colors focus:outline-none flex items-center gap-2">
+            Send <iconify-icon icon="lucide:send" class="text-base"></iconify-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- Example Follow-up Chat -->
+      <div class="space-y-6">
+        <!-- AI Message -->
+        <div class="flex gap-4">
+          <div class="w-10 h-10 rounded-full glass flex items-center justify-center shrink-0">
+            <iconify-icon icon="lucide:bot" class="text-gray-400"></iconify-icon>
+          </div>
+          <div class="glass rounded-2xl rounded-tl-sm px-6 py-5 text-base leading-relaxed text-gray-300">
+            Got it. Before generating the diagram, could you clarify what happens if the "hard case" happens outside of business hours? Does it wait in a queue or get an automated "we're away" reply?
+          </div>
+        </div>
+
+        <!-- User Message -->
+        <div class="flex gap-4 flex-row-reverse">
+           <div class="w-10 h-10 rounded-full glass border-neon/30 flex items-center justify-center shrink-0">
+            <iconify-icon icon="lucide:user" class="text-neon"></iconify-icon>
+          </div>
+          <div class="glass border-neon/20 bg-neon/5 rounded-2xl rounded-tr-sm px-6 py-5 text-base leading-relaxed text-neon">
+            It should just go into a queue for the next morning, but send a quick automated reply so they know.
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Card (Ready to Generate) -->
+      <div class="glass rounded-2xl p-8 space-y-6 mt-4 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-neon/5 blur-[80px] rounded-full pointer-events-none"></div>
+        
+        <h3 class="font-bold text-xl text-white flex items-center gap-3">
+          <iconify-icon icon="lucide:check-circle-2" class="text-neon text-2xl drop-shadow-[0_0_10px_rgba(204,255,0,0.5)]"></iconify-icon>
+          Ready to generate
+        </h3>
+        
+        <div class="text-base text-gray-400 space-y-3 font-mono text-sm">
+          <p><strong class="text-white font-sans text-base">System:</strong> Customer support assistant with human fallback and off-hours queuing.</p>
+          <p><strong class="text-white font-sans text-base">Users:</strong> Customers, Support Agents</p>
+          <p><strong class="text-white font-sans text-base">Data:</strong> Help articles, Chat history, Support tickets</p>
+          <p><strong class="text-white font-sans text-base">Rules identified:</strong> 2 core business rules</p>
+        </div>
+
+        <div class="inline-flex items-center gap-2 text-xs font-mono text-neon glass px-4 py-2 rounded-full border-neon/20 bg-neon/5">
+          <iconify-icon icon="lucide:alert-triangle"></iconify-icon>
+          <span>Not verified by structural checks yet</span>
+        </div>
+
+        <a href="https://draft-03f5cd4e-ef6a-4990-87b8-92467ae50309.preview.superdesign.dev" class="w-full glass hover:bg-white/5 border-white/20 text-white px-5 py-3.5 rounded-lg text-base font-bold transition-all hover:border-neon/50 hover:text-neon flex justify-center mt-4">
+          Generate design
+        </a>
+      </div>
+
+      <div class="text-center pt-8">
+         <a href="https://draft-41e239a1-528d-4074-80a5-178007693996.preview.superdesign.dev" class="text-sm font-mono text-gray-500 hover:text-neon transition-colors underline underline-offset-4 decoration-white/10 hover:decoration-neon">
+           Past designs
+         </a>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // Simple interaction for the input area glow effect based on focus
+    const textarea = document.querySelector('textarea');
+    const inputGlow = document.getElementById('input-glow');
+    
+    textarea.addEventListener('focus', () => {
+      inputGlow.style.opacity = '1';
+    });
+    textarea.addEventListener('blur', () => {
+      inputGlow.style.opacity = '0';
+    });
+  </script>
+</body>
+</html>
+```
+
+Please reference this design and implement it into our codebase; Try to understand the structure, which part of our codebase is relevant and implement

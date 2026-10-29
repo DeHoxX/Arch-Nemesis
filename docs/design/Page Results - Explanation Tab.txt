@@ -1,0 +1,268 @@
+Page: Results - Explanation Tab
+
+```html
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Results - Explanation | Arch-Nemesis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: '#0a0a0a',
+            neon: '#ccff00',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { 
+      background-color: #0a0a0a; 
+      color: #9ca3af; /* text-gray-400 */
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .glass {
+      background-color: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .neon-glow:focus-within,
+    .neon-glow:hover {
+      box-shadow: 0 0 20px rgba(204, 255, 0, 0.3);
+      border-color: #ccff00;
+    }
+
+    .grain {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E");
+    }
+  </style>
+  <style>sd-component { display: block; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.iife.js" defer init></script>
+</head>
+<body class="font-sans min-h-screen flex flex-col leading-relaxed relative overflow-x-hidden">
+
+  <!-- Background layers -->
+  <!-- component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+<div v-scope="{ ...{&quot;showGrid&quot;:true,&quot;showGrain&quot;:true}, $emit() {} }">
+<div><div v-if="showGrid" class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:60px_60px] z-[-2]"></div><div v-if="showGrain" class="fixed inset-0 pointer-events-none z-[-1]" style="background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E&quot;);"></div></div>
+</div>
+<!-- /component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+
+  <!-- App Header -->
+  <!-- component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+<div v-scope="{ ...{&quot;activeItem&quot;:&quot;new-chat&quot;,&quot;homeHref&quot;:&quot;#&quot;}, $emit() {} }">
+<header class="sticky top-6 z-50 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-white/[0.03] backdrop-blur-[16px] border border-white/[0.08] rounded-full h-16 flex items-center justify-between px-6 shadow-2xl">
+      <a :href="homeHref" class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-[#ccff00]/10 border border-[#ccff00]/30 text-[#ccff00] flex items-center justify-center">
+          <iconify-icon icon="lucide:layers" class="text-xl drop-shadow-[0_0_8px_rgba(204,255,0,0.5)]"></iconify-icon>
+        </div>
+        <span class="font-bold text-xl tracking-[-0.05em] text-white">Arch-Nemesis</span>
+      </a>
+      <nav class="flex gap-6 items-center">
+        <button 
+          @click="$emit('navigate', { item: 'new-chat' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'new-chat', 'text-gray-400': activeItem !== 'new-chat' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          New Chat
+        </button>
+        <button 
+          @click="$emit('navigate', { item: 'history' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'history', 'text-gray-400': activeItem !== 'history' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          History
+        </button>
+      </nav>
+    </div>
+  </header>
+</div>
+<!-- /component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+
+  <!-- Main Content Area -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col min-h-[calc(100vh-4rem)]" data-sd-id="1">
+
+    <!-- Permanent Warning Banner -->
+    <div class="glass rounded-lg p-4 mb-8 flex items-start gap-3 border-amber-500/30 bg-amber-500/5" data-sd-id="2">
+      <iconify-icon icon="lucide:alert-triangle" class="text-amber-500 text-xl shrink-0 mt-0.5 drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"></iconify-icon>
+      <p class="text-amber-200/80 font-mono text-sm leading-relaxed" data-sd-id="3">
+        <span class="text-amber-400 font-bold mr-2" data-sd-id="4">Structurally checked, not guaranteed to be the best design.</span> 
+        This is not a compliance claim.
+      </p>
+    </div>
+
+    <!-- Tab Navigation & Action Buttons -->
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10 border-b border-white/10 pb-4" data-sd-id="5">
+      <div class="flex gap-8" data-sd-id="6">
+        <a href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" id="tab-diagram" class="font-mono text-lg text-gray-500 hover:text-white transition-colors pb-4 -mb-[17px] relative" data-sd-id="7">
+          Diagram
+        </a>
+        <a href="https://draft-fdae335e-b676-41d1-b7d9-436145ccd5a3.preview.superdesign.dev" id="tab-explanation" class="font-mono text-lg text-white pb-4 -mb-[17px] relative" data-sd-id="8">
+          Explanation
+          <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-neon shadow-[0_0_8px_rgba(204,255,0,0.8)]" data-sd-id="9"></div>
+        </a>
+      </div>
+      
+      <div class="flex flex-wrap gap-3" data-sd-id="10">
+        <a href="https://draft-77a34c2f-8a6e-4568-981c-8ed7d4828daf.preview.superdesign.dev" id="btn-contact" class="glass px-4 py-2 rounded text-sm font-mono text-gray-300 hover:text-neon hover:border-neon/50 transition-all flex items-center gap-2" data-sd-id="11">
+          <iconify-icon icon="lucide:message-square"></iconify-icon>
+          Contact our team
+        </a>
+        <button id="btn-dl-png" class="glass px-4 py-2 rounded text-sm font-mono text-gray-300 hover:text-neon hover:border-neon/50 transition-all flex items-center gap-2" data-sd-id="12">
+          <iconify-icon icon="lucide:image"></iconify-icon>
+          Download (PNG)
+        </button>
+        <button id="btn-dl-md" class="glass px-4 py-2 rounded text-sm font-mono text-gray-300 hover:text-neon hover:border-neon/50 transition-all flex items-center gap-2" data-sd-id="13">
+          <iconify-icon icon="lucide:file-text"></iconify-icon>
+          Download (.md)
+        </button>
+        <button id="btn-print" class="glass px-4 py-2 rounded text-sm font-mono text-gray-300 hover:text-neon hover:border-neon/50 transition-all flex items-center gap-2" data-sd-id="14">
+          <iconify-icon icon="lucide:printer"></iconify-icon>
+          Print / PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Explanation Content -->
+    <div class="max-w-3xl mx-auto w-full space-y-12 pb-20" data-sd-id="15">
+      
+      <!-- 1. OVERVIEW -->
+      <section class="space-y-4" data-sd-id="16">
+        <h2 class="text-2xl font-bold text-white tracking-[-0.03em]" data-sd-id="17">1. Overview</h2>
+        <div class="glass p-6 rounded-xl" data-sd-id="18">
+          <p class="text-gray-300 text-lg leading-relaxed" data-sd-id="19">
+            This system handles incoming customer questions by searching relevant help articles, generating answers with an AI model, validating them for safety, and either delivering the answer or escalating hard cases to a human agent.
+          </p>
+        </div>
+      </section>
+
+      <!-- 2. HOW A REQUEST FLOWS -->
+      <section class="space-y-4" data-sd-id="20">
+        <h2 class="text-2xl font-bold text-white tracking-[-0.03em]" data-sd-id="21">2. How a request flows</h2>
+        <ol class="list-decimal list-outside ml-5 space-y-4 text-gray-300 text-base font-mono" data-sd-id="22">
+          <li class="pl-2" data-sd-id="23"><span class="text-gray-400 font-sans" data-sd-id="24">Customer submits question through chat interface.</span></li>
+          <li class="pl-2" data-sd-id="25"><span class="text-neon" data-sd-id="26">Question intake</span> <span class="text-gray-400 font-sans" data-sd-id="27">module receives and parses the input.</span></li>
+          <li class="pl-2" data-sd-id="28"><span class="text-neon" data-sd-id="29">Article search</span> <span class="text-gray-400 font-sans" data-sd-id="30">queries the knowledge base for related articles.</span></li>
+          <li class="pl-2" data-sd-id="31"><span class="text-neon" data-sd-id="32">Answer writer</span> <span class="text-gray-400 font-sans" data-sd-id="33">AI model generates response based on search results.</span></li>
+          <li class="pl-2" data-sd-id="34"><span class="text-neon" data-sd-id="35">Safety check</span> <span class="text-gray-400 font-sans" data-sd-id="36">validates the answer meets quality and safety rules.</span></li>
+          <li class="pl-2" data-sd-id="37"><span class="text-gray-400 font-sans" data-sd-id="38">If validation passes: answer sent to customer; if fails: escalate to human agent.</span></li>
+        </ol>
+      </section>
+
+      <!-- 3. EACH PART -->
+      <section class="space-y-6" data-sd-id="39">
+        <h2 class="text-2xl font-bold text-white tracking-[-0.03em]" data-sd-id="40">3. Each part</h2>
+        <div class="space-y-6" data-sd-id="41">
+          
+          <!-- Part 1 -->
+          <div class="glass p-6 rounded-xl border-l-4 border-l-emerald-500" data-sd-id="42">
+            <div class="flex items-center gap-3 mb-3" data-sd-id="43">
+              <h3 class="text-xl font-bold text-white" data-sd-id="44">Question Intake</h3>
+              <span class="px-2 py-0.5 rounded text-xs font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" data-sd-id="45">Entry</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed" data-sd-id="46">
+              Receives raw customer input, parses intent and context.
+            </p>
+          </div>
+
+          <!-- Part 2 -->
+          <div class="glass p-6 rounded-xl border-l-4 border-l-slate-500" data-sd-id="47">
+            <div class="flex items-center gap-3 mb-3" data-sd-id="48">
+              <h3 class="text-xl font-bold text-white" data-sd-id="49">Article Search</h3>
+              <span class="px-2 py-0.5 rounded text-xs font-mono bg-slate-500/10 text-slate-400 border border-slate-500/20" data-sd-id="50">Plain</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed" data-sd-id="51">
+              Queries knowledge base with similarity search.
+            </p>
+          </div>
+
+          <!-- Part 3 -->
+          <div class="glass p-6 rounded-xl border-l-4 border-l-amber-500 relative overflow-hidden" data-sd-id="52">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 blur-[40px] rounded-full pointer-events-none" data-sd-id="53"></div>
+            <div class="flex items-center gap-3 mb-3 relative" data-sd-id="54">
+              <h3 class="text-xl font-bold text-white" data-sd-id="55">Answer Writer</h3>
+              <span class="px-2 py-0.5 rounded text-xs font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20" data-sd-id="56">AI Model</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed relative" data-sd-id="57">
+              Claude or similar LLM generates natural answers based on retrieved context.
+            </p>
+          </div>
+
+          <!-- Part 4 -->
+          <div class="glass p-6 rounded-xl border-l-4 border-l-slate-500" data-sd-id="58">
+            <div class="flex items-center gap-3 mb-3" data-sd-id="59">
+              <h3 class="text-xl font-bold text-white" data-sd-id="60">Safety Check</h3>
+              <span class="px-2 py-0.5 rounded text-xs font-mono bg-slate-500/10 text-slate-400 border border-slate-500/20" data-sd-id="61">Plain</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed" data-sd-id="62">
+              Validates answer against business rules.
+            </p>
+          </div>
+
+          <!-- Part 5 -->
+          <div class="glass p-6 rounded-xl border-l-4 border-l-violet-500" data-sd-id="63">
+            <div class="flex items-center gap-3 mb-3" data-sd-id="64">
+              <h3 class="text-xl font-bold text-white" data-sd-id="65">Human Handoff</h3>
+              <span class="px-2 py-0.5 rounded text-xs font-mono bg-violet-500/10 text-violet-400 border border-violet-500/20" data-sd-id="66">Exit</span>
+            </div>
+            <p class="text-gray-400 leading-relaxed" data-sd-id="67">
+              Routes complex cases to support agent queue.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 4. WHY THE CHECKS EXIST -->
+      <section class="space-y-4" data-sd-id="68">
+        <h2 class="text-2xl font-bold text-white tracking-[-0.03em]" data-sd-id="69">4. Why the checks exist</h2>
+        <div class="glass p-6 rounded-xl" data-sd-id="70">
+          <p class="text-gray-300 leading-relaxed mb-4" data-sd-id="71">
+            The system includes a safety check because AI-generated answers must be reviewed before sending to ensure they don't violate company policies, privacy rules, or provide incorrect information.
+          </p>
+          <p class="text-gray-300 leading-relaxed" data-sd-id="72">
+            Additionally, hard cases (questions about billing, account access, refunds) are automatically escalated to humans because they require real judgment and authority.
+          </p>
+        </div>
+      </section>
+
+      <!-- 5. WHERE AI MODELS ARE USED -->
+      <section class="space-y-4" data-sd-id="73">
+        <h2 class="text-2xl font-bold text-white tracking-[-0.03em]" data-sd-id="74">5. Where AI models are used</h2>
+        <div class="glass p-6 rounded-xl" data-sd-id="75">
+          <p class="text-gray-300 leading-relaxed" data-sd-id="76">
+            The <span class="font-mono text-amber-400 bg-amber-400/10 px-1 rounded" data-sd-id="77">Answer Writer</span> node uses an LLM (Claude, GPT-4, or similar) to generate natural language responses. 
+            All other nodes (<span class="font-mono text-neon bg-neon/5 px-1 rounded" data-sd-id="78">Question Intake</span>, <span class="font-mono text-neon bg-neon/5 px-1 rounded" data-sd-id="79">Article Search</span>, <span class="font-mono text-neon bg-neon/5 px-1 rounded" data-sd-id="80">Safety Check</span>, <span class="font-mono text-neon bg-neon/5 px-1 rounded" data-sd-id="81">Human Handoff</span>) use deterministic logic.
+          </p>
+        </div>
+      </section>
+
+      <!-- Optional Variant Box -->
+      <div class="glass p-4 rounded-lg flex items-center gap-3 border-gray-600/30 mt-12" data-sd-id="82">
+        <iconify-icon icon="lucide:info" class="text-gray-400 text-lg"></iconify-icon>
+        <p class="text-gray-400 font-mono text-sm" data-sd-id="83">Basic explanation: the written version did not pass our checks.</p>
+      </div>
+
+    </div>
+
+  </main>
+
+
+</body></html>
+```
+
+Please reference this design and implement it into our codebase; Try to understand the structure, which part of our codebase is relevant and implement

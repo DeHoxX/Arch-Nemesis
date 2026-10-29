@@ -857,6 +857,30 @@ If we removed it: The decision log would misattribute user instructions and leav
 Decided by: user requested
 Status: active
 
+### D-098 — Phase 4 — design
+What: Add `brief` and `warnings` fields to `DesignResponse` in `apps/api/src/archnemesis/modules/designs/schemas.py`.
+Why: Build Plan line 410 specifies that `GET /api/designs/{id}` returns the requirement brief and warnings alongside the spec and flow order. Adding `brief: RequirementBrief` and `warnings: list[str]` (deserialized from `version.brief_json` and `version.warnings_json`) allows the Phase 4 UI (`NotesPanel`) to display lint warnings and unverifiable requirements. The response preserves the existing field names `id` and `current_version` (which differ from the Build Plan line 410 phrasing `design_id` and `version_no`) to maintain backwards compatibility with Phase 3 tests and avoid unnecessary contract breakage.
+Alternatives considered: Re-deriving lints client-side and omitting brief on refresh. Rejected because the database already stores `brief_json` and `warnings_json`, and line 410 explicitly requires them in the response.
+If we removed it: The Phase 4 frontend results page would lack the brief and lint warnings on initial load or browser refresh.
+Decided by: user approved
+Status: written, not yet verified by a test run
+
+### D-099 — Phase 4 — step
+What: Increase Next.js proxy timeout to `600000` ms (10 minutes) in `apps/web/next.config.ts`, superseding `D-073`.
+Why: Architecture synthesis with up to 3 LLM calls, exponential retry backoffs, and network latency can take up to several minutes in worst-case repair scenarios. Raising `proxyTimeout` from `120000` (2 minutes) to `600000` ensures Next.js API route rewrites do not terminate long-running design generation with a 504 Gateway Timeout while FastAPI is still completing.
+Alternatives considered: Keeping 120s timeout. Rejected because complex design repairs would trigger false 504 errors in the browser.
+If we removed it: Lengthy multi-attempt generation runs would be prematurely severed at the Next.js rewrite proxy.
+Decided by: user approved
+Status: active
+
+### D-100 — Phase 4 — deviation
+What: Adopt obsidian (#0a0a0a) background and neon lime (#ccff00) accent for page chrome as a design deviation from BUILD_PLAN.md:454.
+Why: The SuperDesign system introduces obsidian (#0a0a0a) and neon lime (#ccff00) for high-contrast tech minimalism in page chrome (header, hero, and interactive accents). BUILD_PLAN.md line 454 states "Do not: add ... other colours". The user explicitly approved neon lime and obsidian for page chrome only, while strictly maintaining the four plan colors (emerald for entry, violet for exit, amber for needs_model, and slate for plain) for node borders and structural badges.
+Alternatives considered: Adhering strictly to shadcn neutral base tokens for all page elements. Rejected per user approval of obsidian and neon lime chrome styling.
+If we removed it: The user interface would lack the obsidian tech-minimalist aesthetic established in the approved design system.
+Decided by: user approved
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

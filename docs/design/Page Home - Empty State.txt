@@ -1,0 +1,211 @@
+Page: Home - Empty State
+
+```html
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arch-Nemesis - Home</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: '#0a0a0a',
+            neon: '#ccff00',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { 
+      background-color: #0a0a0a; 
+      color: #9ca3af; /* text-gray-400 */
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .glass {
+      background-color: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .neon-glow:focus-within {
+      box-shadow: 0 0 20px rgba(204, 255, 0, 0.3);
+      border-color: #ccff00;
+    }
+
+    .grain {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E");
+    }
+  </style>
+  <style>sd-component { display: block; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.iife.js" defer init></script>
+</head>
+<body class="font-sans min-h-screen flex flex-col leading-relaxed relative overflow-x-hidden">
+
+  <!-- Background layers -->
+  <!-- component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+<div v-scope="{ ...{&quot;showGrid&quot;:true,&quot;showGrain&quot;:true}, $emit() {} }">
+<div><div v-if="showGrid" class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:60px_60px] z-[-2]"></div><div v-if="showGrain" class="fixed inset-0 pointer-events-none z-[-1]" style="background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E&quot;);"></div></div>
+</div>
+<!-- /component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+
+  <!-- App Header -->
+  <!-- component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+<div v-scope="{ ...{&quot;activeItem&quot;:&quot;new-chat&quot;,&quot;homeHref&quot;:&quot;#&quot;}, $emit() {} }">
+<header class="sticky top-6 z-50 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-white/[0.03] backdrop-blur-[16px] border border-white/[0.08] rounded-full h-16 flex items-center justify-between px-6 shadow-2xl">
+      <a :href="homeHref" class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-[#ccff00]/10 border border-[#ccff00]/30 text-[#ccff00] flex items-center justify-center">
+          <iconify-icon icon="lucide:layers" class="text-xl drop-shadow-[0_0_8px_rgba(204,255,0,0.5)]"></iconify-icon>
+        </div>
+        <span class="font-bold text-xl tracking-[-0.05em] text-white">Arch-Nemesis</span>
+      </a>
+      <nav class="flex gap-6 items-center">
+        <button 
+          @click="$emit('navigate', { item: 'new-chat' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'new-chat', 'text-gray-400': activeItem !== 'new-chat' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          New Chat
+        </button>
+        <button 
+          @click="$emit('navigate', { item: 'history' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'history', 'text-gray-400': activeItem !== 'history' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          History
+        </button>
+      </nav>
+    </div>
+  </header>
+</div>
+<!-- /component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+
+  <!-- Main Content Area -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-20 flex flex-col min-h-[calc(100vh-4rem)]" data-sd-id="1">
+
+    <!-- Intro text -->
+    <div class="mb-10 text-center md:text-left" data-sd-id="2">
+      <h1 class="text-3xl md:text-5xl font-bold tracking-[-0.05em] text-white mb-3" data-sd-id="3">
+        Welcome back.
+      </h1>
+      <p class="text-lg text-gray-400 font-mono" data-sd-id="4">
+        Continue from your last design or start fresh.
+      </p>
+    </div>
+
+    <!-- Two Column Layout -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-10 md:gap-16 items-start" data-sd-id="5">
+      
+      <!-- Left Column: Recent Designs -->
+      <div class="md:col-span-5 flex flex-col gap-6 order-2 md:order-1" data-sd-id="6">
+        <h2 class="text-2xl font-bold tracking-[-0.05em] text-white" data-sd-id="7">
+          Recent designs
+        </h2>
+        
+        <div class="flex flex-col gap-4" data-sd-id="8">
+          <!-- Card 1 -->
+          <a href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" class="glass rounded-2xl p-5 flex items-center justify-between group hover:border-neon/40 hover:bg-white/5 transition-all duration-300" id="recent-design-1" data-sd-id="9">
+            <div class="pr-4" data-sd-id="10">
+              <h3 class="font-bold text-white text-lg leading-snug group-hover:text-neon transition-colors" data-sd-id="11">Customer Support Assistant</h3>
+              <p class="text-sm text-gray-400 font-mono mt-1" data-sd-id="12">2 days ago</p>
+            </div>
+            <div class="flex items-center gap-2 text-neon text-sm font-bold opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" data-sd-id="13">
+              View <iconify-icon icon="lucide:arrow-right"></iconify-icon>
+            </div>
+          </a>
+
+          <!-- Card 2 -->
+          <a href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" class="glass rounded-2xl p-5 flex items-center justify-between group hover:border-neon/40 hover:bg-white/5 transition-all duration-300" id="recent-design-2" data-sd-id="14">
+            <div class="pr-4" data-sd-id="15">
+              <h3 class="font-bold text-white text-lg leading-snug group-hover:text-neon transition-colors" data-sd-id="16">Payment Processing System</h3>
+              <p class="text-sm text-gray-400 font-mono mt-1" data-sd-id="17">4 days ago</p>
+            </div>
+            <div class="flex items-center gap-2 text-neon text-sm font-bold opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" data-sd-id="18">
+              View <iconify-icon icon="lucide:arrow-right"></iconify-icon>
+            </div>
+          </a>
+
+          <!-- Card 3 -->
+          <a href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" class="glass rounded-2xl p-5 flex items-center justify-between group hover:border-neon/40 hover:bg-white/5 transition-all duration-300" id="recent-design-3" data-sd-id="19">
+            <div class="pr-4" data-sd-id="20">
+              <h3 class="font-bold text-white text-lg leading-snug group-hover:text-neon transition-colors" data-sd-id="21">Inventory Manager</h3>
+              <p class="text-sm text-gray-400 font-mono mt-1" data-sd-id="22">1 week ago</p>
+            </div>
+            <div class="flex items-center gap-2 text-neon text-sm font-bold opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" data-sd-id="23">
+              View <iconify-icon icon="lucide:arrow-right"></iconify-icon>
+            </div>
+          </a>
+
+          <!-- Card 4 -->
+          <a href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" class="glass rounded-2xl p-5 flex items-center justify-between group hover:border-neon/40 hover:bg-white/5 transition-all duration-300" id="recent-design-4" data-sd-id="24">
+            <div class="pr-4" data-sd-id="25">
+              <h3 class="font-bold text-white text-lg leading-snug group-hover:text-neon transition-colors" data-sd-id="26">Email Notification Service</h3>
+              <p class="text-sm text-gray-400 font-mono mt-1" data-sd-id="27">2 weeks ago</p>
+            </div>
+            <div class="flex items-center gap-2 text-neon text-sm font-bold opacity-70 group-hover:opacity-100 group-hover:translate-x-1 transition-all shrink-0" data-sd-id="28">
+              View <iconify-icon icon="lucide:arrow-right"></iconify-icon>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <!-- Right Column: New Chat -->
+      <div class="md:col-span-7 flex flex-col gap-6 order-1 md:order-2" data-sd-id="29">
+        <h2 class="text-2xl font-bold tracking-[-0.05em] text-white" data-sd-id="30">
+          Start a new design
+        </h2>
+        
+        <div class="flex flex-col gap-3" data-sd-id="31">
+          <div class="glass rounded-2xl overflow-hidden transition-all duration-300 neon-glow relative" data-sd-id="32">
+            <!-- Subtle background glow behind input -->
+            <div class="absolute -inset-4 bg-gradient-to-r from-neon/0 via-neon/5 to-cyan-500/5 blur-xl pointer-events-none opacity-0 transition-opacity duration-300" id="input-glow" data-sd-id="33"></div>
+            
+            <textarea class="relative w-full p-6 min-h-[220px] bg-transparent resize-none outline-none text-white placeholder-gray-600 leading-relaxed font-sans text-lg" placeholder="For example: a support assistant that answers customers from our help articles and hands hard cases to a person." data-sd-id="34"></textarea>
+            <div class="relative px-6 py-4 border-t border-white/5 flex justify-end bg-black/40" data-sd-id="35">
+              <button class="bg-neon hover:bg-[#b3e600] text-black px-8 py-2.5 rounded-lg text-sm font-bold transition-all focus:outline-none flex items-center gap-2 shadow-[0_0_15px_rgba(204,255,0,0.15)] hover:shadow-[0_0_20px_rgba(204,255,0,0.3)]" id="send-btn" data-sd-id="36">
+                Send <iconify-icon icon="lucide:send" class="text-base"></iconify-icon>
+              </button>
+            </div>
+          </div>
+          
+          <p class="text-sm text-gray-500 font-mono pl-2" data-sd-id="37">
+            Or continue with one of your recent designs
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <script>
+    // Simple interaction for the input area glow effect based on focus
+    const textarea = document.querySelector('textarea');
+    const inputGlow = document.getElementById('input-glow');
+    
+    if(textarea && inputGlow) {
+      textarea.addEventListener('focus', () => {
+        inputGlow.style.opacity = '1';
+      });
+      textarea.addEventListener('blur', () => {
+        inputGlow.style.opacity = '0';
+      });
+    }
+  </script>
+
+</body></html>
+```
+
+Please reference this design and implement it into our codebase; Try to understand the structure, which part of our codebase is relevant and implement

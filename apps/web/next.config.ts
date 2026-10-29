@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
   experimental: {
-    proxyTimeout: 120000,
+    proxyTimeout: 600000,
   },
   turbopack: {
     rules: {

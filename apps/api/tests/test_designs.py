@@ -105,7 +105,7 @@ SAMPLE_BRIEF = RequirementBrief(
     data_involved=["Orders"],
     domain_hint="Commerce",
     stated_constraints=[BriefConstraint(id="bc1", text="Worker must process orders")],
-    unverifiable_requirements=[],
+    unverifiable_requirements=["Latency must feel instant"],
     numbers_given=[],
     assumptions=[],
 )
@@ -151,6 +151,10 @@ async def test_create_design_from_ready_session_success(
     assert data["intake_session_id"] == db_session.id
     assert data["current_version"] == 1
     assert data["prompt_version"] == "architect_v1"
+    assert data["brief"]["summary"] == "Order processing pipeline."
+    assert data["brief"]["unverifiable_requirements"] == ["Latency must feel instant"]
+    assert "warnings" in data
+    assert isinstance(data["warnings"], list)
     assert len(data["spec"]["nodes"]) == 3
 
     # Verify flow order matches order_nodes
@@ -225,6 +229,15 @@ async def test_create_design_idempotency_returns_existing(
 
     assert design_id_1 == design_id_2
     assert len(fake_llm.calls) == 1  # Only called once
+    data1 = res1.json()
+    data2 = res2.json()
+    assert data1["brief"]["summary"] == data2["brief"]["summary"] == "Order processing pipeline."
+    assert (
+        data1["brief"]["unverifiable_requirements"]
+        == data2["brief"]["unverifiable_requirements"]
+        == ["Latency must feel instant"]
+    )
+    assert data1["warnings"] == data2["warnings"] == []
 
 
 @pytest.mark.asyncio
@@ -289,6 +302,11 @@ async def test_get_design_by_id_success_and_missing_404(
         assert get_res.status_code == 200, get_res.text
         data = get_res.json()
         assert data["id"] == design_id
+        assert data["brief"]["summary"] == "Order processing pipeline."
+        assert data["brief"]["unverifiable_requirements"] == ["Latency must feel instant"]
+        assert "warnings" in data
+        assert isinstance(data["warnings"], list)
+        assert data["warnings"] == []
         assert data["flow_order"] == ["ingress", "worker", "db_sink"]
 
         # Missing design

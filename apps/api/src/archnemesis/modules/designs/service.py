@@ -32,6 +32,9 @@ async def create_design(
     if existing_design is not None:
         version = await repo.get_design_version(db, existing_design.id, 1)
         if version is not None:
+            brief_dict = json.loads(version.brief_json)
+            brief_obj = RequirementBrief.model_validate(brief_dict)
+            warnings_list = json.loads(version.warnings_json)
             spec_dict = json.loads(version.spec_json)
             spec = ArchitectureSpec.model_validate(spec_dict)
             flow_order = order_nodes(spec)
@@ -39,7 +42,9 @@ async def create_design(
                 id=existing_design.id,
                 intake_session_id=existing_design.intake_session_id,
                 current_version=version.version_no,
+                brief=brief_obj,
                 spec=spec,
+                warnings=warnings_list,
                 flow_order=flow_order,
                 prompt_version=version.prompt_version,
             )
@@ -85,12 +90,17 @@ async def create_design(
         spec = ArchitectureSpec.model_validate(json.loads(version.spec_json))
         prompt_version = version.prompt_version
 
+    brief_dict = json.loads(version.brief_json)
+    brief_obj = RequirementBrief.model_validate(brief_dict)
+    warnings_list = json.loads(version.warnings_json)
     flow_order = order_nodes(spec)
     return DesignResponse(
         id=design.id,
         intake_session_id=design.intake_session_id,
         current_version=version.version_no,
+        brief=brief_obj,
         spec=spec,
+        warnings=warnings_list,
         flow_order=flow_order,
         prompt_version=prompt_version,
     )
@@ -105,6 +115,9 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
     if version is None:
         raise NotFoundError(f"Design version 1 for design '{design_id}' not found.")
 
+    brief_dict = json.loads(version.brief_json)
+    brief_obj = RequirementBrief.model_validate(brief_dict)
+    warnings_list = json.loads(version.warnings_json)
     spec = ArchitectureSpec.model_validate(json.loads(version.spec_json))
     flow_order = order_nodes(spec)
 
@@ -112,7 +125,9 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
         id=design.id,
         intake_session_id=design.intake_session_id,
         current_version=version.version_no,
+        brief=brief_obj,
         spec=spec,
+        warnings=warnings_list,
         flow_order=flow_order,
         prompt_version=version.prompt_version,
     )

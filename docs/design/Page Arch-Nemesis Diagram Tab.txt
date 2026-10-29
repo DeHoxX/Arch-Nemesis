@@ -1,0 +1,456 @@
+Page: Arch-Nemesis Diagram Tab
+
+```html
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Arch-Nemesis - Diagram</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: '#0a0a0a',
+            neon: '#ccff00',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { 
+      background-color: #0a0a0a; 
+      color: #9ca3af; /* text-gray-400 */
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .glass {
+      background-color: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .neon-glow:focus-within,
+    .neon-hover:hover {
+      box-shadow: 0 0 20px rgba(204, 255, 0, 0.2);
+      border-color: rgba(204, 255, 0, 0.5);
+    }
+
+    .grain {
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E");
+    }
+
+    /* Diagram connector lines */
+    .edge-line {
+      background: repeating-linear-gradient(to right, #4b5563 0, #4b5563 4px, transparent 4px, transparent 8px);
+    }
+    @media (max-width: 767px) {
+      .edge-line {
+        background: repeating-linear-gradient(to bottom, #4b5563 0, #4b5563 4px, transparent 4px, transparent 8px);
+      }
+    }
+  </style>
+  <style>sd-component { display: block; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.iife.js" defer init></script>
+</head>
+<body class="font-sans min-h-screen flex flex-col leading-relaxed relative overflow-x-hidden">
+
+  <!-- Background layers -->
+  <!-- component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+<div v-scope="{ ...{&quot;showGrid&quot;:true,&quot;showGrain&quot;:true}, $emit() {} }">
+<div><div v-if="showGrid" class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:60px_60px] z-[-2]"></div><div v-if="showGrain" class="fixed inset-0 pointer-events-none z-[-1]" style="background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E&quot;);"></div></div>
+</div>
+<!-- /component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+
+  <!-- App Header -->
+  <!-- component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+<div v-scope="{ ...{&quot;activeItem&quot;:&quot;new-chat&quot;,&quot;homeHref&quot;:&quot;#&quot;}, $emit() {} }">
+<header class="sticky top-6 z-50 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-white/[0.03] backdrop-blur-[16px] border border-white/[0.08] rounded-full h-16 flex items-center justify-between px-6 shadow-2xl">
+      <a :href="homeHref" class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-[#ccff00]/10 border border-[#ccff00]/30 text-[#ccff00] flex items-center justify-center">
+          <iconify-icon icon="lucide:layers" class="text-xl drop-shadow-[0_0_8px_rgba(204,255,0,0.5)]"></iconify-icon>
+        </div>
+        <span class="font-bold text-xl tracking-[-0.05em] text-white">Arch-Nemesis</span>
+      </a>
+      <nav class="flex gap-6 items-center">
+        <button 
+          @click="$emit('navigate', { item: 'new-chat' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'new-chat', 'text-gray-400': activeItem !== 'new-chat' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          New Chat
+        </button>
+        <button 
+          @click="$emit('navigate', { item: 'history' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'history', 'text-gray-400': activeItem !== 'history' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          History
+        </button>
+      </nav>
+    </div>
+  </header>
+</div>
+<!-- /component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+
+  <!-- Main Content Area -->
+  <main class="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col min-h-[calc(100vh-4rem)]" data-sd-id="1">
+
+    <!-- Warning Banner -->
+    <div class="glass rounded-lg py-2 px-4 mb-8 flex items-center gap-3 w-full" data-sd-id="2">
+      <iconify-icon icon="lucide:alert-triangle" class="text-amber-500 shrink-0"></iconify-icon>
+      <p class="text-sm font-mono text-gray-400" data-sd-id="3">
+        Structurally checked, not guaranteed to be the best design. This is not a compliance claim.
+      </p>
+    </div>
+
+    <!-- Toolbar: Tabs & Actions -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-white/10 pb-4" data-sd-id="4">
+      <!-- Tabs -->
+      <div class="flex gap-6" data-sd-id="5">
+        <a href="https://draft-e692b4a9-e81a-40f5-af07-e6c7e74c1c02.preview.superdesign.dev" id="nav-diagram" class="font-bold text-white border-b-2 border-neon pb-4 -mb-[17px] tracking-[-0.02em]" data-sd-id="6">
+          Diagram
+        </a>
+        <a href="https://draft-fdae335e-b676-41d1-b7d9-436145ccd5a3.preview.superdesign.dev" id="nav-explanation" class="font-medium text-gray-500 hover:text-white transition-colors pb-4 -mb-[17px] tracking-[-0.02em]" data-sd-id="7">
+          Explanation
+        </a>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex flex-wrap gap-3" data-sd-id="8">
+        <a href="https://draft-77a34c2f-8a6e-4568-981c-8ed7d4828daf.preview.superdesign.dev" id="action-contact" class="glass hover:bg-white/5 text-gray-300 hover:text-white px-3 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-2" data-sd-id="9">
+          <iconify-icon icon="lucide:messages-square"></iconify-icon> Contact our team
+        </a>
+        <button id="action-dl-png" class="glass hover:bg-white/5 text-gray-300 hover:text-white px-3 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-2" data-sd-id="10">
+          <iconify-icon icon="lucide:download"></iconify-icon> Diagram (PNG)
+        </button>
+        <button id="action-dl-md" class="glass hover:bg-white/5 text-gray-300 hover:text-white px-3 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-2" data-sd-id="11">
+          <iconify-icon icon="lucide:file-text"></iconify-icon> Explanation (.md)
+        </button>
+        <button id="action-print" class="glass hover:bg-white/5 text-gray-300 hover:text-white px-3 py-1.5 rounded-md text-xs font-mono transition-colors flex items-center gap-2" data-sd-id="12">
+          <iconify-icon icon="lucide:printer"></iconify-icon> Print / PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8" data-sd-id="13">
+      
+      <!-- Diagram Canvas (Left 3 cols) -->
+      <div class="lg:col-span-3 glass rounded-2xl p-8 relative overflow-hidden flex flex-col" data-sd-id="14">
+        
+        <!-- Zoom Controls -->
+        <div class="absolute top-4 right-4 flex flex-col gap-1 z-10" data-sd-id="15">
+          <button class="glass hover:bg-white/10 w-8 h-8 rounded-md flex items-center justify-center text-gray-400 hover:text-white transition-colors" data-sd-id="16">
+            <iconify-icon icon="lucide:plus"></iconify-icon>
+          </button>
+          <button class="glass hover:bg-white/10 w-8 h-8 rounded-md flex items-center justify-center text-gray-400 hover:text-white transition-colors" data-sd-id="17">
+            <iconify-icon icon="lucide:minus"></iconify-icon>
+          </button>
+          <button class="glass hover:bg-white/10 w-8 h-8 rounded-md flex items-center justify-center text-gray-400 hover:text-white transition-colors mt-2" title="Fit to screen" data-sd-id="18">
+            <iconify-icon icon="lucide:maximize"></iconify-icon>
+          </button>
+        </div>
+
+        <!-- Flow Diagram Container -->
+        <div class="flex-1 w-full overflow-auto no-scrollbar py-12 px-4 flex items-center justify-center" data-sd-id="19">
+          <div class="flex flex-col md:flex-row items-center justify-start min-w-max gap-2" data-sd-id="20">
+            
+            <!-- Node 1: Entry -->
+            <div class="glass hover:bg-white/5 transition-colors border border-emerald-500/40 w-[220px] h-[72px] rounded-xl p-3 relative flex flex-col justify-between cursor-pointer group" data-sd-id="21">
+              <div class="flex justify-between items-start" data-sd-id="22">
+                <span class="font-bold text-white text-sm truncate pr-2" data-sd-id="23">Question intake</span>
+              </div>
+              <div class="flex justify-between items-end mt-1" data-sd-id="24">
+                <span class="text-[11px] text-gray-400 truncate max-w-[120px]" data-sd-id="25">Receives customer query</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border border-emerald-500/30 text-emerald-400 bg-emerald-500/10 uppercase" data-sd-id="26">Entry</span>
+              </div>
+            </div>
+
+            <!-- Edge 1 -->
+            <div class="flex flex-col md:flex-row items-center w-8 h-12 md:w-16 md:h-auto relative" data-sd-id="27">
+              <div class="edge-line w-px h-full md:w-full md:h-px absolute top-0 left-1/2 md:top-1/2 md:left-0 -translate-x-1/2 md:-translate-y-1/2" data-sd-id="28"></div>
+              <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass bg-obsidian px-2 py-0.5 rounded text-[10px] font-mono text-gray-400 whitespace-nowrap z-10" data-sd-id="29">
+                passes to
+              </div>
+              <iconify-icon icon="lucide:chevron-down" class="absolute bottom-0 left-1/2 -translate-x-1/2 md:hidden text-gray-500"></iconify-icon>
+              <iconify-icon icon="lucide:chevron-right" class="absolute right-0 top-1/2 -translate-y-1/2 hidden md:block text-gray-500"></iconify-icon>
+            </div>
+
+            <!-- Node 2: Plain -->
+            <div class="glass hover:bg-white/5 transition-colors border border-slate-500/40 w-[220px] h-[72px] rounded-xl p-3 relative flex flex-col justify-between cursor-pointer group" data-sd-id="30">
+              <div class="flex justify-between items-start" data-sd-id="31">
+                <span class="font-bold text-white text-sm truncate pr-2" data-sd-id="32">Article search</span>
+              </div>
+              <div class="flex justify-between items-end mt-1" data-sd-id="33">
+                <span class="text-[11px] text-gray-400 truncate max-w-[120px]" data-sd-id="34">Finds relevant docs</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border border-slate-500/30 text-slate-400 bg-slate-500/10 uppercase" data-sd-id="35">Internal</span>
+              </div>
+            </div>
+
+            <!-- Edge 2 -->
+            <div class="flex flex-col md:flex-row items-center w-8 h-12 md:w-16 md:h-auto relative" data-sd-id="36">
+              <div class="edge-line w-px h-full md:w-full md:h-px absolute top-0 left-1/2 md:top-1/2 md:left-0 -translate-x-1/2 md:-translate-y-1/2" data-sd-id="37"></div>
+              <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass bg-obsidian px-2 py-0.5 rounded text-[10px] font-mono text-gray-400 whitespace-nowrap z-10" data-sd-id="38">
+                results to
+              </div>
+              <iconify-icon icon="lucide:chevron-down" class="absolute bottom-0 left-1/2 -translate-x-1/2 md:hidden text-gray-500"></iconify-icon>
+              <iconify-icon icon="lucide:chevron-right" class="absolute right-0 top-1/2 -translate-y-1/2 hidden md:block text-gray-500"></iconify-icon>
+            </div>
+
+            <!-- Node 3: AI Model (SELECTED) -->
+            <div class="glass bg-amber-500/5 ring-1 ring-amber-500 ring-offset-2 ring-offset-obsidian shadow-[0_0_20px_rgba(245,158,11,0.15)] w-[220px] h-[72px] rounded-xl p-3 relative flex flex-col justify-between cursor-pointer" data-sd-id="39">
+              <div class="absolute -inset-1 bg-amber-500/20 blur-md rounded-xl z-[-1]" data-sd-id="40"></div>
+              <div class="flex justify-between items-start" data-sd-id="41">
+                <span class="font-bold text-white text-sm truncate pr-2" data-sd-id="42">Answer writer</span>
+                <iconify-icon icon="lucide:lock" class="text-xs text-amber-500 shrink-0" title="Part of a rule"></iconify-icon>
+              </div>
+              <div class="flex justify-between items-end mt-1" data-sd-id="43">
+                <span class="text-[11px] text-gray-300 truncate max-w-[120px]" data-sd-id="44">Drafts response</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border border-amber-500/50 text-amber-400 bg-amber-500/20 uppercase shadow-[0_0_5px_rgba(245,158,11,0.3)]" data-sd-id="45">AI Model</span>
+              </div>
+            </div>
+
+            <!-- Edge 3 -->
+            <div class="flex flex-col md:flex-row items-center w-8 h-12 md:w-16 md:h-auto relative" data-sd-id="46">
+              <div class="edge-line w-px h-full md:w-full md:h-px absolute top-0 left-1/2 md:top-1/2 md:left-0 -translate-x-1/2 md:-translate-y-1/2" data-sd-id="47"></div>
+              <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass bg-obsidian px-2 py-0.5 rounded text-[10px] font-mono text-gray-400 whitespace-nowrap z-10" data-sd-id="48">
+                draft to
+              </div>
+              <iconify-icon icon="lucide:chevron-down" class="absolute bottom-0 left-1/2 -translate-x-1/2 md:hidden text-gray-500"></iconify-icon>
+              <iconify-icon icon="lucide:chevron-right" class="absolute right-0 top-1/2 -translate-y-1/2 hidden md:block text-gray-500"></iconify-icon>
+            </div>
+
+            <!-- Node 4: Plain w/ Lock -->
+            <div class="glass hover:bg-white/5 transition-colors border border-slate-500/40 w-[220px] h-[72px] rounded-xl p-3 relative flex flex-col justify-between cursor-pointer group" data-sd-id="49">
+              <div class="flex justify-between items-start" data-sd-id="50">
+                <span class="font-bold text-white text-sm truncate pr-2" data-sd-id="51">Safety check</span>
+                <iconify-icon icon="lucide:lock" class="text-xs text-slate-400 shrink-0"></iconify-icon>
+              </div>
+              <div class="flex justify-between items-end mt-1" data-sd-id="52">
+                <span class="text-[11px] text-gray-400 truncate max-w-[120px]" data-sd-id="53">Validates content</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border border-slate-500/30 text-slate-400 bg-slate-500/10 uppercase" data-sd-id="54">Internal</span>
+              </div>
+            </div>
+
+            <!-- Edge 4 -->
+            <div class="flex flex-col md:flex-row items-center w-8 h-12 md:w-16 md:h-auto relative" data-sd-id="55">
+              <div class="edge-line w-px h-full md:w-full md:h-px absolute top-0 left-1/2 md:top-1/2 md:left-0 -translate-x-1/2 md:-translate-y-1/2" data-sd-id="56"></div>
+              <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 glass bg-obsidian px-2 py-0.5 rounded text-[10px] font-mono text-gray-400 whitespace-nowrap z-10" data-sd-id="57">
+                approved to
+              </div>
+              <iconify-icon icon="lucide:chevron-down" class="absolute bottom-0 left-1/2 -translate-x-1/2 md:hidden text-gray-500"></iconify-icon>
+              <iconify-icon icon="lucide:chevron-right" class="absolute right-0 top-1/2 -translate-y-1/2 hidden md:block text-gray-500"></iconify-icon>
+            </div>
+
+            <!-- Node 5: Exit -->
+            <div class="glass hover:bg-white/5 transition-colors border border-violet-500/40 w-[220px] h-[72px] rounded-xl p-3 relative flex flex-col justify-between cursor-pointer group" data-sd-id="58">
+              <div class="flex justify-between items-start" data-sd-id="59">
+                <span class="font-bold text-white text-sm truncate pr-2" data-sd-id="60">Human handoff</span>
+              </div>
+              <div class="flex justify-between items-end mt-1" data-sd-id="61">
+                <span class="text-[11px] text-gray-400 truncate max-w-[120px]" data-sd-id="62">Escalates or sends</span>
+                <span class="text-[9px] font-mono px-1.5 py-0.5 rounded border border-violet-500/30 text-violet-400 bg-violet-500/10 uppercase" data-sd-id="63">Exit</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail Panel (Right Col) -->
+      <aside class="lg:col-span-1 glass rounded-2xl p-6 flex flex-col h-full md:sticky md:top-24" data-sd-id="64">
+        
+        <div class="flex items-start justify-between mb-6" data-sd-id="65">
+          <div data-sd-id="66">
+            <h2 class="text-xl font-bold text-white" data-sd-id="67">Answer writer</h2>
+            <span class="inline-block mt-2 text-[10px] font-mono px-2 py-1 rounded border border-amber-500/30 text-amber-400 bg-amber-500/10 uppercase" data-sd-id="68">
+              AI Model Node
+            </span>
+          </div>
+          <button class="text-gray-500 hover:text-white transition-colors" data-sd-id="69">
+            <iconify-icon icon="lucide:x"></iconify-icon>
+          </button>
+        </div>
+
+        <div class="space-y-5 flex-1 overflow-y-auto no-scrollbar" data-sd-id="70">
+          
+          <!-- Section: Details -->
+          <div class="space-y-3" data-sd-id="71">
+            <div data-sd-id="72">
+              <h4 class="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1" data-sd-id="73">Role</h4>
+              <p class="text-sm text-gray-300" data-sd-id="74">Generates a conversational response based on relevant article context.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-4" data-sd-id="75">
+              <div data-sd-id="76">
+                <h4 class="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1" data-sd-id="77">Inputs</h4>
+                <p class="text-xs text-gray-300" data-sd-id="78">User query, Docs</p>
+              </div>
+              <div data-sd-id="79">
+                <h4 class="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-1" data-sd-id="80">Outputs</h4>
+                <p class="text-xs text-gray-300" data-sd-id="81">Draft text</p>
+              </div>
+            </div>
+          </div>
+
+          <hr class="border-white/5">
+
+          <!-- Section: Rules -->
+          <div data-sd-id="82">
+            <h4 class="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1" data-sd-id="83">
+              <iconify-icon icon="lucide:lock" class="text-gray-400"></iconify-icon> Part of Rules
+            </h4>
+            <ul class="list-disc list-inside text-sm text-gray-300 pl-4" data-sd-id="84">
+              <li data-sd-id="85">Safety validation required before sending.</li>
+            </ul>
+          </div>
+
+          <!-- Section: Suggestions -->
+          <div data-sd-id="86">
+            <h4 class="text-[10px] font-mono text-amber-500/70 uppercase tracking-wider mb-2 flex items-center gap-1" data-sd-id="87">
+              <iconify-icon icon="lucide:lightbulb"></iconify-icon> Suggestions
+            </h4>
+            <div class="bg-amber-500/5 border border-amber-500/10 rounded-lg p-3" data-sd-id="88">
+              <p class="text-xs text-amber-200/70" data-sd-id="89">
+                Consider adding a fallback path if the search returns no relevant articles.
+              </p>
+            </div>
+          </div>
+
+          <!-- Section: Notes -->
+          <div data-sd-id="90">
+            <h4 class="text-[10px] font-mono text-gray-500 uppercase tracking-wider mb-2" data-sd-id="91">Notes</h4>
+            <textarea class="w-full bg-black/20 border border-white/5 rounded-md p-2 text-xs text-gray-300 outline-none focus:border-neon/50 transition-colors placeholder-gray-600 resize-none min-h-[60px]" placeholder="Add internal notes..." data-sd-id="92"></textarea>
+          </div>
+
+          <!-- Warning -->
+          <div class="flex items-start gap-2 bg-red-500/5 border border-red-500/10 p-3 rounded-lg" data-sd-id="93">
+            <iconify-icon icon="lucide:shield-alert" class="text-red-400 shrink-0 mt-0.5"></iconify-icon>
+            <p class="text-[11px] text-red-200/80 leading-relaxed" data-sd-id="94">
+              Not verified by structural checks. AI models can hallucinate outputs not found in inputs.
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Actions -->
+        <div class="mt-6 space-y-2 pt-4 border-t border-white/5" data-sd-id="95">
+          <button class="w-full glass hover:bg-white/5 border-white/10 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex justify-center items-center gap-2" data-sd-id="96">
+            <iconify-icon icon="lucide:message-circle-question"></iconify-icon> Ask about this node
+          </button>
+          <button class="w-full glass bg-transparent hover:bg-red-500/10 border-transparent hover:border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm font-medium transition-colors" data-sd-id="97">
+            Remove this node
+          </button>
+        </div>
+
+      </aside>
+    </div>
+
+    <!-- Refine Panel (Chat interface below) -->
+    <div class="glass rounded-2xl overflow-hidden flex flex-col lg:flex-row" data-sd-id="98">
+      
+      <!-- Chat Area -->
+      <div class="flex-1 p-6 flex flex-col" data-sd-id="99">
+        <h3 class="text-white font-bold mb-6 flex items-center gap-2" data-sd-id="100">
+          <iconify-icon icon="lucide:sparkles" class="text-neon"></iconify-icon> Refine Architecture
+        </h3>
+
+        <!-- Mini Chat History -->
+        <div class="flex-1 space-y-4 mb-6" data-sd-id="101">
+          <div class="flex gap-3" data-sd-id="102">
+            <div class="w-8 h-8 rounded-full glass border-neon/30 flex items-center justify-center shrink-0" data-sd-id="103">
+              <iconify-icon icon="lucide:user" class="text-neon text-sm"></iconify-icon>
+            </div>
+            <div class="glass border-neon/20 bg-neon/5 rounded-2xl rounded-tl-sm px-4 py-3 text-sm text-neon" data-sd-id="104">
+              Can we add a step to translate the query before searching?
+            </div>
+          </div>
+          <div class="flex gap-3" data-sd-id="105">
+            <div class="w-8 h-8 rounded-full glass flex items-center justify-center shrink-0" data-sd-id="106">
+              <iconify-icon icon="lucide:bot" class="text-gray-400 text-sm"></iconify-icon>
+            </div>
+            <div class="glass rounded-2xl rounded-tr-sm px-4 py-3 text-sm text-gray-300" data-sd-id="107">
+              I've updated the architecture to include a Translation node before the Article search. 
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Box -->
+        <div class="glass rounded-xl overflow-hidden neon-glow relative transition-all duration-300" data-sd-id="108">
+          <textarea class="w-full p-4 min-h-[80px] bg-transparent resize-none outline-none text-white placeholder-gray-600 font-sans text-sm" placeholder="Tell me what to change..." data-sd-id="109"></textarea>
+          <div class="px-4 py-3 border-t border-white/5 flex justify-between items-center bg-black/40" data-sd-id="110">
+            <button class="glass hover:bg-white/5 text-gray-400 hover:text-white px-3 py-1.5 rounded border-white/10 text-xs transition-colors" data-sd-id="111">
+              What can we add or remove?
+            </button>
+            <button class="bg-neon hover:bg-[#b3e600] text-black px-4 py-1.5 rounded text-sm font-bold transition-colors focus:outline-none flex items-center gap-1 shadow-[0_0_10px_rgba(204,255,0,0.3)]" data-sd-id="112">
+              Send <iconify-icon icon="lucide:send" class="text-sm"></iconify-icon>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Meta / Versions -->
+      <div class="w-full lg:w-72 border-t lg:border-t-0 lg:border-l border-white/5 bg-black/20 p-6 flex flex-col" data-sd-id="113">
+        
+        <div class="mb-6 space-y-2" data-sd-id="114">
+          <div class="flex justify-between items-center text-xs font-mono" data-sd-id="115">
+            <span class="text-gray-500" data-sd-id="116">Change requests</span>
+            <span class="text-gray-300" data-sd-id="117">3 of 20</span>
+          </div>
+          <div class="w-full bg-white/5 rounded-full h-1" data-sd-id="118">
+            <div class="bg-neon h-1 rounded-full w-[15%]" data-sd-id="119"></div>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-4" data-sd-id="120">
+          <h4 class="text-xs font-mono text-gray-500 uppercase" data-sd-id="121">Versions (4 of 15)</h4>
+        </div>
+
+        <div class="space-y-2 flex-1" data-sd-id="122">
+          <!-- Current Version -->
+          <div class="glass border-neon/30 bg-neon/5 rounded-lg p-3 flex justify-between items-center" data-sd-id="123">
+            <div data-sd-id="124">
+              <p class="text-sm text-white" data-sd-id="125">v4.0 <span class="text-[10px] ml-2 text-neon bg-neon/10 px-1.5 py-0.5 rounded font-mono" data-sd-id="126">Current</span></p>
+              <p class="text-[10px] text-gray-500 font-mono mt-1" data-sd-id="127">Just now</p>
+            </div>
+            <button class="text-xs text-gray-400 hover:text-white transition-colors" data-sd-id="128">View</button>
+          </div>
+          <!-- Older Version -->
+          <div class="glass border-transparent hover:border-white/10 rounded-lg p-3 flex justify-between items-center transition-colors" data-sd-id="129">
+            <div data-sd-id="130">
+              <p class="text-sm text-gray-300" data-sd-id="131">v3.0</p>
+              <p class="text-[10px] text-gray-500 font-mono mt-1" data-sd-id="132">10 mins ago</p>
+            </div>
+            <button class="text-xs text-gray-500 hover:text-white transition-colors" data-sd-id="133">Restore</button>
+          </div>
+          <!-- Older Version -->
+          <div class="glass border-transparent hover:border-white/10 rounded-lg p-3 flex justify-between items-center transition-colors" data-sd-id="134">
+            <div data-sd-id="135">
+              <p class="text-sm text-gray-300" data-sd-id="136">v2.0</p>
+              <p class="text-[10px] text-gray-500 font-mono mt-1" data-sd-id="137">1 hr ago</p>
+            </div>
+            <button class="text-xs text-gray-500 hover:text-white transition-colors" data-sd-id="138">Restore</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </main>
+
+
+</body></html>
+```
+
+Please reference this design and implement it into our codebase; Try to understand the structure, which part of our codebase is relevant and implement

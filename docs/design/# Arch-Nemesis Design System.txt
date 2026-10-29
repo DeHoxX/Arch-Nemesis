@@ -1,0 +1,131 @@
+# Arch-Nemesis Design System
+
+## Aesthetic Direction
+**Obsidian Tech-Minimalism** – Futuristic, cinematic, clean. Deep black obsidian backgrounds with neon lime accents. Glassmorphic UI. Technical precision meets visual elegance.
+
+## Color Palette
+- **Obsidian Base**: #0a0a0a (main background)
+- **Neon Lime Primary**: #ccff00 (buttons, hover, glow, accents)
+- **Text**: White (headings), #9ca3af gray-400 (body), #6b7280 gray-500 (secondary)
+- **Node Borders**: Emerald #10b981 (Entry), Violet #8b5cf6 (Exit), Amber #f59e0b (AI), Slate #64748b (Plain)
+- **Status Colors**: Green #10b981 (added), Red #ef4444 (removed), Blue #3b82f6 (edited)
+
+## Typography
+- **Headings**: Space Grotesk, 500/700 weight, tracking -0.05em (tight)
+- **Body**: Space Grotesk, 400 weight
+- **Labels/Code**: JetBrains Mono, 400 weight
+- **Font loading**: Google Fonts via @import
+
+## Visual Components
+
+### Glassmorphic Card (Reusable Base)
+```html
+<div class="glass rounded-2xl p-6">
+  background-color: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+</div>
+```
+
+### Neon Glow Effect (Focus/Hover)
+```css
+box-shadow: 0 0 20px rgba(204, 255, 0, 0.3);
+border-color: #ccff00;
+transition: all 0.3s ease;
+```
+
+### Background Grid + Grain
+```html
+<div class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:60px_60px] z-[-2]"></div>
+<div class="fixed inset-0 pointer-events-none grain z-[-1]"></div>
+```
+
+### Header Navigation (Sticky Pill)
+```html
+<header class="sticky top-6 z-50 w-full max-w-7xl mx-auto px-4">
+  <div class="glass rounded-full h-16 flex items-center justify-between px-6 shadow-2xl">
+    <!-- Logo + Nav inside -->
+  </div>
+</header>
+```
+
+### Primary Button (Neon)
+```html
+<button class="bg-neon hover:bg-[#b3e600] text-black px-6 py-2.5 rounded-lg text-sm font-bold transition-colors shadow-[0_0_15px_rgba(204,255,0,0.15)]">
+  Send
+</button>
+```
+
+### Secondary Button (Glass)
+```html
+<button class="glass hover:bg-white/5 border-white/20 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all">
+  Cancel
+</button>
+```
+
+### Text Input (Glassmorphic)
+```html
+<div class="glass rounded-xl overflow-hidden neon-glow">
+  <input class="w-full bg-transparent px-4 py-3 text-white placeholder-gray-600 outline-none" placeholder="...">
+</div>
+```
+
+### Version Badge (Pill-shaped)
+```html
+<div class="glass rounded-full px-4 py-1.5 flex items-center gap-2 font-mono text-xs text-gray-400 uppercase tracking-wider">
+  <span class="w-2 h-2 rounded-full bg-neon animate-pulse"></span>
+  v2.0
+</div>
+```
+
+### Node Card (Diagram)
+```html
+<div class="glass hover:bg-white/5 border border-emerald-500/40 w-[220px] h-[72px] rounded-xl p-3 relative">
+  <span class="font-bold text-white text-sm">Node Name</span>
+  <span class="font-mono text-gray-400 text-[11px]">Description</span>
+  <span class="text-[9px] px-1.5 py-0.5 rounded border text-emerald-400 bg-emerald-500/10 uppercase">Entry</span>
+</div>
+```
+
+### Chat Bubbles
+```html
+<!-- AI Message -->
+<div class="glass rounded-2xl rounded-tl-sm px-6 py-5 text-gray-300">Message text</div>
+
+<!-- User Message -->
+<div class="glass border-neon/20 bg-neon/5 rounded-2xl rounded-tr-sm px-6 py-5 text-neon">Message text</div>
+```
+
+### Warning/Alert Banner
+```html
+<div class="glass bg-amber-500/5 border-amber-500/30 rounded-lg p-4 flex items-start gap-3">
+  <iconify-icon icon="lucide:alert-triangle" class="text-amber-500"></iconify-icon>
+  <p class="text-amber-200/80 font-mono text-sm">Warning message</p>
+</div>
+```
+
+## Spacing & Layout
+- **Grid size**: 60px (for background)
+- **Padding base**: 4px/8px increments (px-4, py-6, p-8, etc.)
+- **Gap between sections**: 2rem (gap-8) to 3rem (gap-12)
+- **Max width container**: max-w-7xl
+
+## Animations
+- **Pulse glow**: 2s cubic-bezier(0.4, 0, 0.6, 1) infinite
+- **Spin slow**: 3s linear infinite
+- **Transitions**: 0.3s ease for all interactive states
+- **Hover elevation**: subtle shadow increases + slight scale/opacity change
+
+## Responsive Breakpoints
+- Mobile: < 768px (flex column, vertical layout)
+- Tablet: 768px - 1024px (2-column grids)
+- Desktop: > 1024px (multi-column, full features)
+- Diagram mobile: becomes vertical list instead of left-to-right flow
+
+## Dark Theme Only
+No light mode. Obsidian is the single, permanent aesthetic. All components designed for dark context.
+
+## Key Pattern Files
+- **HeaderNav Component** (df23d545-7234-42ea-9be3-0e7b5dd39155): Sticky glassmorphic pill with logo + nav buttons
+- **BackgroundLayers Component** (288f05a2-cb61-4929-ab93-69fef88b270a): Grid + grain texture base

@@ -1,0 +1,169 @@
+Page: Arch-Nemesis Loading Overlay
+
+```html
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loading - Arch-Nemesis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400&amp;family=Space+Grotesk:wght@500;700&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Space Grotesk', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: '#0a0a0a',
+            neon: '#ccff00',
+          },
+          animation: {
+            'spin-slow': 'spin 3s linear infinite',
+            'pulse-glow': 'pulseGlow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'dash-flow': 'dashFlow 2s ease-in-out infinite',
+          },
+          keyframes: {
+            pulseGlow: {
+              '0%, 100%': { opacity: 0.5, transform: 'scale(0.95)' },
+              '50%': { opacity: 1, transform: 'scale(1.05)' },
+            },
+            dashFlow: {
+              '0%': { strokeDasharray: '1, 200', strokeDashoffset: '0' },
+              '50%': { strokeDasharray: '90, 200', strokeDashoffset: '-35px' },
+              '100%': { strokeDasharray: '90, 200', strokeDashoffset: '-124px' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { 
+      background-color: #0a0a0a; 
+      color: #9ca3af;
+    }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    
+    .glass {
+      background-color: rgba(255, 255, 255, 0.03);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
+  <style>sd-component { display: block; }</style>
+  <script src="https://cdn.jsdelivr.net/npm/petite-vue@0.4.1/dist/petite-vue.iife.js" defer init></script>
+</head>
+<body class="font-sans min-h-screen flex flex-col leading-relaxed relative overflow-x-hidden">
+
+  <!-- Background layers -->
+  <!-- component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+<div v-scope="{ ...{&quot;showGrid&quot;:true,&quot;showGrain&quot;:true}, $emit() {} }">
+<div><div v-if="showGrid" class="fixed inset-0 pointer-events-none bg-[linear-gradient(to_right,rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:60px_60px] z-[-2]"></div><div v-if="showGrain" class="fixed inset-0 pointer-events-none z-[-1]" style="background-image: url(&quot;data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.15' style='mix-blend-mode: overlay;'/%3E%3C/svg%3E&quot;);"></div></div>
+</div>
+<!-- /component: BackgroundLayers (288f05a2-cb61-4929-ab93-69fef88b270a) -->
+
+  <!-- App Header -->
+  <!-- component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+<div v-scope="{ ...{&quot;activeItem&quot;:&quot;new-chat&quot;,&quot;homeHref&quot;:&quot;#&quot;}, $emit() {} }">
+<header class="sticky top-6 z-50 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="bg-white/[0.03] backdrop-blur-[16px] border border-white/[0.08] rounded-full h-16 flex items-center justify-between px-6 shadow-2xl">
+      <a :href="homeHref" class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-full bg-[#ccff00]/10 border border-[#ccff00]/30 text-[#ccff00] flex items-center justify-center">
+          <iconify-icon icon="lucide:layers" class="text-xl drop-shadow-[0_0_8px_rgba(204,255,0,0.5)]"></iconify-icon>
+        </div>
+        <span class="font-bold text-xl tracking-[-0.05em] text-white">Arch-Nemesis</span>
+      </a>
+      <nav class="flex gap-6 items-center">
+        <button 
+          @click="$emit('navigate', { item: 'new-chat' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'new-chat', 'text-gray-400': activeItem !== 'new-chat' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          New Chat
+        </button>
+        <button 
+          @click="$emit('navigate', { item: 'history' })"
+          :class="{ 'text-[#ccff00]': activeItem === 'history', 'text-gray-400': activeItem !== 'history' }"
+          class="text-sm font-mono hover:text-[#ccff00] transition-colors">
+          History
+        </button>
+      </nav>
+    </div>
+  </header>
+</div>
+<!-- /component: HeaderNav (df23d545-7234-42ea-9be3-0e7b5dd39155) -->
+
+  <!-- Main Content Area -->
+  <main class="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col items-center justify-center min-h-[calc(100vh-4rem)] relative z-10" data-sd-id="1">
+
+    <!-- Loading Container -->
+    <div class="glass rounded-3xl p-10 sm:p-16 w-full max-w-2xl flex flex-col items-center text-center relative overflow-hidden" data-sd-id="2">
+      
+      <!-- Background Glow inside container -->
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-neon/10 blur-[100px] rounded-full pointer-events-none" data-sd-id="3"></div>
+
+      <!-- Animated Spinner -->
+      <div class="relative w-32 h-32 mb-10" data-sd-id="4">
+        <!-- Outer rotating ring -->
+        <svg class="absolute inset-0 w-full h-full text-white/10 animate-spin-slow" viewBox="0 0 100 100" data-sd-id="5">
+          <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="20 10"></circle>
+        </svg>
+        
+        <!-- Inner dynamic ring -->
+        <svg class="absolute inset-0 w-full h-full text-neon -rotate-90" viewBox="0 0 100 100" data-sd-id="6">
+          <circle cx="50" cy="50" r="38" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" class="animate-dash-flow"></circle>
+        </svg>
+
+        <!-- Center pulsing core -->
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-neon/20 border border-neon/40 rounded-full flex items-center justify-center animate-pulse-glow" data-sd-id="7">
+          <div class="w-4 h-4 bg-neon rounded-full drop-shadow-[0_0_8px_rgba(204,255,0,1)]" data-sd-id="8"></div>
+        </div>
+      </div>
+
+      <!-- Typography -->
+      <div class="space-y-4 relative z-10" data-sd-id="9">
+        <h1 class="text-4xl sm:text-5xl font-bold tracking-[-0.05em] text-white" data-sd-id="10">
+          Designing your system
+        </h1>
+        <p class="text-lg text-gray-400 font-sans" data-sd-id="11">
+          This can take up to a minute.
+        </p>
+      </div>
+
+      <!-- Animated Counter -->
+      <div class="mt-10 inline-flex items-center gap-3 px-6 py-3 glass rounded-full border-neon/20 bg-neon/5 relative z-10" data-sd-id="12">
+        <iconify-icon icon="lucide:timer" class="text-neon text-lg"></iconify-icon>
+        <div class="font-mono text-neon text-lg tracking-tight" data-sd-id="13">
+          <span id="seconds-counter" data-sd-id="14">00</span> <span class="text-neon/70" data-sd-id="15">seconds elapsed</span>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- Simple script to run the counter -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const counterElement = document.getElementById('seconds-counter');
+      let seconds = 0;
+      
+      setInterval(() => {
+        seconds++;
+        // Pad with leading zero
+        counterElement.textContent = seconds < 10 ? '0' + seconds : seconds;
+      }, 1000);
+    });
+  </script>
+
+
+</body></html>
+```
+
+Please reference this design and implement it into our codebase; Try to understand the structure, which part of our codebase is relevant and implement

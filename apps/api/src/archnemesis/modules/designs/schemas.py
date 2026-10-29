@@ -1,8 +1,9 @@
 """Pydantic schemas for the designs API."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from archnemesis.modules.validation.models import ArchitectureSpec
+from archnemesis.shared.brief import RequirementBrief
 
 
 class CreateDesignRequest(BaseModel):
@@ -21,6 +22,8 @@ class DesignResponse(BaseModel):
     id: str
     intake_session_id: str
     current_version: int
+    brief: RequirementBrief
     spec: ArchitectureSpec
+    warnings: list[str] = Field(default_factory=list)
     flow_order: list[str]
     prompt_version: str
