@@ -1025,6 +1025,30 @@ If we removed it: Live LLM spikes (503) or rate limits (429) would surface as un
 Decided by: user approved (Phase 3 bugfix)
 Status: active
 
+### D-119 — Phase 4 — dependency
+What: Add shadcn UI `tabs` component to `apps/web/src/components/ui/tabs.tsx` for Stage 4C2 using installed Radix UI primitives.
+Why: BUILD_PLAN.md:435 explicitly lists `tabs` as one of the required shadcn components, and BUILD_PLAN.md:445 mandates the two primary views on the results page: "Diagram" and "Explanation". Implementing the component using the existing `@/lib/utils` `cn` helper and `radix-ui` primitives avoids adding extraneous third-party packages or triggering supply-chain risks.
+Alternatives considered: Ad-hoc custom tab buttons with local active-tab React state. Rejected because shadcn `tabs` provides accessible ARIA tablist/tab/tabpanel roles and keyboard arrow navigation out-of-the-box.
+If we removed it: The results page would require custom accessible tab primitives and keyboard focus navigation management.
+Decided by: plan
+Status: active
+
+### D-120 — Phase 4 — fix
+What: Establish single source of truth for obsidian background colour (`#0a0a0a`) via CSS variable `--page-bg: #0a0a0a;` in `apps/web/src/app/globals.css`, updating `layout.tsx:28` and `page.tsx:127` to match D-100.
+Why: D-100 defined obsidian (`#0a0a0a`) for page chrome. The initial scaffolding had used Tailwind's zinc-950 (`#09090b`) in `layout.tsx` and `page.tsx`. Defining `--page-bg: #0a0a0a` in `globals.css` centralizes the color token in one place and ensures exact visual consistency across the root layout, home page, and results page without duplicating raw hex strings.
+Alternatives considered: Leaving hardcoded hex `#09090b` or scattering `#0a0a0a` across individual JSX style tags. Rejected to maintain a single authoritative design token.
+If we removed it: Color divergence between `#0a0a0a` and `#09090b` would persist across different route views.
+Decided by: user approved
+Status: active
+
+### D-121 — Phase 4 — design
+What: Implement results page architecture for `/design/[id]` using Next.js App Router client component, TanStack Query `getDesign`, responsive canvas/fallback-list switching, and accessible interactive detail and notes panels.
+Why: BUILD_PLAN.md:433-447 specifies that `/design/[id]` loads the validated architecture specification and requirement brief. Using TanStack Query with `getDesign` guarantees Zod runtime validation of the backend payload before rendering. Below 768px, a non-crashing SSR-safe matchMedia hook switches from the React Flow canvas to the linear `FallbackList` in `flow_order`. Selected nodes reveal the full `DetailPanel` (right column at >=1024px, stacked below otherwise), and `NotesPanel` surfaces lint notes and unverifiable requirements.
+Alternatives considered: Server component rendering with inline fetch. Rejected because interactive graph selection, canvas pan/zoom, responsive list switching, and Escape-key dismissals require rich client-side interactivity and shared TanStack Query caching.
+If we removed it: The application would lack the primary user-facing output deliverable of the product.
+Decided by: plan
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

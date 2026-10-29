@@ -131,7 +131,7 @@ export default function HomePage(): React.ReactElement {
         : null;
 
   return (
-    <main className="relative min-h-screen w-full bg-[#09090b] text-[#f4f4f5] px-4 py-12 md:py-16 selection:bg-[#ccff00] selection:text-black">
+    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-12 md:py-16 selection:bg-[#ccff00] selection:text-black">
       {/* Background subtle static grid pattern, no animated grid, no grain */}
       <div
         className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#27272a15_1px,transparent_1px),linear-gradient(to_bottom,#27272a15_1px,transparent_1px)] bg-[size:32px_32px]"

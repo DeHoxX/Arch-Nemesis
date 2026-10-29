@@ -52,7 +52,7 @@ export function FallbackList({
   }
 
   return (
-    <div
+    <section
       aria-label="Component Flow Order"
       className={cn("w-full space-y-3", className)}
     >
@@ -129,7 +129,7 @@ export function FallbackList({
           );
         })}
       </ol>
-    </div>
+    </section>
   );
 }
 

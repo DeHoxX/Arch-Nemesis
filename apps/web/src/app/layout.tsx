@@ -25,7 +25,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
       className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#09090b] text-[#f4f4f5]">
+      <body className="min-h-full flex flex-col bg-[var(--page-bg)] text-[#f4f4f5]">
         <Providers>{children}</Providers>
       </body>
     </html>
