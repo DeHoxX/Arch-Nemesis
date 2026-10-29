@@ -833,6 +833,30 @@ If we removed it: Future developers could be confused by the conceptual "rounds 
 Decided by: user requested
 Status: active
 
+### D-095 — Phase 2 — design
+What: Establish Path B contract defining Node.inputs and Node.outputs as free-text data labels and deriving component connectivity exclusively from edges.
+Why: Early draft instructions in architect_v1.md ambiguously mentioned node IDs ("list of node IDs this component receives data from"), but all 13 valid validation fixtures, domain designs, and user-facing requirements treat inputs/outputs as descriptions of data payloads (e.g. "raw_query", "order_id"). Deriving topological connectivity strictly from edges matches graph theory standards, avoids artificial coupling between edge declarations and free-text node metadata, and avoids requiring redundant node ID validation checks.
+Alternatives considered: Path A (enforcing that node inputs/outputs must be node IDs and adding validation checks between edges and node inputs/outputs). Rejected because all existing valid specs and domain fixtures would be invalidated, and data flow semantics are richer when expressed as payload descriptions.
+If we removed it: Contract ambiguity would persist across architect prompts, validation models, and upcoming Phase 4/5 detail panel and explanation implementations.
+Decided by: user approved
+Status: active
+
+### D-096 — Phase 2 — fix
+What: Align architect prompt, validation schema, and Phase 3 test fixtures to the Path B data label contract.
+Why: architect_v1.md was updated to instruct the LLM to emit data descriptions (max 120 chars each, max 8) for inputs/outputs and explicitly note that connections are defined only by edges. NodeSpec in validation/models.py was tightened with Annotated[str, Field(max_length=120)] to enforce the 120-character limit per data label. Phase 3 test fixtures in test_designs.py, test_architect.py, and test_quarantine.py that previously used node IDs were updated to descriptive data payload labels.
+Alternatives considered: Leaving architect prompt and test fixtures using node IDs. Rejected because prompts and test suites must strictly adhere to the unified data contract.
+If we removed it: The LLM could generate node IDs in inputs/outputs while validation and downstream visualization components expect data payload names.
+Decided by: user requested
+Status: written, not yet verified by a test run
+
+### D-097 — Phase 2 — process
+What: Correct attribution, deviation note, and verification status for D-096.
+Why: D-096 listed "Decided by: user requested", but the user requested only a validation unit test asserting that inputs/outputs accept strings up to 120 chars and reject 121 chars, not the code modification to validation/models.py. The addition of `Annotated[str, Field(max_length=120)]` to `NodeSpec` was proposed and implemented by the agent without explicit user approval; it represents a deviation from the user's directive "no new validation check" (even though the build plan already specified that each input or output has a max length of 120). Furthermore, the status of D-096 is now verified and active: all 136 tests passed via the user's host run of `scripts\check.ps1`, and end-to-end functionality was confirmed in a live browser legal design generation.
+Alternatives considered: Modifying D-096 in place. Rejected because the project rules prohibit editing existing decision log entries; corrections are recorded via new entries.
+If we removed it: The decision log would misattribute user instructions and leave an unrecorded deviation.
+Decided by: user requested
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

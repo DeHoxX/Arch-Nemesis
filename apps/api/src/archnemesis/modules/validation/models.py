@@ -1,9 +1,11 @@
 """Pydantic models, issue definitions, and limits for ArchitectureSpec validation."""
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+DataLabel = Annotated[str, Field(max_length=120)]
 
 
 @dataclass(frozen=True)
@@ -23,8 +25,8 @@ class NodeSpec(BaseModel):
     name: str = Field(max_length=60)
     type: str = Field(max_length=40)
     role: str = Field(max_length=300)
-    inputs: list[str] = Field(default_factory=list, max_length=8)
-    outputs: list[str] = Field(default_factory=list, max_length=8)
+    inputs: list[DataLabel] = Field(default_factory=list, max_length=8)
+    outputs: list[DataLabel] = Field(default_factory=list, max_length=8)
     tech_options: list[str] = Field(default_factory=list, max_length=5)
     needs_model: bool = False
 

@@ -8,8 +8,8 @@ Structural Rules:
    - `name`: human-readable title (e.g. "Web Client", "API Gateway").
    - `type`: free-text functional component type invented per use case (e.g. "load_balancer", "api_gateway", "queue", "worker", "relational_database", "vector_store"). NEVER restrict to a hardcoded enum.
    - `role`: concise 1-sentence description of what this node does.
-   - `inputs`: list of node IDs sending data to this node.
-   - `outputs`: list of node IDs receiving data from this node.
+   - `inputs`: list of short data/payload descriptions consumed by this component (e.g. "user query", "order event").
+   - `outputs`: list of short data/payload descriptions emitted by this component (e.g. "fraud score", "invoice pdf"). Connections between parts are defined only by edges.
    - `tech_options`: optional list of 1-3 candidate technologies (e.g. ["PostgreSQL", "CockroachDB"]).
    - `needs_model`: boolean indicating if this node runs an LLM / ML model.
 3. Every edge must have:

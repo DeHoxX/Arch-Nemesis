@@ -15,6 +15,10 @@ These are the load-bearing decisions. Changing them later means rewriting valida
 ### ArchitectureSpec (module validation, pure Pydantic)
 
 - `nodes`: `{id, name, type, role, inputs[], outputs[], tech_options[] (optional), needs_model (bool)}`. `id` matches `^[a-z][a-z0-9_]{1,40}$`. `name` max 60, `type` max 40 (free text), `role` max 300, each input or output max 120, max 8 each, max 5 tech_options.
+  - `inputs` and `outputs` are short free-text data/payload labels describing what a component consumes or emits (e.g. "user query", "order event"). They are NOT node IDs.
+  - Diagram connectivity comes ONLY from `edges`.
+  - Phase 4 detail panel must derive "Connected from / Sends to" from diagram `edges`, displaying `inputs`/`outputs` as data labels.
+  - Phase 5 walkthrough may use `edges` for connected component names.
 - `edges`: `{from, to, flows}`. `flows` max 200. No self-loops, no duplicate `(from, to)`.
 - `constraints`: `{id, text, kind, node_id (optional), a (optional), b (optional), covers[]}`. `covers` lists the brief constraint ids this one satisfies.
 - `entry_ids[]`, `exit_ids[]`.
