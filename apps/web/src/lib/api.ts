@@ -144,7 +144,7 @@ async function handleResponse<T>(res: Response, schema: z.ZodType<T>): Promise<T
   let json: unknown;
   try {
     json = await res.json();
-  } catch (err) {
+  } catch {
     throw new ApiError(
       "Failed to parse server response as JSON.",
       "PARSE_ERROR",

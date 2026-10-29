@@ -921,6 +921,62 @@ If we removed it: Variable text lengths would cause Dagre to compute inconsisten
 Decided by: plan
 Status: active
 
+### D-106 — Phase 4 — dependency
+What: Install `@xyflow/react` for the interactive architecture diagram canvas.
+Why: The core feature of Phase 4 is rendering an interactive, read-only DAG canvas with pan, zoom, fitView padding, accessible keyboard focus, and custom node cards. `@xyflow/react` (v12) is the modern React Flow library supporting React 19, providing declarative node/edge rendering, built-in viewport controls, and native SVG edge path generation.
+Alternatives considered: Writing a bespoke SVG/HTML canvas renderer from scratch. Rejected because custom canvas implementations lack robust pan/zoom handling, coordinate transformations, and accessibility primitives.
+If we removed it: The application would lack an interactive diagram canvas to visualize generated system architectures.
+Decided by: plan
+Status: active
+
+### D-107 — Phase 4 — dependency
+What: Install `@testing-library/user-event` as a dev dependency for keyboard interaction testing.
+Why: Testing keyboard accessibility on diagram nodes (Tab navigation, Enter/Space selection, Escape deselection) requires simulating realistic browser user events including focus management, keydown, and keyup event dispatching. `@testing-library/user-event` provides higher-level dispatch simulation than raw `fireEvent`.
+Alternatives considered: Using `fireEvent.keyDown` only. Rejected because `fireEvent` does not simulate browser focus switches or full keyboard event sequences.
+If we removed it: Keyboard selection and tab navigation tests would lack realistic browser interaction simulation.
+Decided by: plan
+Status: active
+
+### D-108 — Phase 4 — dependency
+What: Add shadcn UI `badge` and `separator` components to `apps/web/src/components/ui/`.
+Why: `badge` provides styled, accessible pill indicators for node structural classifications (`Entry`, `Exit`, `AI model`) in diagram node cards and detail panels. `separator` provides accessible horizontal dividing rules between detail panel sections (`Role`, `Connected from / Sends to`, `Inputs/Outputs`, `Rules`).
+Alternatives considered: Ad-hoc custom inline Tailwind divs for badges and rules. Rejected because shadcn primitives guarantee consistent design token usage and semantic HTML attributes (`role="separator"`).
+If we removed it: Section dividers and status indicators would require bespoke styling, increasing CSS duplication.
+Decided by: plan
+Status: active
+
+### D-109 — Phase 4 — file
+What: Create Vitest JSDOM environment setup file `apps/web/src/test/setup.ts` with mocks for `ResizeObserver` and `DOMRect`.
+Why: React Flow (`@xyflow/react`) relies on browser layout APIs (`ResizeObserver` and `getBoundingClientRect`) to measure container dimensions and position nodes. JSDOM does not implement `ResizeObserver` or full SVG bounding box calculations, causing component tests to crash unless mock stubs are provided in the test environment setup.
+Alternatives considered: Inlining mocks in every individual test file. Rejected because DRY global setup in `src/test/setup.ts` ensures consistent test environment behavior across all component test suites.
+If we removed it: Any Vitest unit test mounting `@xyflow/react` or `DiagramView` would throw `ReferenceError: ResizeObserver is not defined`.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-110 — Phase 4 — step
+What: Configure ESLint rule `react/no-danger: "error"` in `apps/web/eslint.config.mjs`.
+Why: Project Rule 5 strictly dictates that user text and LLM text are untrusted, must be rendered as plain text, and must never use `dangerouslySetInnerHTML`. Setting `react/no-danger: "error"` automates lint enforcement, causing static analysis and CI checks to fail immediately if unsafe HTML injection is introduced.
+Alternatives considered: Manual code review without an automated linter rule. Rejected because architectural security invariants require automated CI gatekeeping.
+If we removed it: Developers could inadvertently introduce `dangerouslySetInnerHTML`, opening XSS vulnerabilities.
+Decided by: plan
+Status: active
+
+### D-111 — Phase 4 — deviation
+What: Create custom edge component `apps/web/src/components/diagram/DiagramEdge.tsx` with keyboard-focusable label disclosure.
+Why: `BUILD_PLAN.md:434` listed diagram components (`Banner`, `DiagramNode`, `DetailPanel`, `FallbackList`, `NotesPanel`, `ConstraintsPanel`, `DiagramView`) but did not include a separate file for custom edges. However, `BUILD_PLAN.md:436-439` and accessibility requirements mandate that edge flow labels longer than 40 characters must be truncated and disclose full text on both hover and keyboard focus (`tabIndex={0}`). Standard React Flow SVG edges render plain SVG text elements without accessible HTML keyboard focus or disclosure popovers. Extracting `DiagramEdge.tsx` using `EdgeLabelRenderer` provides modular, keyboard-navigable edge labels with accessible tooltip popovers.
+Alternatives considered: Inlining the custom edge renderer inside `DiagramView.tsx`. Rejected because modular separation keeps `DiagramView.tsx` concise and allows direct edge unit testing.
+If we removed it: Edge labels would either lack keyboard focus/disclosure capabilities (violating accessibility requirements) or clutter `DiagramView.tsx`.
+Decided by: agent proposed (pending user approval)
+Status: active
+
+### D-112 — Phase 4 — decision
+What: User approval of custom `DiagramEdge.tsx` (D-111) and removal of unrequested `hideAttribution` option in `DiagramView.tsx`.
+Why: D-111 (custom `DiagramEdge.tsx` for keyboard-focusable edge labels, a deviation from the `BUILD_PLAN.md:434` file list) was approved by user after edge-label truncation, hover, and keyboard-focus accessibility tests passed in the user's `scripts/check.ps1` verification run (54 of 54 vitest tests passed). In addition, the unrequested `proOptions={{ hideAttribution: true }}` setting in `DiagramView.tsx` was removed because React Flow attribution removal terms were not verified.
+Alternatives considered: Retaining `hideAttribution: true`. Rejected because removing vendor attribution without verifying license terms violates compliance principles.
+If we removed it: D-111 would remain unapproved and unrequested license-sensitive configuration would persist in diagram canvas code.
+Decided by: user approved
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
