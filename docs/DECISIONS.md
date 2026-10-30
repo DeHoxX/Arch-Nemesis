@@ -1153,6 +1153,110 @@ If we removed it: Every design page view would fire explanation generation reque
 Decided by: user approved (BUILD_PLAN.md:469, 478)
 Status: active
 
+### D-135 — Phase 6 — dependency
+What: Adding `email-validator` to backend dependencies for RFC-compliant email address format verification.
+Why: Per `BUILD_PLAN.md:499`, `email-validator` validates email syntax (including deliverability syntax checks) for lead submission payloads without writing custom or fragile regexes.
+Alternatives considered: Writing a custom regex or basic string check. Rejected because RFC email validation has numerous edge cases, and the Build Plan explicitly specifies `email-validator`.
+If we removed it: Invalid or malformed email strings could be saved as qualified leads.
+Decided by: user approved (BUILD_PLAN.md:499)
+Status: active
+
+### D-136 — Phase 6 — architecture
+What: `LeadTable` persistence pointing to exact design version via foreign key on `(design_id, version_no)` referencing `design_versions(design_id, version_no)`.
+Why: Per `BUILD_PLAN.md:500`, every lead must point to an exact design version so the pre-sales team can inspect the identical architecture spec, brief, and walkthrough the lead viewed at submission time.
+Alternatives considered: Referencing only `design_id`. Rejected because designs can evolve across versions, and associating a lead with a mutable current version loses fidelity.
+If we removed it: Leads could not be audited against the specific architecture state shown to the user.
+Decided by: user approved (BUILD_PLAN.md:500)
+Status: active
+
+### D-137 — Phase 6 — security
+What: Honeypot field `website` silently returning HTTP 201 `{status: "received"}` without database persistence.
+Why: Per `BUILD_PLAN.md:501`, automated spam bots filling the hidden honeypot field must receive the standard 201 success response so they do not detect the trap or retry with alternate forms, while keeping spam entirely out of the database and logs.
+Alternatives considered: Returning 400/422 on honeypot submission. Rejected because bots would adapt their payloads upon receiving error codes.
+If we removed it: Lead storage would be vulnerable to bot spam and contaminated leads.
+Decided by: user approved (BUILD_PLAN.md:501)
+Status: active
+
+### D-138 — Phase 6 — security
+What: Admin token authentication using constant-time comparison via `hmac.compare_digest`, returning HTTP 404 when `ADMIN_TOKEN` is unset/empty and HTTP 401 `UNAUTHORIZED` when missing or invalid.
+Why: Per `BUILD_PLAN.md:503`, timing attacks against admin authentication are prevented via `hmac.compare_digest`. Returning 404 when unconfigured hides the presence of admin endpoints in environments where admin functionality is disabled.
+Alternatives considered: Standard string equality (`==`) and 401 when unset. Rejected because string equality is susceptible to timing side-channels and 401 confirms endpoint existence when unconfigured.
+If we removed it: Admin endpoints would be subject to timing attacks and port scanning leaks.
+Decided by: user approved (BUILD_PLAN.md:503)
+Status: active
+
+### D-139 — Phase 6 — design
+What: Supersedes D-136. `LeadTable` persistence pointing to exact design version via foreign key on `(design_id, version_no)` referencing `design_versions(design_id, version_no)`. Reclassified under valid label `design`.
+Why: Per `BUILD_PLAN.md:500`, every lead must point to an exact design version so the pre-sales team can inspect the identical architecture spec, brief, and walkthrough the lead viewed at submission time.
+Alternatives considered: Referencing only `design_id`. Rejected because designs can evolve across versions, and associating a lead with a mutable current version loses fidelity.
+If we removed it: Leads could not be audited against the specific architecture state shown to the user.
+Decided by: user approved (BUILD_PLAN.md:500)
+Status: active
+
+### D-140 — Phase 6 — design
+What: Supersedes D-137. Honeypot field `website` silently returning HTTP 201 `{status: "received"}` without database persistence. Reclassified under valid label `design`.
+Why: Per `BUILD_PLAN.md:501`, automated spam bots filling the hidden honeypot field must receive the standard 201 success response so they do not detect the trap or retry with alternate forms, while keeping spam entirely out of the database and logs.
+Alternatives considered: Returning 400/422 on honeypot submission. Rejected because bots would adapt their payloads upon receiving error codes.
+If we removed it: Lead storage would be vulnerable to bot spam and contaminated leads.
+Decided by: user approved (BUILD_PLAN.md:501)
+Status: active
+
+### D-141 — Phase 6 — design
+What: Supersedes D-138. Admin token authentication using constant-time comparison via `hmac.compare_digest`, returning HTTP 404 when `ADMIN_TOKEN` is unset/empty and HTTP 401 `UNAUTHORIZED` when missing or invalid. Reclassified under valid label `design`.
+Why: Per `BUILD_PLAN.md:503`, timing attacks against admin authentication are prevented via `hmac.compare_digest`. Returning 404 when unconfigured hides the presence of admin endpoints in environments where admin functionality is disabled.
+Alternatives considered: Standard string equality (`==`) and 401 when unset. Rejected because string equality is susceptible to timing side-channels and 401 confirms endpoint existence when unconfigured.
+If we removed it: Admin endpoints would be subject to timing attacks and port scanning leaks.
+Decided by: user approved (BUILD_PLAN.md:503)
+Status: active
+
+### D-142 — Phase 6 — deviation
+What: Custom FastAPI `RequestValidationError` exception handler in `main.py` formatting 422 errors into the unified error envelope while strictly omitting raw user `input` from error payloads and logs.
+Why: Per `BUILD_PLAN.md:502`, personal lead data (name, email, note) must never be logged or reflected. FastAPI's default 422 handler returns the raw `input` string, which leaks sensitive lead values in API responses and logs when validation fails.
+Alternatives considered: Leaving default FastAPI validation handler. Rejected because it directly violates personal data privacy and log leakage constraints.
+If we removed it: Invalid name, email, or note contents would be reflected in 422 response bodies and potential log outputs.
+Decided by: user approved (BUILD_PLAN.md:502, 512)
+Status: active
+
+### D-143 — Phase 6 — step
+What: Adding `UnauthorizedError` to `archnemesis.errors` with code `UNAUTHORIZED`, HTTP status 401, and message `Not authorised.`.
+Why: Per `BUILD_PLAN.md:503`, a wrong or missing admin token must return 401 UNAUTHORIZED with the message "Not authorised." and the code must be added to the unified error table.
+Alternatives considered: Generic `AppError` invocation inside router. Rejected because named subclasses in `errors.py` maintain consistency and testability.
+If we removed it: Admin endpoints could not return the canonical unified error response required by the specification.
+Decided by: user approved (BUILD_PLAN.md:503)
+Status: active
+
+### D-144 — Phase 6 — design
+What: Updating `import-linter` contract in `pyproject.toml` to enforce sibling module independence for `archnemesis.modules.leads`.
+Why: Per GEMINI.md architectural layer boundaries and BUILD_PLAN.md Section 5, sibling modules (`intake`, `architect`, `explainer`, `leads`) must remain completely independent of one another.
+Alternatives considered: Omitting `leads` from the independence contract. Rejected because sibling module imports must be structurally prevented by automated linting.
+If we removed it: Sibling coupling could inadvertently be introduced into the leads module.
+Decided by: user approved (GEMINI.md, BUILD_PLAN.md Section 5)
+Status: active
+
+### D-145 — Phase 6 — step
+What: Migration `0003_leads.py` creating the `leads` table with schema `(id, design_id, version_no, name, email, note, consent_text_version, created_at)` and foreign key to `design_versions(design_id, version_no)`.
+Why: Per `BUILD_PLAN.md:500`, prospective client leads require dedicated persistence pointing to the exact design version reviewed by the lead.
+Alternatives considered: Storing leads in an external document store or unmigrated table. Rejected because relational integrity and Alembic versioning are repository standards.
+If we removed it: Lead submissions could not be persisted or linked to generated design versions.
+Decided by: user approved (BUILD_PLAN.md:500)
+Status: active
+
+### D-146 — Phase 6 — fix
+What: Correcting `_seed_design_and_version` in `test_leads.py` with complete `RequirementBrief` and `ArchitectureSpec` schemas, and switching log privacy assertions to `caplog` with explicit non-empty text guards.
+Why: `structlog.stdlib.LoggerFactory` routes log events to Python's standard `logging` library where `caplog` captures them, avoiding silent empty captures under `capture_logs()`. Supplying required fields (`users`, `numbers_given.unit`) prevents Pydantic validation errors when admin endpoints deserialize `brief_json`.
+Alternatives considered: Mocking logger or relaxing validation in `service.py`. Rejected because production deserialization contract must remain strict and test harness must supply schema-compliant seed records.
+If we removed it: Admin test retrieval fails with 500 and log privacy verification passes vacuously on empty lists.
+Decided by: user approved (Stage 6A test fix)
+Status: active
+
+### D-147 — Phase 6 — fix
+What: Log privacy verification in `test_leads.py` using `caplog.records` and `record.getMessage()` across valid, honeypot, 404, and 422 lead submission tests.
+Why: Pytest formats `caplog.text` by prepending a prefix (`LEVEL logger:file:line `) before the record message, causing line-level `json.loads()` to fail with JSONDecodeError. Accessing `record.getMessage()` retrieves the unadorned JSON payload produced by structlog's `JSONRenderer()`, allowing robust verification of the `lead_created` event schema and confirmation that personal data never appears in any emitted log record.
+Alternatives considered: String splitting `caplog.text` by whitespace. Rejected because log formatting prefixes can vary across environments and platforms.
+If we removed it: Structured log JSON assertions in tests fail to parse the log payload.
+Decided by: user approved (Stage 6A test fix)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

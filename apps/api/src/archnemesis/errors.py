@@ -96,6 +96,15 @@ class NotFoundError(AppError):
         )
 
 
+class UnauthorizedError(AppError):
+    def __init__(self, message: str = "Not authorised.") -> None:
+        super().__init__(
+            code="UNAUTHORIZED",
+            message=message,
+            status_code=401,
+        )
+
+
 class NotReadyError(AppError):
     def __init__(
         self, message: str = "The intake session is not ready for design generation."

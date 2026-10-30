@@ -1,6 +1,6 @@
 """Database table models for SQLAlchemy ORM."""
 
-from sqlalchemy import ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -62,4 +62,27 @@ class DesignVersionTable(Base):
 
     __table_args__ = (
         UniqueConstraint("design_id", "version_no", name="uq_design_versions_design_id_version_no"),
+    )
+
+
+class LeadTable(Base):
+    """Database record for a captured prospective client lead."""
+
+    __tablename__ = "leads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    design_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    email: Mapped[str] = mapped_column(String(254), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consent_text_version: Mapped[str] = mapped_column(String(20), nullable=False)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["design_id", "version_no"],
+            ["design_versions.design_id", "design_versions.version_no"],
+            name="fk_leads_design_versions",
+        ),
     )

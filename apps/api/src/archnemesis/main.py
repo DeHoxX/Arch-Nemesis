@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 
 import structlog
 from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from archnemesis.errors import (
@@ -33,7 +34,24 @@ from archnemesis.logging import setup_logging
 from archnemesis.modules.designs.router import router as designs_router
 from archnemesis.modules.explainer.router import router as explainer_router
 from archnemesis.modules.intake.router import router as intake_router
+from archnemesis.modules.leads.router import router as leads_router
 from archnemesis.settings import get_settings
+
+
+async def validation_exception_handler(
+    request: Request, exc: RequestValidationError
+) -> JSONResponse:
+    """Format validation errors uniformly without leaking personal user input data."""
+    errors = exc.errors()
+    first_err = errors[0] if errors else {}
+    loc_parts = [str(x) for x in first_err.get("loc", []) if x != "body"]
+    loc = ".".join(loc_parts)
+    msg = first_err.get("msg", "Invalid input.")
+    clean_msg = f"{loc}: {msg}" if loc else msg
+    return JSONResponse(
+        status_code=422,
+        content={"error": {"code": "INPUT_INVALID", "message": clean_msg}},
+    )
 
 
 async def llm_client_error_handler(request: Request, exc: LLMClientError) -> JSONResponse:
@@ -97,6 +115,7 @@ def create_app() -> FastAPI:
         return response
 
     # Exception handlers
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)  # type: ignore[arg-type]
     app.add_exception_handler(AppError, app_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(LLMClientError, llm_client_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_exception_handler)
@@ -106,6 +125,7 @@ def create_app() -> FastAPI:
     app.include_router(intake_router)
     app.include_router(designs_router)
     app.include_router(explainer_router)
+    app.include_router(leads_router)
 
     return app
 
