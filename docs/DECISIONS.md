@@ -1049,6 +1049,14 @@ If we removed it: The application would lack the primary user-facing output deli
 Decided by: plan
 Status: active
 
+### D-122 — Phase 4 — fix
+What: Wrap dynamic `useParams()` consumer in `apps/web/src/app/design/[id]/page.tsx` within a React `Suspense` boundary providing `DesignPageLoading` skeleton fallback.
+Why: Next.js App Router (especially with Cache Components / dynamic prerendering) detects client hooks that read route parameters (`useParams()`, `useSearchParams()`) outside of a `<Suspense>` boundary and reports a blocking-prerender error (`blocking-prerender-client-hook`). Moving `useParams()` into an inner component (`DesignContent`) and wrapping it in `<Suspense fallback={<DesignPageLoading />}>` allows Next.js to prerender the surrounding static shell while dynamically resolving the route parameters and design data at runtime.
+Alternatives considered: Setting `export const dynamic = 'force-dynamic'` or `export const instant = false`. Rejected because wrapping the dynamic leaf in Suspense is the standard Next.js architecture that preserves static shell prerendering and skeleton streaming.
+If we removed it: Next.js prerendering during build or runtime would log "blocking-prerender-client-hook" warnings or fail production route builds.
+Decided by: user approved (Stage 4C2 fix 4)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

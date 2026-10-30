@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import React, { Suspense, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -51,7 +51,23 @@ function useMediaQuery(query: string, serverFallback = true): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
 
-export default function DesignPage(): React.ReactElement {
+function DesignPageLoading(): React.ReactElement {
+  return (
+    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-8 md:py-12">
+      <div className="relative mx-auto w-full max-w-7xl space-y-6">
+        <div className="flex items-center justify-between border-b border-border/40 pb-4">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-6 w-24" />
+        </div>
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-9 w-48 rounded-lg" />
+        <Skeleton className="h-[580px] w-full rounded-2xl" />
+      </div>
+    </main>
+  );
+}
+
+function DesignContent(): React.ReactElement {
   const params = useParams();
   const rawId = params?.id;
   const id: string =
@@ -101,19 +117,7 @@ export default function DesignPage(): React.ReactElement {
     if (isError) {
       // Fall through to error handler below
     } else {
-      return (
-        <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-8 md:py-12">
-          <div className="relative mx-auto w-full max-w-7xl space-y-6">
-            <div className="flex items-center justify-between border-b border-border/40 pb-4">
-              <Skeleton className="h-6 w-32" />
-              <Skeleton className="h-6 w-24" />
-            </div>
-            <Skeleton className="h-12 w-full rounded-lg" />
-            <Skeleton className="h-9 w-48 rounded-lg" />
-            <Skeleton className="h-[580px] w-full rounded-2xl" />
-          </div>
-        </main>
-      );
+      return <DesignPageLoading />;
     }
   }
 
@@ -274,5 +278,13 @@ export default function DesignPage(): React.ReactElement {
         </Tabs>
       </div>
     </main>
+  );
+}
+
+export default function DesignPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<DesignPageLoading />}>
+      <DesignContent />
+    </Suspense>
   );
 }
