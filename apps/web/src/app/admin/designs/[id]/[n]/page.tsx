@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,15 +13,32 @@ import { ExplanationView } from "@/components/explanation/ExplanationView";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, getAdminDesignVersion } from "@/lib/api";
 import type { AdminDesignVersionResponse } from "@/lib/types";
 import { useAdminToken } from "../../../context";
 
-export default function AdminDesignInspectionPage(): React.ReactElement {
+function AdminDesignInspectionLoading(): React.ReactElement {
+  return (
+    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-8 md:py-12">
+      <div className="relative mx-auto w-full max-w-7xl space-y-6">
+        <div className="flex items-center justify-between border-b border-border/40 pb-4">
+          <Skeleton className="h-6 w-32" />
+          <Skeleton className="h-6 w-24" />
+        </div>
+        <Skeleton className="h-12 w-full rounded-lg" />
+        <Skeleton className="h-9 w-48 rounded-lg" />
+        <Skeleton className="h-[580px] w-full rounded-2xl" />
+      </div>
+    </main>
+  );
+}
+
+function AdminDesignInspectionContent(): React.ReactElement {
   const params = useParams();
-  const designId = typeof params.id === "string" ? params.id : "";
-  const versionRaw = typeof params.n === "string" ? params.n : "1";
+  const designId = typeof params?.id === "string" ? params.id : "";
+  const versionRaw = typeof params?.n === "string" ? params.n : "1";
   const versionNo = parseInt(versionRaw, 10) || 1;
 
   const queryClient = useQueryClient();
@@ -328,5 +345,13 @@ export default function AdminDesignInspectionPage(): React.ReactElement {
         )}
       </div>
     </main>
+  );
+}
+
+export default function AdminDesignInspectionPage(): React.ReactElement {
+  return (
+    <Suspense fallback={<AdminDesignInspectionLoading />}>
+      <AdminDesignInspectionContent />
+    </Suspense>
   );
 }

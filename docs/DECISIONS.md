@@ -1377,6 +1377,14 @@ If we removed it: Users entering an invalid admin token receive no visual feedba
 Decided by: user approved (Stage 6C1 test fix)
 Status: active
 
+### D-163 — Phase 6 — fix
+What: Admin design page wrapped in Suspense, reference D-122.
+Why: Next.js App Router (Turbopack/prerendering) reports a build error (`CLIENT_HOOK_DYNAMIC`) when `useParams()` is invoked in a client component outside of a `<Suspense>` boundary. Following the established pattern from D-122 for `/design/[id]`, the `useParams()` logic was moved into an inner component (`AdminDesignInspectionContent`) and wrapped in `<Suspense fallback={<AdminDesignInspectionLoading />}>` in the default export.
+Alternatives considered: Using `export const instant = false` or `force-dynamic`. Rejected per user instruction and repository pattern in D-122.
+If we removed it: Production builds fail during static analysis and prerendering due to un-sandboxed dynamic client hooks.
+Decided by: user approved (Stage 6C1 build fix)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
