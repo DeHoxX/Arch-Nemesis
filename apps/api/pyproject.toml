@@ -103,9 +103,10 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Sibling modules intake and architect are independent"
+name = "Sibling modules are independent"
 type = "independence"
 modules = [
     "archnemesis.modules.intake",
     "archnemesis.modules.architect",
+    "archnemesis.modules.explainer",
 ]

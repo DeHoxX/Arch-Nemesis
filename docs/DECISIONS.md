@@ -1081,6 +1081,30 @@ If we removed it: The diagram layout engine would be unable to calculate accurat
 Decided by: user approved (Stage 4 Fix 6)
 Status: active
 
+### D-126 — Phase 5 — design
+What: Explanation draft validation and verification engine (`verify.py`) with deterministic error codes and strict number and forbidden-word checking.
+Why: Enforces Rule 1 ("The LLM designs structure and writes prose. Code validates and produces every number.") and Rule 8 ("Never claim legal or regulatory compliance in any output."). Code verifies that every node and constraint referenced exists in the spec, flow order matches topological sort, sections stay under character limits, no unapproved numbers appear (only brief numbers, node count, and integers 1..N), no forbidden pricing/budget/timeline terms are used, and no compliance or security guarantees are made.
+Alternatives considered: Checking numbers with flexible NLP or boundary heuristics. Rejected because strict deterministic parsing aligns with `BUILD_PLAN.md:474` and prevents hallucinated statistics from reaching users.
+If we removed it: Hallucinated metrics, incorrect topological flows, or forbidden marketing/cost claims from the LLM would be presented to users as authoritative technical designs.
+Decided by: user approved (BUILD_PLAN.md:473-475, Phase 5 Plan)
+Status: active
+
+### D-127 — Phase 5 — design
+What: Code-only fallback explanation generator (`fallback.py`) for guaranteed zero-LLM failure recovery.
+Why: Per `BUILD_PLAN.md:476-477`, if an LLM explanation fails verification after 1 retry (total 2 LLM calls), the system falls back to a deterministic, template-based explanation constructed solely from validated `ArchitectureSpec` data. This guarantees that every valid design always has a readable explanation without ever exposing an invalid LLM output or failing the request.
+Alternatives considered: Throwing a 422 error or returning an empty explanation. Rejected because users must always receive an explanation when viewing a valid design.
+If we removed it: A malfunctioning or non-compliant LLM draft would result in a broken UI tab or an unhandled failure state for the end user.
+Decided by: user approved (BUILD_PLAN.md:476-477, Phase 5 Plan)
+Status: active
+
+### D-128 — Phase 5 — architecture
+What: Add `archnemesis.modules.explainer` to import-linter sibling independence contract in `apps/api/pyproject.toml`.
+Why: Maintains architectural boundary that sibling feature modules (`intake`, `architect`, `explainer`) cannot import each other, keeping each module decoupled and isolated.
+Alternatives considered: Allowing direct sibling imports. Rejected to preserve modular integrity and testability.
+If we removed it: Explainer could inadvertently couple to intake or architect internal logic, violating clean architecture rules.
+Decided by: user approved (GEMINI.md layout rules)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
