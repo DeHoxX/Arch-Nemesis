@@ -1385,6 +1385,62 @@ If we removed it: Production builds fail during static analysis and prerendering
 Decided by: user approved (Stage 6C1 build fix)
 Status: active
 
+### D-164 — Phase 6 — dependency
+What: Add `html-to-image` (`1.11.11`) to `apps/web/package.json`.
+Why: BUILD_PLAN.md:499 and 509 require client-side PNG export of the architecture diagram. React Flow documentation specifically recommends `html-to-image` targeting `.react-flow__viewport`. Version `1.11.11` is pinned per React Flow's recommendation for SVG stability, has zero dependencies, and has zero peer dependency constraints with React 19.
+Alternatives considered: `dom-to-image` or server-side Puppeteer rendering. Rejected because `dom-to-image` is unmaintained and server-side rendering breaks client privacy rules and adds heavy infrastructure.
+If we removed it: Visitors cannot take away a graphical PNG of their generated architecture.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-165 — Phase 6 — design
+What: Results page header export action buttons (`Download diagram (PNG)`, `Download explanation (.md)`, `Print or save as PDF`).
+Why: BUILD_PLAN.md:509 mandates three export buttons on the results page next to "Contact our team". The buttons trigger purely in-memory browser actions: PNG canvas rendering via `html-to-image`, client-side blob download of markdown walkthrough, and native browser print dialog. Zero network requests or storage writes are performed.
+Alternatives considered: Putting export actions in a sub-menu. Rejected to maintain direct discoverability for visitors taking designs away.
+If we removed it: Visitors cannot export or print their generated architectures.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-166 — Phase 6 — design
+What: Pure client-side Markdown walkthrough generator with compliance banner in `apps/web/src/lib/export.ts`.
+Why: BUILD_PLAN.md:509 requires downloading the plain-language walkthrough as `.md`. A pure tested function constructs GitHub-flavored markdown starting with the Design ID, version, and the exact compliance banner disclaimer, followed by the five walkthrough sections in order (`Overview`, `How a request flows`, `Each part`, `Why the checks exist`, `Where AI models are used`). Hostile user strings are rendered literally as plain text. If the explanation is null, Option A produces a valid document noting that the explanation has not yet been generated.
+Alternatives considered: Sending request to backend to render Markdown. Rejected because all exports are client-side in v1.
+If we removed it: Walkthrough cannot be exported as a portable document.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-167 — Phase 6 — design
+What: Scoped results page print layout and diagram print limitation documentation.
+Why: BUILD_PLAN.md:509 mandates calling `window.print()` with a stylesheet that hides buttons and shows the banner, diagram, and explanation. Scoped CSS on the results page container displays both tab contents simultaneously during printing without altering global button or header styling on other pages or dialogs. We report honestly that native browser printing of interactive transformed canvas diagrams can suffer from omitted background graphics and boundary clipping.
+Alternatives considered: Global print CSS rules hiding all buttons across the site. Rejected because it mutates dialog and admin print layouts unexpectedly.
+If we removed it: Printing would hide the inactive tab content or print cluttered navigation controls.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-168 — Phase 6 — fix
+What: Convert diagram canvas data URL to binary PNG Blob and enforce design-id in export filename.
+Why: `html-to-image` produces a base64 encoded data URL string (`data:image/png;base64,...`). Passing this string directly to `new Blob([content], { type: "image/png" })` packaged the ASCII text characters into a download rather than binary PNG bytes. We introduce `dataUrlToBlob` which decodes the base64 payload into a binary `Uint8Array` Blob with verified PNG signature header (`89 50 4E 47`), sanitize the filename format to guarantee `arch-nemesis-${id}-v${version}.png` (falling back safely to `arch-nemesis-design-v${version}.png`), and safeguard `downloadFile` so any passed data URL string is converted into a binary Blob rather than raw ASCII text.
+Alternatives considered: Setting `anchor.href = dataUrl` directly. Rejected because large diagrams (data URLs exceeding browser URL length limits of ~2MB) can fail or truncate in Chromium/Firefox, whereas Object URLs created from binary Blobs scale reliably without memory leakage when revoked immediately after click.
+If we removed it: Diagram PNG downloads would remain corrupted text files containing ASCII base64 strings instead of viewable image files.
+Decided by: user approved (Stage 6C2 bug fix)
+Status: active
+
+### D-169 — Phase 6 — fix
+What: Stub anchor click and adapt Blob reading in export unit tests for jsdom environment.
+Why: jsdom's `Blob` implementation lacks `Blob.prototype.arrayBuffer()` and `Blob.prototype.text()` methods, causing vitest assertions to throw `is not a function`. Additionally, invoking `anchor.click()` in jsdom attempts navigation on temporary download anchors, outputting `Not implemented: navigation` errors. We added jsdom-safe readers (`readBlobAsArrayBuffer` and `readBlobAsText`) using `Response.arrayBuffer()`/`FileReader`, and stubbed `HTMLAnchorElement.prototype.click` in the test suite without altering production `export.ts` code.
+Alternatives considered: Polyfilling `Blob.prototype.arrayBuffer` globally in vitest setup. Rejected because localized test-level readers are self-contained, predictable, and avoid unexpected side-effects across other test suites.
+If we removed it: Vitest unit tests for file export and data URL conversion fail in the jsdom test environment.
+Decided by: user approved (Stage 6C2 test fix)
+Status: active
+
+### D-170 — Phase 6 — fix
+What: Prioritize FileReader over Response in export test helpers and add Blob read validation guards.
+Why: In jsdom, passing a jsdom `Blob` instance to Node's `new Response(blob)` causes undici to stringify the object into the ASCII literal `"[object Blob]"` rather than throwing or decoding binary data, causing byte checks (e.g. expected 91 to be 137) and text checks to fail. We make `FileReader` (`readAsArrayBuffer` and `readAsText`) the primary read path, use `Response` only as fallback, and add explicit validation guards throwing if the buffer length is under 8 bytes or if the text result equals `"[object Blob]"`.
+Alternatives considered: Passing mock ArrayBuffers directly. Rejected because testing the real `Blob` produced by `dataUrlToBlob` and `downloadFile` verifies actual MIME type and data integrity.
+If we removed it: Vitest tests reading jsdom Blob instances would receive stringified `"[object Blob]"` payloads instead of actual file bytes.
+Decided by: user approved (Stage 6C2 test fix)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

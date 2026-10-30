@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContactDialog } from "@/components/contact/ContactDialog";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
+import { ExportButtons } from "@/components/export/ExportButtons";
 import { ApiError, getDesign, postExplanation } from "@/lib/api";
 
 /**
@@ -82,6 +83,7 @@ function DesignContent(): React.ReactElement {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("diagram");
   const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
+  const diagramContainerRef = useRef<HTMLDivElement>(null);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
   const isDesktop = useMediaQuery("(min-width: 768px)", true);
@@ -215,10 +217,10 @@ function DesignContent(): React.ReactElement {
         aria-hidden="true"
       />
 
-      <div className="relative mx-auto w-full max-w-7xl">
+      <div className="results-print-wrapper relative mx-auto w-full max-w-7xl">
         {/* Page Chrome Header */}
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border/40 pb-4">
-          <div className="flex items-center gap-3">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border/40 pb-4 print:border-b-0 print:mb-2">
+          <div className="flex items-center gap-3 print:hidden">
             <Link
               href="/"
               className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
@@ -230,7 +232,13 @@ function DesignContent(): React.ReactElement {
               Design {design.id}
             </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 print:hidden">
+            <ExportButtons
+              designId={design.id || id}
+              versionNo={design.current_version}
+              explanation={design.explanation || null}
+              diagramContainerRef={diagramContainerRef}
+            />
             <Button
               type="button"
               variant="outline"
@@ -261,7 +269,7 @@ function DesignContent(): React.ReactElement {
 
         {/* Tabs: Diagram and Explanation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-          <TabsList className="bg-card/80 border border-border/60 p-1">
+          <TabsList className="bg-card/80 border border-border/60 p-1 print:hidden" data-slot="tabs-list">
             <TabsTrigger value="diagram" className="px-4 py-1.5 text-xs font-mono">
               Diagram
             </TabsTrigger>
@@ -270,12 +278,15 @@ function DesignContent(): React.ReactElement {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="diagram" className="space-y-6 outline-none focus-visible:ring-0">
+          <TabsContent value="diagram" data-slot="tabs-content" className="space-y-6 outline-none focus-visible:ring-0">
             {/* Diagram area and DetailPanel grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               <div className={selectedNode ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full"}>
                 {isDesktop ? (
-                  <div className="h-[600px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative">
+                  <div
+                    ref={diagramContainerRef}
+                    className="h-[600px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative"
+                  >
                     <DiagramView
                       spec={design.spec}
                       selectedNodeId={selectedNodeId}
@@ -314,7 +325,7 @@ function DesignContent(): React.ReactElement {
             </div>
           </TabsContent>
 
-          <TabsContent value="explanation" className="outline-none focus-visible:ring-0">
+          <TabsContent value="explanation" data-slot="tabs-content" className="outline-none focus-visible:ring-0">
             <ExplanationView
               explanation={activeExplanation}
               isLoading={!hasExistingExplanation && isExplanationLoading}

@@ -126,6 +126,20 @@ describe("DesignPage Component (/design/[id])", () => {
       expect(screen.getByText(/Design design_test_123/)).toBeDefined();
     });
 
+    // Results print wrapper container present for scoped print CSS
+    expect(document.querySelector(".results-print-wrapper")).not.toBeNull();
+
+    // Export buttons present next to Contact button
+    expect(
+      screen.getByRole("button", { name: "Download diagram (PNG)" })
+    ).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Download explanation (.md)" })
+    ).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Print or save as PDF" })
+    ).toBeDefined();
+
     // Exact Banner text above tabs
     const exactBanner =
       "Structurally checked, not guaranteed to be the best design. This is not a compliance claim.";
