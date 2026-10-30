@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from archnemesis.modules.explainer.schemas import Explanation
 from archnemesis.modules.validation.models import ArchitectureSpec
 from archnemesis.shared.brief import RequirementBrief
 
@@ -27,3 +28,4 @@ class DesignResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     flow_order: list[str]
     prompt_version: str
+    explanation: Explanation | None = None

@@ -31,6 +31,7 @@ from archnemesis.llm.base import (
 )
 from archnemesis.logging import setup_logging
 from archnemesis.modules.designs.router import router as designs_router
+from archnemesis.modules.explainer.router import router as explainer_router
 from archnemesis.modules.intake.router import router as intake_router
 from archnemesis.settings import get_settings
 
@@ -104,6 +105,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(intake_router)
     app.include_router(designs_router)
+    app.include_router(explainer_router)
 
     return app
 

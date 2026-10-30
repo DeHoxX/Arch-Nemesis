@@ -10,6 +10,7 @@ from archnemesis.llm.base import LLMClient
 from archnemesis.modules.architect import service as architect_service
 from archnemesis.modules.designs import repo
 from archnemesis.modules.designs.schemas import CreateDesignRequest, DesignResponse
+from archnemesis.modules.explainer.schemas import Explanation
 from archnemesis.modules.intake import repo as intake_repo
 from archnemesis.modules.validation.models import ArchitectureSpec
 from archnemesis.modules.validation.ordering import order_nodes
@@ -38,6 +39,11 @@ async def create_design(
             spec_dict = json.loads(version.spec_json)
             spec = ArchitectureSpec.model_validate(spec_dict)
             flow_order = order_nodes(spec)
+            existing_explanation: Explanation | None = None
+            if version.explanation_json is not None:
+                existing_explanation = Explanation.model_validate(
+                    json.loads(version.explanation_json)
+                )
             return DesignResponse(
                 id=existing_design.id,
                 intake_session_id=existing_design.intake_session_id,
@@ -47,6 +53,7 @@ async def create_design(
                 warnings=warnings_list,
                 flow_order=flow_order,
                 prompt_version=version.prompt_version,
+                explanation=existing_explanation,
             )
 
     # 3. Check readiness
@@ -121,6 +128,10 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
     spec = ArchitectureSpec.model_validate(json.loads(version.spec_json))
     flow_order = order_nodes(spec)
 
+    explanation_obj: Explanation | None = None
+    if version.explanation_json is not None:
+        explanation_obj = Explanation.model_validate(json.loads(version.explanation_json))
+
     return DesignResponse(
         id=design.id,
         intake_session_id=design.intake_session_id,
@@ -130,4 +141,5 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
         warnings=warnings_list,
         flow_order=flow_order,
         prompt_version=version.prompt_version,
+        explanation=explanation_obj,
     )

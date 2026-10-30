@@ -1105,6 +1105,38 @@ If we removed it: Explainer could inadvertently couple to intake or architect in
 Decided by: user approved (GEMINI.md layout rules)
 Status: active
 
+### D-129 — Phase 5 — architecture
+What: Explainer service with lazy evaluation, 2-call retry loop with verification feedback, and deterministic fallback.
+Why: Per `BUILD_PLAN.md:469`, explanations are generated lazily on first access and cached in `design_versions.explanation_json`. If the first LLM attempt produces verification errors, a second attempt provides structured diagnostic feedback. If that also fails, the pure fallback explanation is applied so valid designs are never broken.
+Alternatives considered: Eager generation during design creation. Rejected because pre-sales users may only view the diagram; lazy generation saves tokens and keeps design creation fast.
+If we removed it: Explanation generation would either slow down initial design creation or fail completely on imperfect LLM outputs.
+Decided by: user approved (BUILD_PLAN.md:469, 476)
+Status: active
+
+### D-130 — Phase 5 — architecture
+What: Explainer repository (`modules/explainer/repo.py`) with conditional update concurrency protection and no transaction across LLM calls.
+Why: To prevent race conditions during concurrent requests for the same design explanation, the repo performs `UPDATE design_versions SET explanation_json = :json WHERE id = :id AND explanation_json IS NULL`. If rowcount is 0, it re-reads and returns the existing stored explanation. Transactions are never held open across external LLM network calls.
+Alternatives considered: Holding a database row lock across the LLM call. Rejected to prevent connection pool exhaustion and database lock contention during multi-second LLM responses.
+If we removed it: Concurrent requests for the same design could cause duplicate writes, race conditions, or long-lived database transactions during LLM latency spikes.
+Decided by: user approved (Phase 5 Plan)
+Status: active
+
+### D-131 — Phase 5 — prompt
+What: Single prompt template `prompts/writer_v1.md` with untrusted user text encapsulation and structured JSON output.
+Why: The prompt uses `<untrusted_user_text>` tags to encapsulate spec and brief data, protecting against prompt injection. Per `BUILD_PLAN.md:483`, no forbidden words, effort/cost references, or hardcoded numbers appear in the prompt itself.
+Alternatives considered: Creating a separate repair prompt (`writer_repair_v1.md`). Rejected per user instruction to use a single prompt file for initial and repair attempts.
+If we removed it: Prompt injection could hijack the explanation prose, or negative constraint keywords in system instructions could unintentionally trigger hallucinations.
+Decided by: user approved (BUILD_PLAN.md:468, 483)
+Status: active
+
+### D-132 — Phase 5 — design
+What: Exposing optional `explanation` in `DesignResponse` (Option A) and mounting `POST /api/designs/{id}/versions/{n}/explanation`.
+Why: Option A adds `explanation: Explanation | None = None` to `DesignResponse`, populated in `GET /api/designs/{id}` when present, while the dedicated POST endpoint allows client-triggered lazy generation and retry on the Explanation tab.
+Alternatives considered: Nested separate endpoints without explanation in `DesignResponse`. Rejected because returning explanation in `GET /api/designs/{id}` when cached reduces frontend round-trips upon page reload.
+If we removed it: Frontend would have to issue two separate requests every time a user loads an existing design.
+Decided by: user approved (Phase 5 Plan, Option A)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
