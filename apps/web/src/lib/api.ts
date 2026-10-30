@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type {
   CreateDesignRequest,
+  CreateLeadRequest,
+  CreateLeadResponse,
   DesignResponse,
   Explanation,
   HealthData,
@@ -153,6 +155,10 @@ export const apiErrorEnvelopeSchema = z.object({
   }),
 });
 
+export const createLeadResponseSchema = z.object({
+  status: z.literal("received"),
+});
+
 async function parseErrorResponse(res: Response): Promise<ApiError> {
   try {
     const json = await res.json();
@@ -260,3 +266,15 @@ export async function postExplanation(
   );
   return handleResponse(res, explanationSchema);
 }
+
+export async function postLead(
+  payload: CreateLeadRequest,
+): Promise<CreateLeadResponse> {
+  const res = await fetch("/api/leads", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return handleResponse(res, createLeadResponseSchema);
+}
+

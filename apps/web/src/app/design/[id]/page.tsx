@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ContactDialog } from "@/components/contact/ContactDialog";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
 import { ApiError, getDesign, postExplanation } from "@/lib/api";
 
@@ -80,6 +81,7 @@ function DesignContent(): React.ReactElement {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("diagram");
+  const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
   const isDesktop = useMediaQuery("(min-width: 768px)", true);
@@ -228,11 +230,29 @@ function DesignContent(): React.ReactElement {
               Design {design.id}
             </span>
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
-            <span className="size-2 rounded-full bg-[#ccff00]" />
-            v{design.current_version} ({design.prompt_version})
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsContactOpen(true)}
+              className="text-xs font-mono"
+            >
+              Contact our team
+            </Button>
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
+              <span className="size-2 rounded-full bg-[#ccff00]" />
+              v{design.current_version} ({design.prompt_version})
+            </div>
           </div>
         </header>
+
+        <ContactDialog
+          open={isContactOpen}
+          onOpenChange={setIsContactOpen}
+          designId={design.id}
+          versionNo={design.current_version}
+        />
 
         {/* Compliance Banner: Always visible above the tabs */}
         <div className="mb-6">

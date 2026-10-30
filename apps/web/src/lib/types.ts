@@ -155,3 +155,23 @@ export interface ApiErrorEnvelope {
   error: ApiErrorPayload;
 }
 
+/**
+ * Max characters for lead note.
+ * Matches backend `Settings.lead_note_max_chars` in `apps/api/src/archnemesis/settings.py:38`.
+ */
+export const LEAD_NOTE_MAX_CHARS = 500;
+
+export interface CreateLeadRequest {
+  design_id: string;
+  version_no: number;
+  name: string;
+  email: string;
+  note?: string | null;
+  website?: string | null;
+}
+
+export interface CreateLeadResponse {
+  status: "received";
+}
+
+

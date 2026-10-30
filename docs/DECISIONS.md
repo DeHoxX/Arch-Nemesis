@@ -1257,6 +1257,54 @@ If we removed it: Structured log JSON assertions in tests fail to parse the log 
 Decided by: user approved (Stage 6A test fix)
 Status: active
 
+### D-148 — Phase 6 — dependency
+What: Adding `react-hook-form` and `@hookform/resolvers` for type-safe form state and Zod resolver integration.
+Why: Per `BUILD_PLAN.md:499`, `react-hook-form` and `@hookform/resolvers` provide client-side form validation and state management without uncontrolled re-renders or custom form boilerplate.
+Alternatives considered: Plain React state with manual validation. Rejected because the Build Plan explicitly specifies `react-hook-form` and `@hookform/resolvers`.
+If we removed it: Form validation and error states would require complex manual state management.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-149 — Phase 6 — design
+What: Adding shadcn UI components (`dialog.tsx`, `input.tsx`, `label.tsx`) backed by `radix-ui`.
+Why: Per `BUILD_PLAN.md:499`, modal interaction, text input, and accessible labeling require standard styled primitives matching the app's neutral design tokens. `checkbox.tsx` is omitted per user instruction because consent is purely informational text.
+Alternatives considered: Native HTML dialog or unstyled inputs. Rejected because accessible keyboard navigation and unified OKLCH styling are app standards.
+If we removed it: Dialog accessibility and styling would be inconsistent with the rest of the UI.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-150 — Phase 6 — design
+What: `ContactDialog` component integrating lead submission, honeypot trapping, input preservation on error, and exact success text.
+Why: Per `BUILD_PLAN.md:507` and `501`, visitor contact requests must capture name, email, optional note, and honeypot field, displaying exact consent text and success text while preserving inputs on API errors.
+Alternatives considered: Full-page contact form or external widget. Rejected because modal dialog keeps the user on their generated design page.
+If we removed it: Prospective leads could not contact the team directly from their architecture diagram.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-151 — Phase 6 — design
+What: Results page header integration binding "Contact our team" button to the currently viewed design version.
+Why: Per `BUILD_PLAN.md:507`, the "Contact our team" button in the results header opens the contact dialog and sends the version currently shown (`design.current_version`).
+Alternatives considered: Floating contact button or footer link. Rejected because the header next to the version badge clearly indicates the version context being discussed.
+If we removed it: Users would have no clear entrypoint to initiate contact regarding their design.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-152 — Phase 6 — design
+What: Constant `LEAD_NOTE_MAX_CHARS = 500` in frontend types/constants mirroring backend `lead_note_max_chars` in `settings.py:38`.
+Why: Frontend validation must enforce the identical 500-character note limit as backend setting `lead_note_max_chars` so validation errors trigger client-side before network dispatch.
+Alternatives considered: Dynamic fetching of limits endpoint. Rejected because Phase 6 does not define a public limits introspection route and limits are static v1 contracts.
+If we removed it: An arbitrary hardcoded literal in the form would drift from backend constraints without clear traceability.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-153 — Phase 6 — fix
+What: Mock reset lifecycle and pending promise resolution in `ContactDialog.test.tsx`.
+Why: `vi.clearAllMocks()` does not clear pending `mockResolvedValueOnce` return queues between tests. An unconsumed mock return in a preceding test was leaking into the pending promise test, resolving the promise immediately and causing the dialog to transition to the success screen before the in-flight "Sending..." disabled state could be asserted. Using `vi.resetAllMocks()` in `beforeEach`/`afterEach`, removing the unused mock, and wrapping resolution in `await act()` ensures deterministic test isolation.
+Alternatives considered: Using separate mock instances per test. Rejected because centralized module mocking via `vi.mock` is standard in the test suite.
+If we removed it: Tests asserting pending asynchronous states fail due to queue pollution from other test cases.
+Decided by: user approved (Stage 6B test fix)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
