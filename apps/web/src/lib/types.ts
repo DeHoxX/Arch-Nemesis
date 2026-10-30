@@ -174,4 +174,29 @@ export interface CreateLeadResponse {
   status: "received";
 }
 
+export interface AdminLeadItem {
+  id: string;
+  created_at: string;
+  name: string;
+  email: string;
+  note: string | null;
+  design_id: string;
+  version_no: number;
+}
+
+export interface AdminDesignVersionResponse {
+  brief: RequirementBrief;
+  spec: ArchitectureSpec;
+  warnings: string[];
+  flow_order: string[];
+  explanation?: Explanation | null;
+}
+
+export interface HistoryEntry {
+  design_id: string;
+  title: string;
+  created_at: string;
+}
+
+
 

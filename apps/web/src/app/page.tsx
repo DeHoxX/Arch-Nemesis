@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { AlertCircle, ArrowUp, RefreshCw } from "lucide-react";
@@ -11,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { BriefCard } from "@/components/BriefCard";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
 import { ApiError, createDesign, sendIntakeTurn } from "@/lib/api";
+import { saveHistoryEntry } from "@/lib/history";
 import type { RequirementBrief } from "@/lib/types";
 
 interface ChatMessage {
@@ -73,6 +75,11 @@ export default function HomePage(): React.ReactElement {
       });
     },
     onSuccess: (data) => {
+      saveHistoryEntry({
+        design_id: data.id,
+        summary: data.brief.summary,
+        created_at: new Date().toISOString(),
+      });
       router.push(`/design/${encodeURIComponent(data.id)}`);
     },
   });
@@ -144,9 +151,17 @@ export default function HomePage(): React.ReactElement {
       <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center">
         {/* Header Branding */}
         <header className="mb-8 text-center space-y-2">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
-            <span className="size-2 rounded-full bg-[#ccff00]" />
-            Arch-Nemesis System Architect
+          <div className="flex items-center justify-between w-full mb-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
+              <span className="size-2 rounded-full bg-[#ccff00]" />
+              Arch-Nemesis System Architect
+            </div>
+            <Link
+              href="/history"
+              className="text-xs font-mono text-muted-foreground hover:text-[#ccff00] transition-colors underline underline-offset-4"
+            >
+              Past designs
+            </Link>
           </div>
           <h1 className="font-heading text-3xl md:text-4xl font-bold tracking-tight text-foreground">
             Describe the system you need

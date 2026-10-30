@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type {
+  AdminDesignVersionResponse,
+  AdminLeadItem,
   CreateDesignRequest,
   CreateLeadRequest,
   CreateLeadResponse,
@@ -159,6 +161,34 @@ export const createLeadResponseSchema = z.object({
   status: z.literal("received"),
 });
 
+export const adminLeadItemSchema = z.object({
+  id: z.string(),
+  created_at: z.string(),
+  name: z.string(),
+  email: z.string(),
+  note: z.string().nullable(),
+  design_id: z.string(),
+  version_no: z.number(),
+});
+
+export const adminLeadsListSchema = z.array(adminLeadItemSchema);
+
+export const adminDesignVersionResponseSchema = z.object({
+  brief: requirementBriefSchema,
+  spec: architectureSpecSchema,
+  warnings: z.array(z.string()).default([]),
+  flow_order: z.array(z.string()),
+  explanation: explanationSchema.nullable().optional(),
+});
+
+export const historyEntrySchema = z.object({
+  design_id: z.string(),
+  title: z.string(),
+  created_at: z.string(),
+});
+
+export const historyListSchema = z.array(historyEntrySchema);
+
 async function parseErrorResponse(res: Response): Promise<ApiError> {
   try {
     const json = await res.json();
@@ -277,4 +307,34 @@ export async function postLead(
   });
   return handleResponse(res, createLeadResponseSchema);
 }
+
+export async function getAdminLeads(
+  token: string,
+  limit = 100,
+): Promise<AdminLeadItem[]> {
+  const clampedLimit = Math.min(Math.max(1, limit), 200);
+  const res = await fetch(`/api/admin/leads?limit=${encodeURIComponent(clampedLimit)}`, {
+    headers: {
+      "X-Admin-Token": token,
+    },
+  });
+  return handleResponse(res, adminLeadsListSchema);
+}
+
+export async function getAdminDesignVersion(
+  token: string,
+  id: string,
+  versionNo: number,
+): Promise<AdminDesignVersionResponse> {
+  const res = await fetch(
+    `/api/admin/designs/${encodeURIComponent(id)}/versions/${encodeURIComponent(versionNo)}`,
+    {
+      headers: {
+        "X-Admin-Token": token,
+      },
+    },
+  );
+  return handleResponse(res, adminDesignVersionResponseSchema);
+}
+
 

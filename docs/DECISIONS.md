@@ -1305,6 +1305,78 @@ If we removed it: Tests asserting pending asynchronous states fail due to queue 
 Decided by: user approved (Stage 6B test fix)
 Status: active
 
+### D-154 — Phase 6 — dependency
+What: Add shadcn `table` UI component primitives in `apps/web/src/components/ui/table.tsx`.
+Why: Standardize styling and accessible semantic structure (`table`, `thead`, `tbody`, `tr`, `th`, `td`) for rendering prospective client leads in `/admin`.
+Alternatives considered: Raw unstyled HTML `<table>` or external grid library. Rejected to maintain visual consistency with shadcn system without adding heavy runtime dependencies.
+If we removed it: Table layout would require ad-hoc inline styles or divergent markup across admin views.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-155 — Phase 6 — design
+What: In-memory React Context (`AdminTokenContext`) in `apps/web/src/app/admin/context.tsx` for admin authentication state.
+Why: BUILD_PLAN.md:505 mandates that `/admin` keeps the admin token in React state only (never in `localStorage`, never in `sessionStorage`, never in URL). Wrapping the admin subtree in an in-memory context provider allows the token to survive client-side SPA navigation from `/admin` to `/admin/designs/[id]/[n]` without persistent storage.
+Alternatives considered: URL query parameter or sessionStorage. Rejected because BUILD_PLAN.md strictly forbids token in URL or persistent storage.
+If we removed it: Navigating between `/admin` leads list and design inspection would lose token state or violate security rules by persisting credentials.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-156 — Phase 6 — design
+What: Next.js layout metadata `robots: { index: false, follow: false }` for `/admin` sub-routes in `apps/web/src/app/admin/layout.tsx`.
+Why: BUILD_PLAN.md:505 mandates that admin pages are marked `noindex`. Placing standard Next.js App Router robots metadata in the admin layout guarantees that `/admin` and all descendant inspection pages emit `<meta name="robots" content="noindex, nofollow"/>`.
+Alternatives considered: Per-page meta tags or robots.txt only. Rejected because Next.js App Router layout metadata automatically cascades to all nested client and server routes.
+If we removed it: Search crawlers could index administrative lead review interfaces.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-157 — Phase 6 — design
+What: Client-side local storage history helper (`apps/web/src/lib/history.ts`) under key `archnemesis.history.v1`.
+Why: BUILD_PLAN.md:506 requires persisting past designs with schema `{design_id, title, created_at}`, newest first, capped at 20, with title derived from the first 60 characters of the brief summary. Reading is guarded by Zod validation, corrupt data is ignored, storage calls are wrapped in try/catch, and existing entries are deduplicated by `design_id`.
+Alternatives considered: Server-side user accounts or unvalidated raw localStorage. Rejected because v1 has no user accounts and unvalidated storage risks runtime crashes.
+If we removed it: Visitors would lose access to previously generated architectures upon leaving the page.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-158 — Phase 6 — design
+What: Display lead notes in full with word-wrapping as plain text in the admin leads table.
+Why: Administrators reviewing leads need immediate, complete visibility into the prospective client's custom note without extra clicks or obscured information. Text is rendered strictly as React children to prevent any HTML or script execution.
+Alternatives considered: Truncating with expand/collapse tooltip. Rejected per user preference for full cell visibility.
+If we removed it: Notes would be truncated or hidden behind interaction toggles.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-159 — Phase 6 — design
+What: Admin design inspection page (`/admin/designs/[id]/[n]`) is strictly read-only and triggers zero POST/LLM requests.
+Why: The admin route inspects historical snapshots returned by `GET /api/admin/designs/{id}/versions/{n}`. It reuses `DiagramView` and `ExplanationView` as pure presenter components. If the version has no explanation snapshot, it displays "No explanation generated yet." without triggering explanation generation.
+Alternatives considered: Allowing admin to trigger `POST .../explanation`. Rejected because admin review must not mutate design version state or incur LLM generation costs.
+If we removed it: Viewing designs in admin could accidentally trigger unwanted background LLM synthesis.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-160 — Phase 6 — design
+What: Backend left unchanged per Option C; frontend shows clear error alert on 500 when inspecting design versions.
+Why: User opted for Option C to keep backend code strictly untouched in 6C1. If an older design version has an incomplete `brief_json` that causes a backend 500, the frontend catches the error and displays a clear descriptive alert message rather than crashing.
+Alternatives considered: Modifying backend `service.py` to add validation fallbacks (Option A). Rejected per user direction to avoid backend modifications.
+If we removed it: Incompatible stored brief versions would trigger uncaught UI crashes.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-161 — Phase 6 — fix
+What: shadcn add table pulled third-party "cn", removed, uses @/lib/utils (reference D-101).
+Why: Running `npx shadcn add table` improperly installed the obsolete third-party package `"cn": "^0.5.1"` and imported from `"cn"`. Per D-101 and the project conventions, class names must be merged using the internal `@/lib/utils` helper (`clsx` + `tailwind-merge`). The third-party package was uninstalled, removed from `package.json` and `package-lock.json`, and `table.tsx` was adjusted to import `cn` from `@/lib/utils`.
+Alternatives considered: Keeping the third-party package. Rejected because it violates repository conventions and dependency rules.
+If we removed it: Extraneous unvetted dependency remains in project manifests.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-162 — Phase 6 — fix
+What: Preserve admin authentication error states independently of TanStack query key clearing.
+Why: In both `/admin` and `/admin/designs/[id]/[n]`, clearing the in-memory `token` upon receiving HTTP 401 was changing the TanStack query key to `[..., null]`. Because queries with null tokens are disabled (`enabled: false`), the query cache for the null key has `error: null`, which immediately cleared the 401 error from the component tree and prevented the "Not authorised." alert from displaying. Decoupling authentication error feedback into dedicated local state (`authError`, `errorMessage`) and pre-populating TanStack Query cache via `queryClient.setQueryData` ensures the error alert remains visible above the password input and avoids duplicate network dispatches.
+Alternatives considered: Leaving token in state on 401. Rejected because unauthenticated/invalid tokens must not linger in state.
+If we removed it: Users entering an invalid admin token receive no visual feedback that authentication failed.
+Decided by: user approved (Stage 6C1 test fix)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
