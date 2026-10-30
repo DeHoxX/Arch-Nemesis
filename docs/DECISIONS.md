@@ -1057,6 +1057,30 @@ If we removed it: Next.js prerendering during build or runtime would log "blocki
 Decided by: user approved (Stage 4C2 fix 4)
 Status: active
 
+### D-123 — Phase 4 — fix
+What: Assign `zIndex: 1001` and opaque background `bg-background` to custom edge labels in `apps/web/src/components/diagram/DiagramEdge.tsx`.
+Why: React Flow renders `<div className="react-flow__edgelabel-renderer">` before `<NodeRenderer>` in the Viewport DOM hierarchy. Because Dagre rank separation (`RANKSEP = 80px`) is narrower than a 40-character or clamped (150px-168px) edge label pill, the label pill overlaps adjacent node boxes by ~44px. Without an explicit positive z-index, CSS stacking rules paint node cards on top of edge labels, partially hiding flow text ("Article Snippets", "JSON Payload"). Setting `zIndex: 1001` on the label wrapper positions edge labels in front of all node cards (unselected nodes have z-index 0, selected nodes have 1000), while the opaque background prevents underlying node borders and text from bleeding through.
+Alternatives considered: Option 2: increasing `RANKSEP` beyond 80 in `layout.ts`. Rejected because `BUILD_PLAN.md:436` specifies `nodesep: 40` and `ranksep: 80`, and Option 1 resolves the legibility defect cleanly without altering DAG geometry or violating project contracts.
+If we removed it: Edge label flow descriptions would be painted behind node boxes in multi-rank topologies and partially obscured.
+Decided by: user approved (Stage 4 Fix 5)
+Status: active
+
+### D-124 — Phase 4 — deviation
+What: Treat Dagre rank separation (`ranksep: 80`) as a dynamic minimum that automatically expands when edge flow labels require more horizontal space, approved by user (superseding fixed rank separation in `BUILD_PLAN.md:436`).
+Why: `BUILD_PLAN.md:436` specified a static `ranksep: 80`. However, real business flow descriptions (such as "Article Snippets" at 130px or "HTTPS / WebSocket" at 144px) exceed 80px. Because edge label pills are centered on edge midpoints, any label wider than 80px extends into adjacent node rectangles by $(W - 80)/2$ pixels, cutting off node type labels and badges. Passing `{ width: labelWidth, height: 26, labelpos: 'c' }` to Dagre per edge when `labelWidth > 80` leverages Dagre's native edge dummy-node rank spacing to expand that rank gap to `80 + labelWidth`, maintaining a strict 40px margin on both sides of the label while keeping the minimum gap at 80px for short or empty labels.
+Alternatives considered: Global uniform `ranksep: 250`. Rejected because compact DAGs with short labels ("auth", "raw data") would become needlessly sparse and horizontally stretched.
+If we removed it: Multi-word edge labels would physically cover node cards, badges, and type headers in multi-rank diagrams.
+Decided by: user approved (Stage 4 Fix 6)
+Status: active
+
+### D-125 — Phase 4 — design
+What: Implement pure, deterministic label width estimation helper (`estimateLabelWidth`) sharing unified styling constants between `layout.ts` and `DiagramEdge.tsx`.
+Why: Dagre graph layout runs headlessly during React render passes and unit tests without DOM access (`document.createElement` or `canvas.measureText`). Estimating pixel widths purely from monospace character advances (~7px per ASCII char, ~14px per CJK wide char), horizontal padding (16px), borders (2px), and a hard ceiling (`MAX_LABEL_TEXT_WIDTH = 150px`) guarantees deterministic graph coordinates across all environments while preventing layout and rendering geometry from drifting apart.
+Alternatives considered: Using headless canvas `measureText` via Node.js or jsdom. Rejected to keep `layout.ts` pure, zero-dependency, and isomorphic between client and server environments.
+If we removed it: The diagram layout engine would be unable to calculate accurate rank clearances prior to DOM mounting.
+Decided by: user approved (Stage 4 Fix 6)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

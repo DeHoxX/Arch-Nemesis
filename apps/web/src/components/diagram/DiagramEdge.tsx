@@ -6,6 +6,7 @@ import {
   getBezierPath,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
+import { MAX_LABEL_TEXT_WIDTH } from "./layout";
 
 export type DiagramEdgeData = {
   flows: string;
@@ -65,6 +66,7 @@ export function DiagramEdge({
               position: "absolute",
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: "all",
+              zIndex: 1001,
             }}
             className="nodrag nopan"
           >
@@ -74,12 +76,15 @@ export function DiagramEdge({
               aria-label={`Flow: ${flows}`}
               title={flows}
               className={cn(
-                "group relative cursor-help rounded-md border border-border/80 bg-background/95 px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm transition-colors",
+                "group relative cursor-help rounded-md border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm transition-colors",
                 "hover:border-foreground/50 hover:text-foreground",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:text-foreground",
               )}
             >
-              <span className="block max-w-[150px] truncate select-none">
+              <span
+                style={{ maxWidth: `${MAX_LABEL_TEXT_WIDTH}px` }}
+                className="block truncate select-none"
+              >
                 {displayLabel}
               </span>
 
