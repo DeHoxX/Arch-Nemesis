@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   CreateDesignRequest,
   DesignResponse,
+  Explanation,
   HealthData,
   IntakeTurnRequest,
   IntakeTurnResponse,
@@ -95,6 +96,43 @@ export const architectureSpecSchema = z.object({
   exit_ids: z.array(z.string()).default([]),
 });
 
+export const flowStepSchema = z.object({
+  step: z.number(),
+  node_id: z.string(),
+  node_name: z.string(),
+  text: z.string(),
+});
+
+export const partExplanationSchema = z.object({
+  node_id: z.string(),
+  node_name: z.string(),
+  text: z.string(),
+});
+
+export const checkExplanationSchema = z.object({
+  constraint_id: z.string(),
+  text: z.string(),
+});
+
+export const nodeReferenceSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+});
+
+export const modelUsageExplanationSchema = z.object({
+  nodes: z.array(nodeReferenceSchema).default([]),
+  text: z.string(),
+});
+
+export const explanationSchema = z.object({
+  overview: z.string(),
+  flow: z.array(flowStepSchema),
+  parts: z.array(partExplanationSchema),
+  checks: z.array(checkExplanationSchema),
+  models: modelUsageExplanationSchema,
+  source: z.enum(["llm", "fallback"]),
+});
+
 export const designResponseSchema = z.object({
   id: z.string(),
   intake_session_id: z.string(),
@@ -104,6 +142,7 @@ export const designResponseSchema = z.object({
   warnings: z.array(z.string()).default([]),
   flow_order: z.array(z.string()),
   prompt_version: z.string(),
+  explanation: explanationSchema.nullable().optional(),
 });
 
 export const apiErrorEnvelopeSchema = z.object({
@@ -206,4 +245,18 @@ export async function createDesign(
 export async function getDesign(id: string): Promise<DesignResponse> {
   const res = await fetch(`/api/designs/${encodeURIComponent(id)}`);
   return handleResponse(res, designResponseSchema);
+}
+
+export async function postExplanation(
+  id: string,
+  version: number,
+): Promise<Explanation> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(id)}/versions/${encodeURIComponent(version)}/explanation`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    },
+  );
+  return handleResponse(res, explanationSchema);
 }

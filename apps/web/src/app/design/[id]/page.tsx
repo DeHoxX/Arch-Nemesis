@@ -16,7 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ApiError, getDesign } from "@/lib/api";
+import { ExplanationView } from "@/components/explanation/ExplanationView";
+import { ApiError, getDesign, postExplanation } from "@/lib/api";
 
 /**
  * SSR-safe and hydration-safe media query hook.
@@ -78,6 +79,7 @@ function DesignContent(): React.ReactElement {
         : "";
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("diagram");
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
   const isDesktop = useMediaQuery("(min-width: 768px)", true);
@@ -94,6 +96,30 @@ function DesignContent(): React.ReactElement {
     queryFn: () => getDesign(id),
     enabled: Boolean(id),
   });
+
+  // Lazy explanation fetch: only if not already present on design and tab is active
+  const version = design?.current_version ?? 1;
+  const hasExistingExplanation = Boolean(design?.explanation);
+
+  const {
+    data: generatedExplanation,
+    isLoading: isExplanationLoading,
+    isError: isExplanationError,
+    error: explanationError,
+    refetch: refetchExplanation,
+  } = useQuery({
+    queryKey: ["design-explanation", id, version],
+    queryFn: () => postExplanation(id, version),
+    enabled:
+      Boolean(id) &&
+      Boolean(design) &&
+      activeTab === "explanation" &&
+      !hasExistingExplanation,
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  const activeExplanation = design?.explanation ?? generatedExplanation;
 
   // Keyboard accessibility: Escape clears selected node
   useEffect(() => {
@@ -214,7 +240,7 @@ function DesignContent(): React.ReactElement {
         </div>
 
         {/* Tabs: Diagram and Explanation */}
-        <Tabs defaultValue="diagram" className="w-full space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
           <TabsList className="bg-card/80 border border-border/60 p-1">
             <TabsTrigger value="diagram" className="px-4 py-1.5 text-xs font-mono">
               Diagram
@@ -269,11 +295,12 @@ function DesignContent(): React.ReactElement {
           </TabsContent>
 
           <TabsContent value="explanation" className="outline-none focus-visible:ring-0">
-            <div className="rounded-2xl border border-border/80 bg-card/60 p-8 backdrop-blur-sm">
-              <p className="text-sm font-mono text-muted-foreground leading-relaxed">
-                The explanation arrives in the next step.
-              </p>
-            </div>
+            <ExplanationView
+              explanation={activeExplanation}
+              isLoading={!hasExistingExplanation && isExplanationLoading}
+              error={isExplanationError ? explanationError : null}
+              onRetry={() => refetchExplanation()}
+            />
           </TabsContent>
         </Tabs>
       </div>

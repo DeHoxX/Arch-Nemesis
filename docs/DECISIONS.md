@@ -1137,6 +1137,22 @@ If we removed it: Frontend would have to issue two separate requests every time 
 Decided by: user approved (Phase 5 Plan, Option A)
 Status: active
 
+### D-133 — Phase 5 — frontend
+What: Explanation tab UI component (`ExplanationView.tsx`) with plain text rendering, fixed section hierarchy, and fallback indicators.
+Why: Per `BUILD_PLAN.md:478` and `483`, all explanations must be displayed with exact headings in order (`Overview`, `How a request flows`, `Each part`, `Why the checks exist`, `Where AI models are used`). Markdown rendering and `dangerouslySetInnerHTML` are strictly forbidden to ensure LLM prose is displayed as safe, untrusted plain text without third-party HTML/markdown parsing vulnerabilities.
+Alternatives considered: Installing `react-markdown`. Rejected because plain text eliminates XSS risks and avoids adding new external dependencies.
+If we removed it: Unvalidated LLM output could introduce rendering bugs or security issues if treated as markdown or HTML.
+Decided by: user approved (BUILD_PLAN.md:478, 483)
+Status: active
+
+### D-134 — Phase 5 — frontend
+What: Lazy fetching of explanation in `apps/web/src/app/design/[id]/page.tsx` via TanStack Query triggered only when the Explanation tab is selected.
+Why: Per `BUILD_PLAN.md:469`, generation and fetching of the written explanation is lazy. If `DesignResponse` already contains an explanation, it is rendered immediately without network calls. Otherwise, `useQuery` with `enabled: activeTab === "explanation"` and `staleTime: Infinity` fires a single request to `POST /api/designs/{id}/versions/{n}/explanation` when the user opens the tab, preventing unwanted generation on initial page load.
+Alternatives considered: Eagerly fetching on page mount. Rejected because users viewing only the diagram should not trigger explanation generation or token usage.
+If we removed it: Every design page view would fire explanation generation requests even if the user never viewed the Explanation tab.
+Decided by: user approved (BUILD_PLAN.md:469, 478)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

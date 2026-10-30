@@ -73,6 +73,43 @@ export interface ArchitectureSpec {
   exit_ids: string[];
 }
 
+export interface FlowStep {
+  step: number;
+  node_id: string;
+  node_name: string;
+  text: string;
+}
+
+export interface PartExplanation {
+  node_id: string;
+  node_name: string;
+  text: string;
+}
+
+export interface CheckExplanation {
+  constraint_id: string;
+  text: string;
+}
+
+export interface NodeReference {
+  id: string;
+  name: string;
+}
+
+export interface ModelUsageExplanation {
+  nodes: NodeReference[];
+  text: string;
+}
+
+export interface Explanation {
+  overview: string;
+  flow: FlowStep[];
+  parts: PartExplanation[];
+  checks: CheckExplanation[];
+  models: ModelUsageExplanation;
+  source: "llm" | "fallback";
+}
+
 export interface DesignResponse {
   id: string;
   intake_session_id: string;
@@ -82,6 +119,7 @@ export interface DesignResponse {
   warnings: string[];
   flow_order: string[];
   prompt_version: string;
+  explanation?: Explanation | null;
 }
 
 export interface CreateDesignRequest {

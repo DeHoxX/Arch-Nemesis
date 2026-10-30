@@ -105,14 +105,19 @@ describe("DesignPage Component (/design/[id])", () => {
     }));
   });
 
-  it("renders exact Banner text, tabs, and Explanation placeholder", async () => {
+  it("renders exact Banner text, tabs, and triggers Explanation loading", async () => {
     const user = userEvent.setup();
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => mockValidDesign,
-    } as unknown as Response);
+    global.fetch = vi.fn().mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes("/explanation")) {
+        return new Promise(() => {});
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response;
+    });
 
     renderWithClient(<DesignPage />);
 
@@ -134,9 +139,9 @@ describe("DesignPage Component (/design/[id])", () => {
 
     // Click Explanation tab
     await user.click(explanationTab);
-    expect(
-      screen.getByText("The explanation arrives in the next step.")
-    ).toBeDefined();
+    await waitFor(() => {
+      expect(screen.getByText("Writing the explanation...")).toBeDefined();
+    });
   });
 
   it("mounts canvas and hides FallbackList when width >= 768px", async () => {
@@ -403,5 +408,105 @@ describe("DesignPage Component (/design/[id])", () => {
       expect(screen.getByText("Not verified by checks")).toBeDefined();
       expect(screen.getByText("Sub-millisecond SLA required")).toBeDefined();
     });
+  });
+
+  it("opens Explanation tab and fetches explanation once via POST", async () => {
+    const mockExplanation = {
+      overview: "Fetched explanation overview.",
+      flow: [{ step: 1, node_id: "node_a", node_name: "Ingest Node", text: "Ingests data." }],
+      parts: [{ node_id: "node_a", node_name: "Ingest Node", text: "Part A." }],
+      checks: [{ constraint_id: "c1", text: "Check text." }],
+      models: { nodes: [], text: "No part is marked as using an AI model." },
+      source: "llm",
+    };
+
+    const fetchMock = vi.fn().mockImplementation(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/explanation")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => mockExplanation,
+        } as unknown as Response;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response;
+    });
+    global.fetch = fetchMock;
+
+    const user = userEvent.setup();
+    renderWithClient(<DesignPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Ingest Node")).toBeDefined();
+    });
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/explanation"))).toBe(false);
+
+    // Click Explanation tab
+    const explanationTab = screen.getByRole("tab", { name: /Explanation/i });
+    await user.click(explanationTab);
+
+    // Explanation is fetched and rendered
+    await waitFor(() => {
+      expect(screen.getByText("Fetched explanation overview.")).toBeDefined();
+    });
+
+    // Check that POST /explanation was called exactly once
+    const explanationCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("/explanation")
+    );
+    expect(explanationCalls.length).toBe(1);
+    const callInit = explanationCalls[0]?.[1] as RequestInit | undefined;
+    expect(callInit?.method).toBe("POST");
+  });
+
+  it("does not fetch explanation when DesignResponse already contains it", async () => {
+    const existingExplanation = {
+      overview: "Existing cached explanation.",
+      flow: [{ step: 1, node_id: "node_a", node_name: "Ingest Node", text: "Ingests data." }],
+      parts: [{ node_id: "node_a", node_name: "Ingest Node", text: "Part A." }],
+      checks: [{ constraint_id: "c1", text: "Check text." }],
+      models: { nodes: [], text: "No part is marked as using an AI model." },
+      source: "llm",
+    };
+
+    const designWithExplanation = {
+      ...mockValidDesign,
+      explanation: existingExplanation,
+    };
+
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => designWithExplanation,
+      } as unknown as Response;
+    });
+    global.fetch = fetchMock;
+
+    const user = userEvent.setup();
+    renderWithClient(<DesignPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Ingest Node")).toBeDefined();
+    });
+
+    // Click Explanation tab
+    const explanationTab = screen.getByRole("tab", { name: /Explanation/i });
+    await user.click(explanationTab);
+
+    // Existing explanation is displayed immediately
+    await waitFor(() => {
+      expect(screen.getByText("Existing cached explanation.")).toBeDefined();
+    });
+
+    // Zero calls to /explanation POST
+    const explanationCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("/explanation")
+    );
+    expect(explanationCalls.length).toBe(0);
   });
 });
