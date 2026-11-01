@@ -142,11 +142,14 @@ describe("DesignPage Component (/design/[id])", () => {
       "Structurally checked, not guaranteed to be the best design. This is not a compliance claim.";
     expect(screen.getByText(exactBanner)).toBeDefined();
 
-    // Tabs "Diagram" and "Explanation"
-    const diagramTab = screen.getByRole("tab", { name: "Diagram" });
+    // Tabs "Block diagram", "Architecture", and "Explanation"
+    const blockTab = screen.getByRole("tab", { name: "Block diagram" });
+    const archTab = screen.getByRole("tab", { name: "Architecture" });
     const explanationTab = screen.getByRole("tab", { name: "Explanation" });
-    expect(diagramTab).toBeDefined();
+    expect(blockTab).toBeDefined();
+    expect(archTab).toBeDefined();
     expect(explanationTab).toBeDefined();
+    expect(blockTab.getAttribute("data-state")).toBe("active");
 
     // Click Explanation tab
     await user.click(explanationTab);
@@ -211,7 +214,7 @@ describe("DesignPage Component (/design/[id])", () => {
 
     // FallbackList items follow flow_order: node_a ("Ingest Node") before node_b ("Buffer Node")
     const fallbackRegion = screen.getByRole("region", { name: "Component Flow Order" });
-    const listItems = within(fallbackRegion).getAllByRole("button");
+    const listItems = within(fallbackRegion).getAllByRole("listitem");
     expect(listItems.length).toBe(2);
     expect(listItems[0]?.textContent).toContain("Ingest Node");
     expect(listItems[1]?.textContent).toContain("Buffer Node");
@@ -239,6 +242,10 @@ describe("DesignPage Component (/design/[id])", () => {
     } as unknown as Response);
 
     renderWithClient(<DesignPage />);
+
+    // Switch to Architecture tab to test interactive node selection and DetailPanel
+    const archTab = await screen.findByRole("tab", { name: "Architecture" });
+    await user.click(archTab);
 
     const fallbackRegion = await screen.findByRole("region", {
       name: "Component Flow Order",

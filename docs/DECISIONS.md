@@ -1465,6 +1465,14 @@ If we removed it: Backend service and endpoint tests would fail when run in clea
 Decided by: agent proposed, user approved
 Status: active (supersedes D-172)
 
+### D-174 — v2 Stage A — deviation
+What: Introduce simple Block diagram view as the default diagram tab alongside technical Architecture view.
+Why: Users evaluating agentic AI architectures benefit from a high-level, simplified conceptual diagram (boxes and directed arrows showing flow without technical metadata) as their first view, before delving into rich component specifications (roles, inputs/outputs, tech options, invariant constraints). This deviates from BUILD_PLAN.md:445 which specified only two tabs ("Diagram" and "Explanation"). We expanded the tabs to "Block diagram", "Architecture", and "Explanation", with "Block diagram" as default, non-interactive block nodes (name and Entry/Exit text markers only in one neutral style), directed arrows without flow labels, FallbackList below 768px, and dynamic PNG export capturing whichever diagram canvas is active.
+Alternatives considered: Adding a toggle switch inside the existing Diagram view. Rejected because tabs make the two distinct conceptual views first-class and avoid hiding diagram modes behind nested settings.
+If we removed it: Users would only have the detailed technical diagram view without an accessible high-level block diagram.
+Decided by: agent proposed, user approved
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

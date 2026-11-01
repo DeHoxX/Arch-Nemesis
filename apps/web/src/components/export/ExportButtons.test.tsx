@@ -175,4 +175,84 @@ describe("ExportButtons Component", () => {
     const [, filename] = downloadSpy.mock.calls[0]!;
     expect(filename).toBe("arch-nemesis-design-v1.md");
   });
+
+  it("exports the active container when diagramContainerRef is pointing to a Block diagram canvas", async () => {
+    const user = userEvent.setup();
+    const exportPngSpy = vi.spyOn(exportLib, "exportDiagramToPng").mockResolvedValue();
+
+    const blockCanvasContainer = document.createElement("div");
+    blockCanvasContainer.setAttribute("data-testid", "block-canvas-container");
+    document.body.appendChild(blockCanvasContainer);
+
+    const ref = { current: blockCanvasContainer };
+
+    render(
+      <ExportButtons
+        designId="design-block"
+        versionNo={1}
+        explanation={mockExplanation}
+        diagramContainerRef={ref}
+      />
+    );
+
+    const pngBtn = screen.getByRole("button", { name: "Download diagram (PNG)" });
+    await user.click(pngBtn);
+
+    expect(exportPngSpy).toHaveBeenCalledTimes(1);
+    expect(exportPngSpy.mock.calls[0]![0]).toBe(blockCanvasContainer);
+    expect(exportPngSpy.mock.calls[0]![1]).toBe("design-block");
+
+    document.body.removeChild(blockCanvasContainer);
+  });
+
+  it("exports the active container when diagramContainerRef is pointing to an Architecture canvas", async () => {
+    const user = userEvent.setup();
+    const exportPngSpy = vi.spyOn(exportLib, "exportDiagramToPng").mockResolvedValue();
+
+    const archCanvasContainer = document.createElement("div");
+    archCanvasContainer.setAttribute("data-testid", "arch-canvas-container");
+    document.body.appendChild(archCanvasContainer);
+
+    const ref = { current: archCanvasContainer };
+
+    render(
+      <ExportButtons
+        designId="design-arch"
+        versionNo={2}
+        explanation={mockExplanation}
+        diagramContainerRef={ref}
+      />
+    );
+
+    const pngBtn = screen.getByRole("button", { name: "Download diagram (PNG)" });
+    await user.click(pngBtn);
+
+    expect(exportPngSpy).toHaveBeenCalledTimes(1);
+    expect(exportPngSpy.mock.calls[0]![0]).toBe(archCanvasContainer);
+    expect(exportPngSpy.mock.calls[0]![1]).toBe("design-arch");
+
+    document.body.removeChild(archCanvasContainer);
+  });
+
+  it("displays error message on Explanation tab when diagramContainerRef.current is null and no canvas is mounted", async () => {
+    const user = userEvent.setup();
+    const nullRef = { current: null };
+
+    render(
+      <ExportButtons
+        designId="design-explanation"
+        versionNo={1}
+        explanation={mockExplanation}
+        diagramContainerRef={nullRef}
+      />
+    );
+
+    const pngBtn = screen.getByRole("button", { name: "Download diagram (PNG)" });
+    await user.click(pngBtn);
+
+    const alert = await screen.findByText(
+      "Failed to export diagram image. Please try again."
+    );
+    expect(alert).toBeDefined();
+  });
 });

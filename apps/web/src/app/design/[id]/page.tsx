@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
+import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
 import { ConstraintsPanel } from "@/components/diagram/ConstraintsPanel";
 import { DetailPanel } from "@/components/diagram/DetailPanel";
 import { DiagramView } from "@/components/diagram/DiagramView";
@@ -81,7 +82,7 @@ function DesignContent(): React.ReactElement {
         : "";
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<string>("diagram");
+  const [activeTab, setActiveTab] = useState<string>("block-diagram");
   const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
 
@@ -267,19 +268,53 @@ function DesignContent(): React.ReactElement {
           <Banner />
         </div>
 
-        {/* Tabs: Diagram and Explanation */}
+        {/* Tabs: Block diagram, Architecture, and Explanation */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
           <TabsList className="bg-card/80 border border-border/60 p-1">
-            <TabsTrigger value="diagram" className="px-4 py-1.5 text-xs font-mono">
-              Diagram
+            <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono">
+              Block diagram
+            </TabsTrigger>
+            <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono">
+              Architecture
             </TabsTrigger>
             <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono">
               Explanation
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="diagram" className="space-y-6 outline-none focus-visible:ring-0">
-            {/* Diagram area and DetailPanel grid */}
+          <TabsContent value="block-diagram" className="space-y-6 outline-none focus-visible:ring-0">
+            {/* Simple Block Diagram area */}
+            <div className="w-full">
+              {isDesktop ? (
+                <div
+                  ref={diagramContainerRef}
+                  className="h-[600px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative"
+                >
+                  <BlockDiagramView
+                    spec={design.spec}
+                    className="h-full w-full"
+                  />
+                </div>
+              ) : (
+                <FallbackList
+                  spec={design.spec}
+                  flowOrder={design.flow_order}
+                />
+              )}
+            </div>
+
+            {/* Notes and Constraints below the block diagram */}
+            <div className="space-y-6 pt-2">
+              <NotesPanel
+                warnings={design.warnings}
+                unverifiableRequirements={design.brief.unverifiable_requirements}
+              />
+              <ConstraintsPanel constraints={design.spec.constraints} />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="architecture" className="space-y-6 outline-none focus-visible:ring-0">
+            {/* Architecture area and DetailPanel grid */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
               <div className={selectedNode ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full"}>
                 {isDesktop ? (
@@ -315,7 +350,7 @@ function DesignContent(): React.ReactElement {
               )}
             </div>
 
-            {/* Notes and Constraints below the diagram */}
+            {/* Notes and Constraints below the architecture diagram */}
             <div className="space-y-6 pt-2">
               <NotesPanel
                 warnings={design.warnings}

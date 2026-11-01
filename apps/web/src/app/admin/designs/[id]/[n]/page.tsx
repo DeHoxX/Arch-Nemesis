@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, KeyRound, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
+import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
 import { DiagramView } from "@/components/diagram/DiagramView";
 import { NotesPanel } from "@/components/diagram/NotesPanel";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
@@ -295,20 +296,44 @@ function AdminDesignInspectionContent(): React.ReactElement {
               </Button>
             </div>
 
-            {/* Read-Only Tabs: Diagram vs Explanation */}
-            <Tabs defaultValue="diagram" className="w-full space-y-4">
+            {/* Read-Only Tabs: Block diagram vs Architecture vs Explanation */}
+            <Tabs defaultValue="block-diagram" className="w-full space-y-4">
               <TabsList className="bg-card/60 border border-border/60">
-                <TabsTrigger value="diagram" className="text-xs font-medium">
-                  Diagram Canvas
+                <TabsTrigger value="block-diagram" className="text-xs font-medium">
+                  Block diagram
+                </TabsTrigger>
+                <TabsTrigger value="architecture" className="text-xs font-medium">
+                  Architecture
                 </TabsTrigger>
                 <TabsTrigger value="explanation" className="text-xs font-medium">
-                  Plain-Language Walkthrough
+                  Explanation
                 </TabsTrigger>
               </TabsList>
 
-              <TabsContent value="diagram" className="space-y-6">
+              <TabsContent value="block-diagram" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                  {/* Read-only Diagram Canvas */}
+                  {/* Read-only Block Diagram Canvas */}
+                  <div className="lg:col-span-3 h-[600px] rounded-2xl border border-border/80 bg-card/40 overflow-hidden shadow-xl backdrop-blur-md">
+                    <BlockDiagramView spec={data.spec} />
+                  </div>
+
+                  {/* Summary / Notes Panel */}
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
+                      <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                        User / Audience
+                      </h2>
+                      <p className="text-xs text-foreground/90">{data.brief.users || "General"}</p>
+                    </div>
+
+                    {data.warnings.length > 0 && <NotesPanel warnings={data.warnings} />}
+                  </div>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="architecture" className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  {/* Read-only Architecture Canvas */}
                   <div className="lg:col-span-3 h-[600px] rounded-2xl border border-border/80 bg-card/40 overflow-hidden shadow-xl backdrop-blur-md">
                     <DiagramView spec={data.spec} />
                   </div>

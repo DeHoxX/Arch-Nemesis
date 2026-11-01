@@ -22,7 +22,15 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
-// Mock DiagramView to avoid canvas rendering complexities in jsdom
+// Mock BlockDiagramView and DiagramView to avoid canvas rendering complexities in jsdom
+vi.mock("@/components/diagram/BlockDiagramView", () => ({
+  BlockDiagramView: ({ spec }: { spec: { nodes: unknown[] } }) => (
+    <div data-testid="mock-block-diagram-view">
+      Block Diagram with {spec.nodes.length} nodes
+    </div>
+  ),
+}));
+
 vi.mock("@/components/diagram/DiagramView", () => ({
   DiagramView: ({ spec }: { spec: { nodes: unknown[] } }) => (
     <div data-testid="mock-diagram-view">
@@ -178,8 +186,21 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
       expect(screen.getByText("Cloud Native Event Store")).toBeDefined();
     });
 
-    expect(screen.getByTestId("mock-diagram-view")).toBeDefined();
+    // Three tabs present
+    const blockTab = screen.getByRole("tab", { name: "Block diagram" });
+    const archTab = screen.getByRole("tab", { name: "Architecture" });
+    const explanationTab = screen.getByRole("tab", { name: "Explanation" });
+    expect(blockTab).toBeDefined();
+    expect(archTab).toBeDefined();
+    expect(explanationTab).toBeDefined();
+
+    // Default active tab is Block diagram
+    expect(screen.getByTestId("mock-block-diagram-view")).toBeDefined();
     expect(screen.getByText(/Design ID: design-xyz-123 • Version 1/i)).toBeDefined();
+
+    // Switching to Architecture shows technical DiagramView
+    await user.click(archTab);
+    expect(screen.getByTestId("mock-diagram-view")).toBeDefined();
   });
 
   it("displays 'No explanation generated yet.' when explanation is null", async () => {
@@ -201,7 +222,7 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
 
     // Click Explanation tab
     const explanationTab = screen.getByRole("tab", {
-      name: /Plain-Language Walkthrough/i,
+      name: "Explanation",
     });
     await user.click(explanationTab);
 
@@ -225,7 +246,7 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
 
     // Switch tabs to explanation
     const explanationTab = screen.getByRole("tab", {
-      name: /Plain-Language Walkthrough/i,
+      name: "Explanation",
     });
     await user.click(explanationTab);
 
