@@ -95,4 +95,33 @@ describe("BlockNode component", () => {
     expect(rootEl.className).toContain("border-border/80");
     expect(rootEl.className).toContain("bg-card");
   });
+
+  describe("shape rendering and hostile string safety", () => {
+    it("renders pill shape for entry node", () => {
+      renderBlockNode({ isEntry: true, isExit: false });
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("rounded-full");
+    });
+
+    it("renders hexagon shape for AI model node", () => {
+      renderBlockNode({ isEntry: false, isExit: false, needs_model: true });
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("px-6");
+      const polygon = document.querySelector("polygon");
+      expect(polygon).toBeDefined();
+    });
+
+    it("renders rectangle shape for standard code node", () => {
+      renderBlockNode({ isEntry: false, isExit: false, needs_model: false });
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("rounded-lg");
+    });
+
+    it("renders hostile string literally without HTML execution", () => {
+      const hostileName = "<img src=x onerror=alert(1) />";
+      renderBlockNode({ name: hostileName });
+      expect(screen.getByText(hostileName)).toBeDefined();
+      expect(document.querySelector("img[src='x']")).toBeNull();
+    });
+  });
 });

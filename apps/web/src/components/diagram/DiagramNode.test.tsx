@@ -93,8 +93,10 @@ describe("DiagramNode component", () => {
     });
 
     expect(screen.getByText("AI model")).toBeDefined();
-    const nodeEl = container.querySelector(".border-amber-500");
-    expect(nodeEl).not.toBeNull();
+    // For hexagon shapes, the amber border is carried by the SVG polygon stroke
+    const polygon = container.querySelector("polygon");
+    expect(polygon).not.toBeNull();
+    expect(polygon?.getAttribute("stroke")).toBe("#f59e0b");
   });
 
   it("renders lock icon when node is referenced in constraints", () => {
@@ -145,5 +147,53 @@ describe("DiagramNode component", () => {
     handleSelect.mockClear();
     await user.keyboard(" ");
     expect(handleSelect).toHaveBeenCalledWith("selectable_node");
+  });
+
+  describe("shape rendering and hostile string safety", () => {
+    it("renders pill shape for entry node with correct accessible label", () => {
+      renderNode({
+        id: "entry_node",
+        name: "Entry Gateway",
+        type: "gateway",
+        entry_ids: ["entry_node"],
+      });
+      const node = screen.getByRole("button", { name: "Node: Entry Gateway, gateway" });
+      expect(node.className).toContain("rounded-full");
+    });
+
+    it("renders hexagon shape for AI model node with correct accessible label", () => {
+      renderNode({
+        id: "ai_node",
+        name: "AI Classifier",
+        type: "agent",
+        needs_model: true,
+      });
+      const node = screen.getByRole("button", { name: "Node: AI Classifier, agent" });
+      expect(node.className).toContain("px-6");
+      // Check SVG polygon exists for hexagon
+      const polygon = document.querySelector("polygon");
+      expect(polygon).toBeDefined();
+    });
+
+    it("renders rectangle shape for standard code node", () => {
+      renderNode({
+        id: "plain_node",
+        name: "Plain Service",
+        type: "service",
+        needs_model: false,
+      });
+      const node = screen.getByRole("button", { name: "Node: Plain Service, service" });
+      expect(node.className).toContain("rounded-xl");
+    });
+
+    it("renders hostile string literally without HTML execution", () => {
+      const hostileName = "<script>alert('xss')</script>";
+      renderNode({
+        name: hostileName,
+        type: "safe_type",
+      });
+      expect(screen.getByText(hostileName)).toBeDefined();
+      expect(document.querySelector("script")).toBeNull();
+    });
   });
 });

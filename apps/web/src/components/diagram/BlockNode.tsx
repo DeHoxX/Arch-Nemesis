@@ -1,19 +1,26 @@
 import React from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
+import { cn } from "@/lib/utils";
+import { classifyNodeShape } from "./classify";
 
 export interface BlockNodeData {
   id: string;
   name: string;
   isEntry: boolean;
   isExit: boolean;
+  needs_model?: boolean;
   [key: string]: unknown;
 }
 
 /**
  * BlockNode: Simple, non-interactive block diagram node.
  *
- * Requirements (Stage A & User Decisions):
+ * Requirements (Stage A & B4a Decisions):
  * - Renders node name only + small [Entry] / [Exit] text marker.
+ * - Shapes derived from structure:
+ *   1. isEntry || isExit -> pill
+ *   2. needs_model -> hexagon
+ *   3. otherwise -> rectangle
  * - One neutral style (border-border bg-card).
  * - No component type, no role, no badges, no lock icon.
  * - Non-interactive: no tabIndex, role="img", aria-label announcing name and entry/exit status.
@@ -22,6 +29,14 @@ export interface BlockNodeData {
 export function BlockNode({
   data,
 }: NodeProps & { data: BlockNodeData }): React.ReactElement {
+  const shape = classifyNodeShape(
+    { id: data.id, needs_model: Boolean(data.needs_model) },
+    {
+      entry_ids: data.isEntry ? [data.id] : [],
+      exit_ids: data.isExit ? [data.id] : [],
+    },
+  );
+
   const markerLabel = [
     data.isEntry ? "entry" : "",
     data.isExit ? "exit" : "",
@@ -33,12 +48,37 @@ export function BlockNode({
     ? `Block: ${data.name}, ${markerLabel}`
     : `Block: ${data.name}`;
 
+  const isHexagon = shape === "hexagon";
+  const isPill = shape === "pill";
+
   return (
     <div
       role="img"
       aria-label={accessibleLabel}
-      className="relative flex h-[72px] w-[220px] select-none flex-col justify-between overflow-hidden rounded-lg border border-border/80 bg-card p-3 text-card-foreground shadow-xs"
+      className={cn(
+        "relative flex h-[72px] w-[220px] select-none flex-col justify-between text-card-foreground shadow-xs",
+        !isHexagon && "border border-border/80 bg-card p-3",
+        !isHexagon && (isPill ? "rounded-full px-5" : "rounded-lg"),
+        isHexagon && "px-6 py-3",
+      )}
     >
+      {/* Hexagon SVG background & neutral border outline */}
+      {isHexagon && (
+        <svg
+          className="absolute inset-0 size-full pointer-events-none -z-10"
+          viewBox="0 0 220 72"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <polygon
+            points="18,1 202,1 219,36 202,71 18,71 1,36"
+            className="fill-card stroke-border/80"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+
       <Handle
         type="target"
         position={Position.Left}
@@ -79,4 +119,3 @@ export function BlockNode({
     </div>
   );
 }
-

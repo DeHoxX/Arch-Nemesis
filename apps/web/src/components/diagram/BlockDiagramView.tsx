@@ -82,6 +82,7 @@ export function BlockDiagramView({
       data: {
         id: pn.id,
         name: pn.data.name,
+        needs_model: pn.data.needs_model,
         isEntry: entryIds.has(pn.id),
         isExit: exitIds.has(pn.id),
       },

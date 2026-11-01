@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ConstraintSpec, NodeSpec } from "@/lib/types";
-import { classifyNode } from "./classify";
+import { classifyNode, classifyNodeShape } from "./classify";
 
 function createMockNode(overrides: Partial<NodeSpec> = {}): NodeSpec {
   return {
@@ -197,6 +197,32 @@ describe("classifyNode structural classifier", () => {
       expect(res1).toEqual(res2);
       expect(res2).toEqual(res3);
       expect(res1.borderColor).toBe("slate");
+    });
+  });
+
+  describe("classifyNodeShape pure function", () => {
+    it("returns pill for entry node regardless of needs_model", () => {
+      const shape1 = classifyNodeShape({ id: "n1", needs_model: false }, { entry_ids: ["n1"], exit_ids: [] });
+      const shape2 = classifyNodeShape({ id: "n1", needs_model: true }, { entry_ids: ["n1"], exit_ids: [] });
+      expect(shape1).toBe("pill");
+      expect(shape2).toBe("pill");
+    });
+
+    it("returns pill for exit node regardless of needs_model", () => {
+      const shape1 = classifyNodeShape({ id: "n2", needs_model: false }, { entry_ids: [], exit_ids: ["n2"] });
+      const shape2 = classifyNodeShape({ id: "n2", needs_model: true }, { entry_ids: [], exit_ids: ["n2"] });
+      expect(shape1).toBe("pill");
+      expect(shape2).toBe("pill");
+    });
+
+    it("returns hexagon for internal needs_model node", () => {
+      const shape = classifyNodeShape({ id: "n3", needs_model: true }, { entry_ids: [], exit_ids: [] });
+      expect(shape).toBe("hexagon");
+    });
+
+    it("returns rectangle for internal plain code node", () => {
+      const shape = classifyNodeShape({ id: "n4", needs_model: false }, { entry_ids: [], exit_ids: [] });
+      expect(shape).toBe("rectangle");
     });
   });
 });

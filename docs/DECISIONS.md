@@ -1537,6 +1537,14 @@ If we removed it: Users would have no indication that edge routing was adjusted 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-183 — v2 Stage B4a — deviation
+What: Derive geometric node shapes from graph structure and AI metadata while preserving fixed 220x72 dimensions and existing border colors.
+Why: BUILD_PLAN.md line 437 defined node visual style based solely on borders and badges, leaving all nodes as uniform rounded rectangles. To allow users to visually distinguish system boundaries (entry/exit) and AI nodes from standard software without inspecting text, we introduce structural shape mapping: pill for entry/exit endpoints, hexagon for needs_model AI nodes, and rounded rectangle for standard components. Following Rule 3, shape is strictly derived from topology and boolean metadata, never from component type text.
+Alternatives considered: Keeping all nodes as rectangles or styling based on type strings. Rejected because uniform rectangles carry no visual meaning and styling from type text violates Rule 3.
+If we removed it: Diagram nodes in both technical and block views would remain indistinguishable rectangles.
+Decided by: agent proposed, user approved
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
