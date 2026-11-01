@@ -5,7 +5,7 @@ import { classifyNodeShape, type NodeShape } from "./classify";
 export const NODE_WIDTH = 240;
 export const NODE_HEIGHT = 80;
 export const NODESEP = 50;
-export const MIN_RANKSEP = 96;
+export const MIN_RANKSEP = 110; // Updated from 96 to 110 (D-189) for >= 11.6px label clearance
 export const RANKSEP = MIN_RANKSEP;
 
 // Edge label estimation constants shared with DiagramEdge rendering
@@ -37,20 +37,6 @@ export const DIAMOND_MAX_HEIGHT = 190;
 
 /**
  * Pure and deterministic node dimension calculation.
- *
- * Rules (Stage B4e1 & D-188 Fix):
- * - Fixed width: 240px.
- * - Dynamic height computed from name and role text lines, clamped per shape.
- * - Usable text widths with safety margins:
- *     rectangle: 216px (px-3)
- *     pill: 168px (px-8)
- *     hexagon: 184px (px-7)
- *     diamond: 112px (centered inner box restricted to central rhombus region)
- * - Name max 2 lines; role max 2 lines (max 1 line for diamond).
- * - Clamps:
- *     rectangle / pill: [80, 130] px
- *     hexagon: [86, 140] px
- *     diamond: [140, 190] px
  */
 export function computeNodeDimensions(
   node: { name: string; role?: string },
@@ -89,9 +75,6 @@ export function computeNodeDimensions(
 
   let height: number;
   if (shape === "diamond") {
-    // Rhombus geometry: inner box corners at (W_box, H_box) must satisfy (W_box / W) + (H_box / H) <= 1
-    // With W = 240 and W_box = 112 (DIAMOND_INNER_WIDTH), W_box / W = 112 / 240 = 0.4667.
-    // Thus H_box / H <= 1 - 0.4667 = 0.5333, which requires H >= H_box * 1.875.
     const innerBoxPadding = 16;
     const nameHeight = nameLines * NAME_LINE_HEIGHT;
     const roleHeight = roleLines * 14;
@@ -130,13 +113,6 @@ export function computeNodeDimensions(
 
 /**
  * Pure and deterministic edge label pixel width estimation.
- *
- * Rules:
- * - Truncates at 40 characters matching DiagramEdge display rules.
- * - Monospace character counting: ASCII is 1 char unit (~7px), wide/CJK is 2 units (~14px).
- * - Clamps text width at MAX_LABEL_TEXT_WIDTH (150px).
- * - Adds horizontal padding (16px) and border (2px).
- * - Total return width is strictly bounded in [0, MAX_LABEL_TOTAL_WIDTH].
  */
 export function estimateLabelWidth(flows?: string | null): number {
   if (!flows || flows.trim().length === 0) {
@@ -170,6 +146,11 @@ export interface PositionedEdge {
   source: string;
   target: string;
   data: EdgeSpec;
+  labelX: number;
+  labelY: number;
+  labelWidth: number;
+  labelHeight: number;
+  pathD: string;
 }
 
 export interface LayoutResult {
@@ -179,16 +160,332 @@ export interface LayoutResult {
   height: number;
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Rect {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+export interface EdgeLabelPlacement {
+  labelX: number;
+  labelY: number;
+  labelWidth: number;
+  labelHeight: number;
+  pathD: string;
+}
+
+/**
+ * Evaluates a 2D cubic bezier curve at parameter t in [0, 1].
+ */
+export function evalCubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+  const clampedT = Math.max(0, Math.min(1, t));
+  const mt = 1 - clampedT;
+  const mt2 = mt * mt;
+  const mt3 = mt2 * mt;
+  const t2 = clampedT * clampedT;
+  const t3 = t2 * clampedT;
+
+  const x = mt3 * p0.x + 3 * mt2 * clampedT * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
+  const y = mt3 * p0.y + 3 * mt2 * clampedT * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+
+  return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+}
+
+function rectsIntersect(a: Rect, b: Rect, margin = 0): boolean {
+  return !(
+    a.right + margin <= b.left ||
+    a.left - margin >= b.right ||
+    a.bottom + margin <= b.top ||
+    a.top - margin >= b.bottom
+  );
+}
+
+function computeOverlapArea(a: Rect, b: Rect): number {
+  const xOverlap = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+  const yOverlap = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  return xOverlap * yOverlap;
+}
+
+/**
+ * Pure and deterministic edge path & label layout engine (Stage B4e2, D-189).
+ *
+ * Rules:
+ * - Handles stay centered at Position.Bottom (source) and Position.Top (target).
+ * - Fan-out labels (source out-degree >= 2) placed toward target end (t in [0.58, 0.70]) where
+ *   parallel target columns diverge by 290px (>= 168px label width).
+ * - Fan-in labels (target in-degree >= 2) placed toward source end (t in [0.30, 0.42]) where
+ *   source columns diverge by 290px.
+ * - Multi-rank bypass edges: path constructed through Dagre waypoints using cubic bezier segments (C);
+ *   label placed on the first rank transition gap (t ~ 0.50 between source and first waypoint).
+ * - Parallel edges between same pair: offset path control points laterally by 36px and label by 40px/0.08t.
+ * - Guaranteed clearance: minimum 8px margin from source and target node rectangles.
+ * - Fallback collision loop: nudges t and x, bounded at 3 deterministic iterations, keeps least-overlap result.
+ */
+export function computeEdgeLabelLayout(
+  nodes: PositionedNode[],
+  edges: { id: string; source: string; target: string; data: EdgeSpec }[],
+  dagreEdgePoints?: Map<string, Point[]>,
+): Map<string, EdgeLabelPlacement> {
+  const resultMap = new Map<string, EdgeLabelPlacement>();
+  const nodeMap = new Map<string, PositionedNode>();
+  const nodeRects: Rect[] = [];
+
+  for (const n of nodes) {
+    nodeMap.set(n.id, n);
+    nodeRects.push({
+      left: n.position.x,
+      top: n.position.y,
+      right: n.position.x + n.width,
+      bottom: n.position.y + n.height,
+    });
+  }
+
+  // Count degrees and group sibling edges
+  const outgoingMap = new Map<string, typeof edges>();
+  const incomingMap = new Map<string, typeof edges>();
+  const pairMap = new Map<string, typeof edges>();
+
+  for (const edge of edges) {
+    const outList = outgoingMap.get(edge.source) || [];
+    outList.push(edge);
+    outgoingMap.set(edge.source, outList);
+
+    const inList = incomingMap.get(edge.target) || [];
+    inList.push(edge);
+    incomingMap.set(edge.target, inList);
+
+    const pairKey = `${edge.source}__${edge.target}`;
+    const pList = pairMap.get(pairKey) || [];
+    pList.push(edge);
+    pairMap.set(pairKey, pList);
+  }
+
+  // Deterministically sort outgoing siblings by target.x, then edge.id
+  for (const edgeList of outgoingMap.values()) {
+    edgeList.sort((a, b) => {
+      const tgtA = nodeMap.get(a.target);
+      const tgtB = nodeMap.get(b.target);
+      const xA = tgtA ? tgtA.position.x : 0;
+      const xB = tgtB ? tgtB.position.x : 0;
+      if (xA !== xB) return xA - xB;
+      return a.id.localeCompare(b.id);
+    });
+  }
+
+  // Deterministically sort incoming siblings by source.x, then edge.id
+  for (const edgeList of incomingMap.values()) {
+    edgeList.sort((a, b) => {
+      const srcA = nodeMap.get(a.source);
+      const srcB = nodeMap.get(b.source);
+      const xA = srcA ? srcA.position.x : 0;
+      const xB = srcB ? srcB.position.x : 0;
+      if (xA !== xB) return xA - xB;
+      return a.id.localeCompare(b.id);
+    });
+  }
+
+  // Deterministically sort parallel edges by edge.id
+  for (const edgeList of pairMap.values()) {
+    edgeList.sort((a, b) => a.id.localeCompare(b.id));
+  }
+
+  const placedLabels: { id: string; rect: Rect; source: string; target: string }[] = [];
+
+  for (const edge of edges) {
+    const srcNode = nodeMap.get(edge.source);
+    const tgtNode = nodeMap.get(edge.target);
+
+    // Fallback if node not found
+    if (!srcNode || !tgtNode) {
+      resultMap.set(edge.id, {
+        labelX: 0,
+        labelY: 0,
+        labelWidth: 0,
+        labelHeight: 0,
+        pathD: "M 0 0",
+      });
+      continue;
+    }
+
+    const pStart: Point = {
+      x: srcNode.position.x + srcNode.width / 2,
+      y: srcNode.position.y + srcNode.height,
+    };
+    const pEnd: Point = {
+      x: tgtNode.position.x + tgtNode.width / 2,
+      y: tgtNode.position.y,
+    };
+
+    const deltaY = pEnd.y - pStart.y;
+    const outSiblings = outgoingMap.get(edge.source) || [];
+    const inSiblings = incomingMap.get(edge.target) || [];
+    const kOut = outSiblings.length;
+    const kIn = inSiblings.length;
+    const outIdx = outSiblings.findIndex((e) => e.id === edge.id);
+    const inIdx = inSiblings.findIndex((e) => e.id === edge.id);
+
+    // Parallel edge offset
+    const parallelList = pairMap.get(`${edge.source}__${edge.target}`) || [];
+    const mParallel = parallelList.length;
+    const pIdx = parallelList.findIndex((e) => e.id === edge.id);
+    const parallelOffsetIdx = mParallel > 1 ? pIdx - (mParallel - 1) / 2 : 0;
+    const pathXOffset = parallelOffsetIdx * 36;
+    const labelXOffset = parallelOffsetIdx * 40;
+    const labelTOffset = parallelOffsetIdx * 0.08;
+
+    // Check for multi-rank edge waypoints
+    const rawWaypoints = dagreEdgePoints?.get(`${edge.source}__${edge.target}`);
+    const isMultiRank = rawWaypoints && rawWaypoints.length > 2 && deltaY > RANKSEP * 1.5;
+
+    let pathD = "";
+    let baseP0 = pStart;
+    let baseP1: Point;
+    let baseP2: Point;
+    let baseP3 = pEnd;
+
+    if (isMultiRank && rawWaypoints) {
+      // Build cubic bezier through Dagre intermediate waypoints using C segments
+      pathD = `M ${pStart.x} ${pStart.y}`;
+      const pts: Point[] = [pStart, ...rawWaypoints.slice(1, -1), pEnd];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const cur = pts[i]!;
+        const next = pts[i + 1]!;
+        const midY = (cur.y + next.y) / 2;
+        pathD += ` C ${cur.x} ${midY} ${next.x} ${midY} ${next.x} ${next.y}`;
+      }
+
+      // For multi-rank edges, label sits in the first rank transition gap
+      const firstWp = pts[1]!;
+      baseP0 = pStart;
+      baseP1 = { x: pStart.x + pathXOffset, y: (pStart.y + firstWp.y) / 2 };
+      baseP2 = { x: firstWp.x + pathXOffset, y: (pStart.y + firstWp.y) / 2 };
+      baseP3 = firstWp;
+    } else {
+      // Standard single rank gap: one cubic bezier with vertical control points
+      baseP1 = { x: pStart.x + pathXOffset, y: pStart.y + deltaY / 2 };
+      baseP2 = { x: pEnd.x + pathXOffset, y: pEnd.y - deltaY / 2 };
+      pathD = `M ${pStart.x} ${pStart.y} C ${baseP1.x} ${baseP1.y} ${baseP2.x} ${baseP2.y} ${pEnd.x} ${pEnd.y}`;
+    }
+
+    // Determine initial parameter t based on fan-out vs fan-in column divergence
+    let baseT = 0.50;
+    if (isMultiRank) {
+      baseT = 0.50;
+    } else if (kOut >= 2 && kIn === 1) {
+      // Fan-out: place toward target end [0.58, 0.70]
+      baseT = 0.58 + (kOut > 1 ? 0.12 * (outIdx / (kOut - 1)) : 0);
+    } else if (kIn >= 2 && kOut === 1) {
+      // Fan-in: place toward source end [0.30, 0.42]
+      baseT = 0.30 + (kIn > 1 ? 0.12 * (inIdx / (kIn - 1)) : 0);
+    } else if (kOut >= 2 && kIn >= 2) {
+      // Both: stagger across [0.38, 0.62]
+      const totalIdx = outIdx + inIdx;
+      const totalMax = Math.max(1, (kOut - 1) + (kIn - 1));
+      baseT = 0.38 + 0.24 * (totalIdx / totalMax);
+    }
+
+    baseT = Math.max(0.28, Math.min(0.72, baseT + labelTOffset));
+
+    // Label dimensions
+    const flows = edge.data.flows || "";
+    const hasCondition = Boolean(edge.data.condition && edge.data.condition.trim().length > 0);
+    const labelWidth = estimateLabelWidth(flows);
+    const labelHeight = hasCondition ? 52 : (flows.trim().length > 0 ? 26 : 0);
+
+    // If edge has no text and no condition, placement is trivial
+    if (labelWidth === 0 && labelHeight === 0) {
+      resultMap.set(edge.id, {
+        labelX: pStart.x,
+        labelY: pStart.y + deltaY / 2,
+        labelWidth: 0,
+        labelHeight: 0,
+        pathD,
+      });
+      continue;
+    }
+
+    // Collision checking & fallback loop (bounded at 3 iterations)
+    let bestOverlap = Infinity;
+    let bestPoint = evalCubicBezier(baseP0, baseP1, baseP2, baseP3, baseT);
+
+    const testCandidates = [
+      { t: baseT, xShift: labelXOffset },
+      { t: Math.max(0.28, baseT - 0.06), xShift: labelXOffset },
+      { t: Math.min(0.72, baseT + 0.06), xShift: labelXOffset },
+      { t: baseT, xShift: labelXOffset + (outIdx % 2 === 0 ? 25 : -25) },
+    ];
+
+    for (let iter = 0; iter < testCandidates.length; iter++) {
+      const cand = testCandidates[iter]!;
+      const pt = evalCubicBezier(baseP0, baseP1, baseP2, baseP3, cand.t);
+      const candX = pt.x + cand.xShift;
+      const candY = pt.y;
+
+      const candRect: Rect = {
+        left: candX - labelWidth / 2,
+        top: candY - labelHeight / 2,
+        right: candX + labelWidth / 2,
+        bottom: candY + labelHeight / 2,
+      };
+
+      // Check node clearance (min 8px)
+      let totalOverlap = 0;
+      for (const nr of nodeRects) {
+        if (rectsIntersect(candRect, nr, 8)) {
+          totalOverlap += computeOverlapArea(candRect, nr) + 1000;
+        }
+      }
+
+      // Check sibling label clearance (min 4px)
+      for (const prev of placedLabels) {
+        if (prev.source === edge.source || prev.target === edge.target) {
+          if (rectsIntersect(candRect, prev.rect, 4)) {
+            totalOverlap += computeOverlapArea(candRect, prev.rect) + 500;
+          }
+        }
+      }
+
+      if (totalOverlap < bestOverlap) {
+        bestOverlap = totalOverlap;
+        bestPoint = { x: candX, y: candY };
+        if (bestOverlap === 0) break; // Zero collision found
+      }
+    }
+
+    const finalRect: Rect = {
+      left: bestPoint.x - labelWidth / 2,
+      top: bestPoint.y - labelHeight / 2,
+      right: bestPoint.x + labelWidth / 2,
+      bottom: bestPoint.y + labelHeight / 2,
+    };
+
+    placedLabels.push({
+      id: edge.id,
+      rect: finalRect,
+      source: edge.source,
+      target: edge.target,
+    });
+
+    resultMap.set(edge.id, {
+      labelX: Math.round(bestPoint.x * 10) / 10,
+      labelY: Math.round(bestPoint.y * 10) / 10,
+      labelWidth,
+      labelHeight,
+      pathD,
+    });
+  }
+
+  return resultMap;
+}
+
 /**
  * Pure DAG layout calculation using @dagrejs/dagre.
- *
- * Rules (Stage B4e1):
- * - rankdir: 'TB' (top to bottom)
- * - nodesep: 50
- * - ranksep: 96
- * - node width: 240 pixels; height computed dynamically from text
- * - Dagre returns center coordinates (x, y); we convert to top-left for standard canvas rendering.
- * - Deterministic output: input nodes and edges are sorted deterministically before graph layout.
  */
 export function computeLayout(spec: ArchitectureSpec): LayoutResult {
   const g = new dagre.graphlib.Graph();
@@ -255,12 +552,46 @@ export function computeLayout(spec: ArchitectureSpec): LayoutResult {
     });
   }
 
-  const positionedEdges: PositionedEdge[] = sortedEdges.map((edge, idx) => ({
+  // Extract Dagre edge waypoints for multi-rank paths
+  const dagreEdgePoints = new Map<string, Point[]>();
+  for (const edge of sortedEdges) {
+    const edgeData = g.edge(edge.from, edge.to) as { points?: Point[] } | undefined;
+    if (edgeData?.points && edgeData.points.length > 0) {
+      dagreEdgePoints.set(`${edge.from}__${edge.to}`, edgeData.points);
+    }
+  }
+
+  // Raw edges list for label geometry engine
+  const rawEdges = sortedEdges.map((edge, idx) => ({
     id: `e-${edge.from}-${edge.to}-${idx}`,
     source: edge.from,
     target: edge.to,
     data: edge,
   }));
+
+  // Run pure edge & label geometry engine
+  const edgePlacements = computeEdgeLabelLayout(positionedNodes, rawEdges, dagreEdgePoints);
+
+  const positionedEdges: PositionedEdge[] = rawEdges.map((edge) => {
+    const placement = edgePlacements.get(edge.id) || {
+      labelX: 0,
+      labelY: 0,
+      labelWidth: 0,
+      labelHeight: 0,
+      pathD: "",
+    };
+    return {
+      id: edge.id,
+      source: edge.source,
+      target: edge.target,
+      data: edge.data,
+      labelX: placement.labelX,
+      labelY: placement.labelY,
+      labelWidth: placement.labelWidth,
+      labelHeight: placement.labelHeight,
+      pathD: placement.pathD,
+    };
+  });
 
   const graphBounds = g.graph();
   const width = graphBounds?.width ?? 0;

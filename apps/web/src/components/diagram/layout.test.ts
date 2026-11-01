@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ArchitectureSpec, NodeSpec } from "@/lib/types";
 import {
+  computeEdgeLabelLayout,
   computeLayout,
   computeNodeDimensions,
   DIAMOND_INNER_WIDTH,
   DIAMOND_MAX_HEIGHT,
   DIAMOND_MIN_HEIGHT,
   estimateLabelWidth,
+  evalCubicBezier,
   HEXAGON_MAX_HEIGHT,
   HEXAGON_MIN_HEIGHT,
   MAX_LABEL_TOTAL_WIDTH,
@@ -237,7 +239,7 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
   });
 
   describe("Dynamic rank separation based on edge label width", () => {
-    it("keeps gap at MIN_RANKSEP (96px) for short labels (1-2 words)", () => {
+    it("keeps gap at MIN_RANKSEP (110px) for short labels (1-2 words)", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [{ from: "src", to: "tgt", flows: "auth" }],
@@ -252,13 +254,13 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
 
       const gap = tgt.position.y - (src.position.y + src.height);
       expect(gap).toBe(MIN_RANKSEP);
-      expect(gap).toBe(96);
+      expect(gap).toBe(110);
 
       const labelWidth = estimateLabelWidth("auth");
       expect(labelWidth).toBeLessThanOrEqual(MIN_RANKSEP);
     });
 
-    it("keeps gap at MIN_RANKSEP (96px) when flows text is empty or missing", () => {
+    it("keeps gap at MIN_RANKSEP (110px) when flows text is empty or missing", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [{ from: "src", to: "tgt", flows: "" }],
@@ -273,11 +275,11 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
 
       const gap = tgt.position.y - (src.position.y + src.height);
       expect(gap).toBe(MIN_RANKSEP);
-      expect(gap).toBe(96);
+      expect(gap).toBe(110);
       expect(estimateLabelWidth("")).toBe(0);
     });
 
-    it("expands rank gap for labels wider than 96px so label does not intersect node rectangles", () => {
+    it("expands rank gap for labels wider than 110px so label does not intersect node rectangles", () => {
       const flows = "Article Snippets";
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
@@ -539,6 +541,347 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       expect(dims.width).toBe(240);
       expect(dims.height).toBeGreaterThanOrEqual(DIAMOND_MIN_HEIGHT);
       expect(dims.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
+    });
+  });
+
+  describe("computeEdgeLabelLayout and pure edge geometry (Stage B4e2, D-189)", () => {
+    it("evalCubicBezier evaluates endpoints and midpoint correctly", () => {
+      expect(typeof computeEdgeLabelLayout).toBe("function");
+      const p0 = { x: 0, y: 0 };
+      const p1 = { x: 0, y: 50 };
+      const p2 = { x: 100, y: 50 };
+      const p3 = { x: 100, y: 100 };
+
+      const start = evalCubicBezier(p0, p1, p2, p3, 0);
+      const mid = evalCubicBezier(p0, p1, p2, p3, 0.5);
+      const end = evalCubicBezier(p0, p1, p2, p3, 1);
+
+      expect(start).toEqual(p0);
+      expect(end).toEqual(p3);
+      expect(mid.x).toBe(50);
+      expect(mid.y).toBe(50);
+    });
+
+    it("resolves real 12-node insurance spec without sibling label overlap or node collision", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [
+          makeNode("ingress", "Policyholder Portal Ingress"),
+          makeNode("pii_guard", "PII Scrubbing Input Guard"),
+          makeNode("policy_lookup", "Policy Subtask"),
+          makeNode("photo_analysis", "Photo Analysis Subtask"),
+          makeNode("doc_extraction", "Document Extraction Subtask"),
+          makeNode("claim_evaluator", "Claim Evaluator"),
+          makeNode("fraud_screening", "Fraud Screening Agent"),
+          makeNode("manual_review", "Manual Review Desk"),
+          makeNode("auto_settlement", "Auto Settlement Worker"),
+          makeNode("policy_gate", "Output Validation & Policy Gate"),
+          makeNode("claim_db", "Claims Data Store"),
+          makeNode("notify_service", "Notification Delivery Service"),
+        ],
+        edges: [
+          { from: "ingress", to: "pii_guard", flows: "Claim Submission Request" },
+          // Fan-out: 1 source (pii_guard) -> 3 children
+          { from: "pii_guard", to: "policy_lookup", flows: "Policy lookup subtask" },
+          { from: "pii_guard", to: "photo_analysis", flows: "Photo analysis subtask" },
+          { from: "pii_guard", to: "doc_extraction", flows: "Document extraction subtask" },
+          // Fan-in: 3 parents -> 1 target (claim_evaluator)
+          { from: "policy_lookup", to: "claim_evaluator", flows: "Active policy details" },
+          { from: "photo_analysis", to: "claim_evaluator", flows: "Damage estimation score" },
+          { from: "doc_extraction", to: "claim_evaluator", flows: "Structured document data" },
+          // Decision branches
+          {
+            from: "claim_evaluator",
+            to: "manual_review",
+            flows: "Flagged claim payload",
+            condition: "risk_score > 80",
+          },
+          {
+            from: "claim_evaluator",
+            to: "auto_settlement",
+            flows: "Standard approval",
+            condition: "risk_score <= 80",
+          },
+          { from: "manual_review", to: "fraud_screening", flows: "Suspicious pattern telemetry" },
+          { from: "fraud_screening", to: "policy_gate", flows: "Fraud cleared" },
+          { from: "auto_settlement", to: "policy_gate", flows: "Settlement draft" },
+          // Multi-rank bypass edge skipping ranks
+          { from: "pii_guard", to: "policy_gate", flows: "Forward payload for verification" },
+          { from: "policy_gate", to: "claim_db", flows: "Audited record write" },
+          { from: "policy_gate", to: "notify_service", flows: "Customer confirmation" },
+        ],
+        constraints: [],
+        entry_ids: ["ingress"],
+        exit_ids: ["claim_db", "notify_service"],
+      };
+
+      const layout = computeLayout(spec);
+      expect(layout.nodes).toHaveLength(12);
+      expect(layout.edges).toHaveLength(15);
+
+      // Verify node positions do not overlap
+      checkNoOverlaps(layout.nodes);
+
+      // Check fan-out sibling labels from pii_guard do NOT intersect
+      const fanOutEdges = layout.edges.filter((e) => e.source === "pii_guard" && e.target !== "policy_gate");
+      expect(fanOutEdges).toHaveLength(3);
+      for (let i = 0; i < fanOutEdges.length; i++) {
+        for (let j = i + 1; j < fanOutEdges.length; j++) {
+          const a = fanOutEdges[i]!;
+          const b = fanOutEdges[j]!;
+          const aRect = {
+            left: a.labelX - a.labelWidth / 2,
+            right: a.labelX + a.labelWidth / 2,
+            top: a.labelY - a.labelHeight / 2,
+            bottom: a.labelY + a.labelHeight / 2,
+          };
+          const bRect = {
+            left: b.labelX - b.labelWidth / 2,
+            right: b.labelX + b.labelWidth / 2,
+            top: b.labelY - b.labelHeight / 2,
+            bottom: b.labelY + b.labelHeight / 2,
+          };
+          const overlapsX = aRect.left < bRect.right && aRect.right > bRect.left;
+          const overlapsY = aRect.top < bRect.bottom && aRect.bottom > bRect.top;
+          expect(overlapsX && overlapsY, `Fan-out labels '${a.id}' and '${b.id}' collide!`).toBe(false);
+        }
+      }
+
+      // Check fan-in sibling labels into claim_evaluator do NOT intersect
+      const fanInEdges = layout.edges.filter((e) => e.target === "claim_evaluator");
+      expect(fanInEdges).toHaveLength(3);
+      for (let i = 0; i < fanInEdges.length; i++) {
+        for (let j = i + 1; j < fanInEdges.length; j++) {
+          const a = fanInEdges[i]!;
+          const b = fanInEdges[j]!;
+          const aRect = {
+            left: a.labelX - a.labelWidth / 2,
+            right: a.labelX + a.labelWidth / 2,
+            top: a.labelY - a.labelHeight / 2,
+            bottom: a.labelY + a.labelHeight / 2,
+          };
+          const bRect = {
+            left: b.labelX - b.labelWidth / 2,
+            right: b.labelX + b.labelWidth / 2,
+            top: b.labelY - b.labelHeight / 2,
+            bottom: b.labelY + b.labelHeight / 2,
+          };
+          const overlapsX = aRect.left < bRect.right && aRect.right > bRect.left;
+          const overlapsY = aRect.top < bRect.bottom && aRect.bottom > bRect.top;
+          expect(overlapsX && overlapsY, `Fan-in labels '${a.id}' and '${b.id}' collide!`).toBe(false);
+        }
+      }
+
+      // Check all edge labels clear all node rectangles with minimum 8px margin
+      for (const edge of layout.edges) {
+        if (edge.labelWidth === 0 && edge.labelHeight === 0) continue;
+        const labelRect = {
+          left: edge.labelX - edge.labelWidth / 2,
+          right: edge.labelX + edge.labelWidth / 2,
+          top: edge.labelY - edge.labelHeight / 2,
+          bottom: edge.labelY + edge.labelHeight / 2,
+        };
+
+        for (const node of layout.nodes) {
+          const nodeRect = {
+            left: node.position.x,
+            right: node.position.x + node.width,
+            top: node.position.y,
+            bottom: node.position.y + node.height,
+          };
+          const intersects =
+            labelRect.left < nodeRect.right + 8 &&
+            labelRect.right > nodeRect.left - 8 &&
+            labelRect.top < nodeRect.bottom + 8 &&
+            labelRect.bottom > nodeRect.top - 8;
+          expect(
+            intersects,
+            `Edge label '${edge.data.flows}' [${labelRect.left},${labelRect.top},${labelRect.right},${labelRect.bottom}] collides with node '${node.id}' [${nodeRect.left},${nodeRect.top},${nodeRect.right},${nodeRect.bottom}]`,
+          ).toBe(false);
+        }
+      }
+    });
+
+    it("handles 4-node linear spec with label clearance and valid SVG path", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [
+          makeNode("n1", "Node 1"),
+          makeNode("n2", "Node 2"),
+          makeNode("n3", "Node 3"),
+          makeNode("n4", "Node 4"),
+        ],
+        edges: [
+          { from: "n1", to: "n2", flows: "step 1" },
+          { from: "n2", to: "n3", flows: "step 2" },
+          { from: "n3", to: "n4", flows: "step 3" },
+        ],
+        constraints: [],
+        entry_ids: ["n1"],
+        exit_ids: ["n4"],
+      };
+
+      const layout = computeLayout(spec);
+      for (const edge of layout.edges) {
+        expect(edge.pathD).toMatch(/^M \d+(\.\d+)? \d+(\.\d+)? C/);
+        expect(Number.isFinite(edge.labelX)).toBe(true);
+        expect(Number.isFinite(edge.labelY)).toBe(true);
+        expect(Number.isNaN(edge.labelX)).toBe(false);
+        expect(Number.isNaN(edge.labelY)).toBe(false);
+      }
+    });
+
+    it("scales to 25-node complex topology with zero NaN and zero sibling collisions", () => {
+      const nodes: NodeSpec[] = [];
+      const edges: ArchitectureSpec["edges"] = [];
+
+      for (let i = 0; i < 25; i++) {
+        nodes.push(makeNode(`node_${i}`, `Microservice Component ${i}`));
+      }
+
+      // Build layered DAG
+      for (let i = 0; i < 20; i++) {
+        edges.push({
+          from: `node_${i}`,
+          to: `node_${i + 1}`,
+          flows: `Flow payload step ${i}`,
+        });
+        if (i % 3 === 0 && i + 3 < 25) {
+          edges.push({
+            from: `node_${i}`,
+            to: `node_${i + 3}`,
+            flows: `Branch jump ${i}`,
+          });
+        }
+      }
+
+      const spec: ArchitectureSpec = {
+        nodes,
+        edges,
+        constraints: [],
+        entry_ids: ["node_0"],
+        exit_ids: ["node_24"],
+      };
+
+      const layout = computeLayout(spec);
+      expect(layout.nodes).toHaveLength(25);
+      expect(layout.edges.length).toBeGreaterThan(20);
+
+      for (const edge of layout.edges) {
+        expect(Number.isNaN(edge.labelX)).toBe(false);
+        expect(Number.isNaN(edge.labelY)).toBe(false);
+        expect(Number.isFinite(edge.labelX)).toBe(true);
+        expect(Number.isFinite(edge.labelY)).toBe(true);
+      }
+    });
+
+    it("stacks condition badge and flows label with height 52 and >= 8px clearance", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          {
+            from: "src",
+            to: "tgt",
+            flows: "High Value Approval",
+            condition: "amount > 10000",
+          },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      const layout = computeLayout(spec);
+      const edge = layout.edges[0]!;
+      expect(edge.labelHeight).toBe(52);
+
+      const src = layout.nodes.find((n) => n.id === "src")!;
+      const tgt = layout.nodes.find((n) => n.id === "tgt")!;
+
+      const labelTop = edge.labelY - edge.labelHeight / 2;
+      const labelBottom = edge.labelY + edge.labelHeight / 2;
+      const srcBottom = src.position.y + src.height;
+      const tgtTop = tgt.position.y;
+
+      // Assert clearance >= 8px
+      expect(labelTop - srcBottom).toBeGreaterThanOrEqual(8);
+      expect(tgtTop - labelBottom).toBeGreaterThanOrEqual(8);
+    });
+
+    it("separates parallel edges between the exact same pair of nodes", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          { from: "src", to: "tgt", flows: "Primary Pipeline Stream" },
+          { from: "src", to: "tgt", flows: "Secondary Backup Stream" },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      const layout = computeLayout(spec);
+      expect(layout.edges).toHaveLength(2);
+      const e1 = layout.edges[0]!;
+      const e2 = layout.edges[1]!;
+
+      // Distinct paths and distinct label coordinates
+      expect(e1.pathD).not.toBe(e2.pathD);
+      expect(Math.abs(e1.labelX - e2.labelX)).toBeGreaterThanOrEqual(30);
+    });
+
+    it("preserves determinism across shuffled edge input ordering", () => {
+      const spec1: ArchitectureSpec = {
+        nodes: [
+          makeNode("src", "Source"),
+          makeNode("b1", "Branch 1"),
+          makeNode("b2", "Branch 2"),
+          makeNode("b3", "Branch 3"),
+        ],
+        edges: [
+          { from: "src", to: "b1", flows: "stream 1" },
+          { from: "src", to: "b2", flows: "stream 2" },
+          { from: "src", to: "b3", flows: "stream 3" },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["b1", "b2", "b3"],
+      };
+
+      const spec2: ArchitectureSpec = {
+        nodes: spec1.nodes,
+        edges: [spec1.edges[2]!, spec1.edges[0]!, spec1.edges[1]!],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["b1", "b2", "b3"],
+      };
+
+      const layout1 = computeLayout(spec1);
+      const layout2 = computeLayout(spec2);
+
+      const map1 = new Map(layout1.edges.map((e) => [e.data.flows, { x: e.labelX, y: e.labelY, p: e.pathD }]));
+      const map2 = new Map(layout2.edges.map((e) => [e.data.flows, { x: e.labelX, y: e.labelY, p: e.pathD }]));
+
+      expect(map1).toEqual(map2);
+    });
+
+    it("handles 100-character unbroken flows and hostile HTML safely without NaN", () => {
+      const unbroken = "F".repeat(100);
+      const hostile = "<script>alert('xss')</script>";
+      const spec: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          { from: "src", to: "tgt", flows: unbroken, condition: hostile },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      expect(() => computeLayout(spec)).not.toThrow();
+      const layout = computeLayout(spec);
+      const edge = layout.edges[0]!;
+      expect(Number.isNaN(edge.labelX)).toBe(false);
+      expect(Number.isNaN(edge.labelY)).toBe(false);
+      expect(edge.labelWidth).toBe(MAX_LABEL_TOTAL_WIDTH);
     });
   });
 });

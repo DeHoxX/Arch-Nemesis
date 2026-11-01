@@ -1585,6 +1585,15 @@ If we removed it: Text, badges, and lock icons in diamond decision nodes would s
 Decided by: user reported bug, agent fixed
 Status: active
 
+### D-189 — v2 Stage B4e2 — decision
+What: Implement collision-free edge label placement with column divergence, multi-rank Dagre cubic paths, and MIN_RANKSEP = 110.
+Why: In B4e1 vertical (TB) layout, sibling edge labels fanning out from a common source or fanning into a common target shared identical bezier midpoints (t = 0.5), causing horizontal label overlap. We introduce pure computeEdgeLabelLayout in layout.ts with hybrid column divergence: fan-out labels placed toward the target end (t in [0.58, 0.70]) where parallel target columns diverge by 290px (well exceeding 168px label width), fan-in labels placed toward the source end (t in [0.30, 0.42]) where source columns are separated by 290px, parallel edges offset laterally and vertically, multi-rank edges routed through Dagre waypoints with labels placed in the first rank gap, and MIN_RANKSEP increased from 96px to 110px to guarantee >= 11.6px clearance (> 8px requirement) between labels (including condition badges) and node rectangles.
+Alternatives considered: Pure t-staggering without column divergence (rejected: vertical gap cannot fit multiple 26-52px labels without overlap) or hiding flows labels behind hover (rejected: breaks BUILD_PLAN.md requirement for visible labels).
+If we removed it: Edge labels in multi-branch architectures (such as 12-node insurance claims) would collide horizontally and multi-rank lines would slice through intermediate nodes.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 ## Phase 3 Summary

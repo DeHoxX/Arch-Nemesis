@@ -108,6 +108,11 @@ export function DiagramView({
       data: {
         flows: pe.data.flows,
         condition: pe.data.condition,
+        pathD: pe.pathD,
+        labelX: pe.labelX,
+        labelY: pe.labelY,
+        labelWidth: pe.labelWidth,
+        labelHeight: pe.labelHeight,
       },
     }));
   }, [layout.edges]);

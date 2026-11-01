@@ -11,14 +11,20 @@ import { MAX_LABEL_TEXT_WIDTH } from "./layout";
 export type DiagramEdgeData = {
   flows: string;
   condition?: string | null;
+  pathD?: string;
+  labelX?: number;
+  labelY?: number;
+  labelWidth?: number;
+  labelHeight?: number;
   [key: string]: unknown;
 };
 
 /**
  * Custom Diagram Edge with truncated label (max 40 chars), condition badge, and hover/focus disclosure.
  *
- * Requirements (BUILD_PLAN.md:436-439, B4a & B4b):
- * - Renders curved or smooth bezier path.
+ * Requirements (Stage B4e2, D-189):
+ * - Uses pure layout pathD and labelX/labelY when computed by computeEdgeLabelLayout.
+ * - Falls back cleanly to getBezierPath if custom layout data is missing.
  * - Condition badge rendered above flows label (plain text, max 40 chars truncated, full on hover/focus).
  * - Edge label truncated to 40 chars when longer.
  * - Shows full text on hover and keyboard focus (tabIndex={0}).
@@ -36,14 +42,35 @@ export function DiagramEdge({
   style,
   markerEnd,
 }: EdgeProps & { data?: DiagramEdgeData }): React.ReactElement {
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    sourcePosition,
-    targetX,
-    targetY,
-    targetPosition,
-  });
+  // Use precomputed layout path and label coordinates if available
+  const hasCustomLayout =
+    typeof data?.pathD === "string" &&
+    data.pathD.length > 0 &&
+    typeof data?.labelX === "number" &&
+    typeof data?.labelY === "number";
+
+  let edgePath: string;
+  let labelX: number;
+  let labelY: number;
+
+  if (hasCustomLayout && data) {
+    edgePath = data.pathD!;
+    labelX = data.labelX!;
+    labelY = data.labelY!;
+  } else {
+    // Fallback for legacy specs or standalone test rendering
+    const [fallbackPath, fallbackX, fallbackY] = getBezierPath({
+      sourceX,
+      sourceY,
+      sourcePosition,
+      targetX,
+      targetY,
+      targetPosition,
+    });
+    edgePath = fallbackPath;
+    labelX = fallbackX;
+    labelY = fallbackY;
+  }
 
   const flows = data?.flows || "";
   const isTruncated = flows.length > 40;
@@ -76,7 +103,7 @@ export function DiagramEdge({
               pointerEvents: "all",
               zIndex: 1001,
             }}
-            className="nodrag nopan flex flex-col items-center gap-1"
+            className="nodrag nopan flex flex-col items-center gap-1.5"
           >
             {condition && (
               <div
