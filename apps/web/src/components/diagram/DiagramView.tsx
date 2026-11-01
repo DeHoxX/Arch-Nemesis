@@ -15,7 +15,7 @@ import type { ArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DiagramEdge } from "./DiagramEdge";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
-import { NODE_HEIGHT, NODE_WIDTH, computeLayout } from "./layout";
+import { computeLayout } from "./layout";
 
 export interface DiagramViewProps {
   spec: ArchitectureSpec;
@@ -35,13 +35,12 @@ const edgeTypes = {
 /**
  * DiagramView: read-only interactive architecture diagram powered by @xyflow/react.
  *
- * Requirements (BUILD_PLAN.md:436-439 & User Decisions):
+ * Requirements (Stage B4e1):
  * - Read-only: nodesDraggable=false, nodesConnectable=false.
- * - Pan and zoom enabled; fitView padding 0.2.
- * - Standard React Flow Controls (zoom in/out, fit view).
- * - NO minimap element.
- * - Layout computed purely via computeLayout (dagre, rankdir LR).
- * - Fixed node card size (220x72) and explicit handle anchors passed to nodes.
+ * - Top-to-bottom layout with custom node heights and width 240px.
+ * - Handles: Top (target) and Bottom (source).
+ * - ReactFlow minZoom 0.3, maxZoom 1.5, fitView padding 0.2.
+ * - Standard React Flow Controls (zoom in/out, fit view); NO minimap.
  * - Node selection synchronized via onSelectNode.
  * - Escape key clears node selection.
  * - Plain React text everywhere (no dangerouslySetInnerHTML).
@@ -52,7 +51,7 @@ export function DiagramView({
   onSelectNode,
   className,
 }: DiagramViewProps): React.ReactElement {
-  // Pure Dagre layout calculation
+  // Pure Dagre top-to-bottom layout calculation
   const layout = useMemo(() => computeLayout(spec), [spec]);
 
   // Transform layout nodes to React Flow Node structure with explicit dimensions & handle positions
@@ -61,26 +60,26 @@ export function DiagramView({
       id: pn.id,
       type: "customNode",
       position: pn.position,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-      initialWidth: NODE_WIDTH,
-      initialHeight: NODE_HEIGHT,
+      width: pn.width,
+      height: pn.height,
+      initialWidth: pn.width,
+      initialHeight: pn.height,
       handles: [
         {
           id: null,
           type: "target",
-          position: Position.Left,
-          x: 0,
-          y: NODE_HEIGHT / 2,
+          position: Position.Top,
+          x: pn.width / 2,
+          y: 0,
           width: 6,
           height: 6,
         },
         {
           id: null,
           type: "source",
-          position: Position.Right,
-          x: NODE_WIDTH,
-          y: NODE_HEIGHT / 2,
+          position: Position.Bottom,
+          x: pn.width / 2,
+          y: pn.height,
           width: 6,
           height: 6,
         },
@@ -88,6 +87,8 @@ export function DiagramView({
       selected: pn.id === selectedNodeId,
       data: {
         ...pn.data,
+        width: pn.width,
+        height: pn.height,
         entry_ids: spec.entry_ids,
         exit_ids: spec.exit_ids,
         constraints: spec.constraints,
@@ -140,6 +141,8 @@ export function DiagramView({
         elementsSelectable={true}
         panOnDrag={true}
         zoomOnScroll={true}
+        minZoom={0.3}
+        maxZoom={1.5}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         onNodeClick={(_, node) => onSelectNode?.(node.id)}

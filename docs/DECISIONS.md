@@ -1569,6 +1569,24 @@ If we removed it: Visual branching decisions and agentic distinction would not b
 Decided by: agent proposed, user approved
 Status: active
 
+### D-187 — v2 Stage B4e1 — deviation
+What: Switch diagram layout to vertical top-to-bottom (rankdir TB), fixed node width 240px, and content-computed node height.
+Why: BUILD_PLAN.md line 436 stipulated left-to-right (LR) Dagre layout with fixed 220x72 rectangular nodes. In live complex architectures (e.g. 11+ nodes with branching), horizontal layout caused excessive horizontal scrolling and node names/roles were truncated inside shapes (hexagons, diamonds). We switch to vertical top-to-bottom layout (TB), increase node width to 240px, and dynamically compute node height per node based on text length clamped by shape constraints (rectangle/pill 80-130px, hexagon 86-140px, diamond 110-160px). Handles are relocated to top (target) and bottom (source).
+Alternatives considered: Retaining fixed 220x72 boxes with CSS ellipsis. Rejected because text is prematurely clipped and diamond/hexagon shapes suffer severe corner clipping without dynamic height scaling.
+If we removed it: Text would remain cut off inside non-rectangular nodes and deep branched architectures would require wide horizontal panning.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-188 — v2 Stage B4e1 — fix
+What: Fix diamond node text overflow by constraining content to a centered inner box and expanding diamond height clamp to 140-190px.
+Why: Fixes D-187. In diamond nodes (rhombus), diagonal boundaries converge toward the top and bottom vertices. In D-187, DiagramNode used justify-between and BlockNode used top/bottom rows across the full outer bounding box (240px wide), pushing name and type to the top vertex and role and badges (AI model, Agent) to the bottom vertex, causing text and badges to render outside the diamond stroke. We constrain diamond node content to a centered inner box (DIAMOND_INNER_WIDTH = 112px, roughly 46.7% of node width, and max-height ~52% of node height), restrict role to max 1 line in diamond view, place badges and lock icons inside the centered inner box, and increase diamond height clamp to [140, 190]px in computeNodeDimensions so Dagre allocates adequate vertical rank spacing matching rendered dimensions.
+Alternatives considered: Expanding node width beyond 240px or keeping top/bottom justify-between layout with huge padding. Rejected because width 240px is fixed per plan and rhombus geometry requires central positioning.
+If we removed it: Text, badges, and lock icons in diamond decision nodes would spill outside the SVG polygon outlines.
+Decided by: user reported bug, agent fixed
+Status: active
+
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

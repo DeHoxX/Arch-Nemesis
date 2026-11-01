@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
+import { computeNodeDimensions, DIAMOND_INNER_WIDTH } from "./layout";
 
 function renderBlockNode(dataOverrides: Partial<BlockNodeData> = {}) {
   const data: BlockNodeData = {
@@ -39,6 +40,14 @@ describe("BlockNode component", () => {
     renderBlockNode({ name: "Customer Intent Router" });
 
     expect(screen.getByText("Customer Intent Router")).toBeDefined();
+  });
+
+  it("renders target handle at Top and source handle at Bottom", () => {
+    const { container } = renderBlockNode();
+    const topHandle = container.querySelector('[data-handlepos="top"]');
+    const bottomHandle = container.querySelector('[data-handlepos="bottom"]');
+    expect(topHandle).not.toBeNull();
+    expect(bottomHandle).not.toBeNull();
   });
 
   it("renders role='img' and aria-label announcing name and entry/exit status without tabIndex", () => {
@@ -101,12 +110,13 @@ describe("BlockNode component", () => {
       renderBlockNode({ isEntry: true, isExit: false });
       const el = screen.getByRole("img");
       expect(el.className).toContain("rounded-full");
+      expect(el.className).toContain("px-8");
     });
 
     it("renders hexagon shape for AI model node", () => {
       renderBlockNode({ isEntry: false, isExit: false, needs_model: true });
       const el = screen.getByRole("img");
-      expect(el.className).toContain("px-6");
+      expect(el.className).toContain("px-7");
       const polygon = document.querySelector("polygon");
       expect(polygon).toBeDefined();
     });
@@ -115,22 +125,56 @@ describe("BlockNode component", () => {
       renderBlockNode({ isEntry: false, isExit: false, needs_model: false });
       const el = screen.getByRole("img");
       expect(el.className).toContain("rounded-lg");
+      expect(el.className).toContain("px-3");
     });
 
-    it("renders diamond shape for decision node in block view", () => {
+    it("renders diamond shape with centered inner box in block view", () => {
       const { container } = renderBlockNode({
         isEntry: false,
         isExit: false,
+        name: "Claim Evaluator",
         edges: [
           { from: "node_1", to: "b", flows: "f1", condition: "risk > 50" },
           { from: "node_1", to: "c", flows: "f2" },
         ],
       });
       const el = screen.getByRole("img");
-      expect(el.className).toContain("px-7");
+      expect(el).toBeDefined();
+
+      const innerBox = container.querySelector(".diamond-inner-box");
+      expect(innerBox).not.toBeNull();
+      expect(innerBox?.getAttribute("style")).toContain(`width: ${DIAMOND_INNER_WIDTH}px`);
+      expect(innerBox?.textContent).toContain("Claim Evaluator");
+
       const polygon = container.querySelector("polygon");
       expect(polygon).not.toBeNull();
-      expect(polygon?.getAttribute("points")).toContain("110,1");
+      expect(polygon?.getAttribute("points")).toContain("120,1");
+    });
+
+    it("renders diamond with component dimensions matching computeNodeDimensions output", () => {
+      const nodeSpec = { name: "Policy Evaluation Gateway" };
+      const dims = computeNodeDimensions(nodeSpec, "diamond");
+
+      const { container } = renderBlockNode({
+        isEntry: false,
+        isExit: false,
+        ...nodeSpec,
+        width: dims.width,
+        height: dims.height,
+        edges: [
+          { from: "node_1", to: "b", flows: "f1", condition: "score > 90" },
+          { from: "node_1", to: "c", flows: "f2" },
+        ],
+      });
+
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.style.width).toBe(`${dims.width}px`);
+      expect(rootEl.style.height).toBe(`${dims.height}px`);
+
+      const innerBox = container.querySelector(".diamond-inner-box") as HTMLElement;
+      expect(innerBox).not.toBeNull();
+      expect(innerBox.style.width).toBe(`${DIAMOND_INNER_WIDTH}px`);
+      expect(innerBox.style.maxHeight).toBe(`${Math.round(dims.height * 0.52)}px`);
     });
 
     it("renders hostile string literally without HTML execution", () => {

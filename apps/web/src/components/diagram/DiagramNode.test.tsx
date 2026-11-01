@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { ReactFlowProvider } from "@xyflow/react";
 import { describe, expect, it, vi } from "vitest";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
+import { computeNodeDimensions, DIAMOND_INNER_WIDTH } from "./layout";
 
 function renderNode(dataOverrides: Partial<DiagramNodeData> = {}, selected = false) {
   const data: DiagramNodeData = {
@@ -58,6 +59,17 @@ describe("DiagramNode component", () => {
     expect(button).toBeDefined();
     expect(button.getAttribute("aria-pressed")).toBe("true");
     expect(button.getAttribute("tabIndex")).toBe("0");
+  });
+
+  it("renders target handle at Top and source handle at Bottom", () => {
+    const { container } = renderNode();
+    const handles = container.querySelectorAll(".react-flow__handle");
+    expect(handles.length).toBe(2);
+
+    const topHandle = container.querySelector('[data-handlepos="top"]');
+    const bottomHandle = container.querySelector('[data-handlepos="bottom"]');
+    expect(topHandle).not.toBeNull();
+    expect(bottomHandle).not.toBeNull();
   });
 
   it("displays Entry badge and emerald border for entry nodes", () => {
@@ -149,7 +161,7 @@ describe("DiagramNode component", () => {
     expect(handleSelect).toHaveBeenCalledWith("selectable_node");
   });
 
-  describe("shape rendering and hostile string safety", () => {
+  describe("shape rendering, diamond inner box, and hostile string safety", () => {
     it("renders pill shape for entry node with correct accessible label", () => {
       renderNode({
         id: "entry_node",
@@ -159,6 +171,7 @@ describe("DiagramNode component", () => {
       });
       const node = screen.getByRole("button", { name: "Node: Entry Gateway, gateway" });
       expect(node.className).toContain("rounded-full");
+      expect(node.className).toContain("px-8");
     });
 
     it("renders hexagon shape for AI model node with correct accessible label", () => {
@@ -169,8 +182,7 @@ describe("DiagramNode component", () => {
         needs_model: true,
       });
       const node = screen.getByRole("button", { name: "Node: AI Classifier, agent" });
-      expect(node.className).toContain("px-6");
-      // Check SVG polygon exists for hexagon
+      expect(node.className).toContain("px-7");
       const polygon = document.querySelector("polygon");
       expect(polygon).toBeDefined();
     });
@@ -184,24 +196,64 @@ describe("DiagramNode component", () => {
       });
       const node = screen.getByRole("button", { name: "Node: Plain Service, service" });
       expect(node.className).toContain("rounded-xl");
+      expect(node.className).toContain("px-3");
     });
 
-    it("renders diamond shape for branching decision node with 2+ outgoing edges", () => {
+    it("renders diamond shape with centered inner box containing name, role, and badges", () => {
       const { container } = renderNode({
         id: "decision_node",
         name: "Claim Evaluator",
         type: "evaluator",
+        role: "Routes high risk claims",
         edges: [
           { from: "decision_node", to: "manual_review", flows: "flagged", condition: "risk > 80" },
           { from: "decision_node", to: "auto_approve", flows: "approved" },
         ],
       });
       const node = screen.getByRole("button", { name: "Node: Claim Evaluator, evaluator" });
-      expect(node.className).toContain("px-7");
+      expect(node).toBeDefined();
+
+      // Diamond inner box class and centered styling
+      const innerBox = container.querySelector(".diamond-inner-box");
+      expect(innerBox).not.toBeNull();
+      expect(innerBox?.getAttribute("style")).toContain(`width: ${DIAMOND_INNER_WIDTH}px`);
+
+      // Name and role are rendered inside inner box
+      expect(innerBox?.textContent).toContain("Claim Evaluator");
+      expect(innerBox?.textContent).toContain("Routes high risk claims");
+
       const polygon = container.querySelector("polygon");
       expect(polygon).not.toBeNull();
-      // Diamond polygon points start with (110,1)
-      expect(polygon?.getAttribute("points")).toContain("110,1");
+      expect(polygon?.getAttribute("points")).toContain("120,1");
+    });
+
+    it("renders diamond with component dimensions matching computeNodeDimensions output", () => {
+      const nodeSpec = {
+        name: "Fraud Screening & Detection Agent",
+        role: "Evaluates claim transactions with anomaly detection models",
+      };
+      const dims = computeNodeDimensions(nodeSpec, "diamond");
+
+      const { container } = renderNode({
+        id: "decision_agent",
+        ...nodeSpec,
+        type: "agent",
+        width: dims.width,
+        height: dims.height,
+        edges: [
+          { from: "decision_agent", to: "adjuster", flows: "audit", condition: "fraud_score > 0.8" },
+          { from: "decision_agent", to: "settlement", flows: "clear" },
+        ],
+      });
+
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.style.width).toBe(`${dims.width}px`);
+      expect(rootEl.style.height).toBe(`${dims.height}px`);
+
+      const innerBox = container.querySelector(".diamond-inner-box") as HTMLElement;
+      expect(innerBox).not.toBeNull();
+      expect(innerBox.style.width).toBe(`${DIAMOND_INNER_WIDTH}px`);
+      expect(innerBox.style.maxHeight).toBe(`${Math.round(dims.height * 0.52)}px`);
     });
 
     it("renders agent double ring outline and Agent badge when ai_role is agent", () => {
@@ -215,17 +267,28 @@ describe("DiagramNode component", () => {
       expect(screen.getByText("Agent")).toBeDefined();
       expect(screen.getByText("AI model")).toBeDefined();
       const polygons = container.querySelectorAll("polygon");
-      // Double ring has two polygons (outer hexagon and inner ring)
       expect(polygons.length).toBe(2);
     });
 
-    it("renders hostile string literally without HTML execution", () => {
-      const hostileName = "<script>alert('xss')</script>";
-      renderNode({
-        name: hostileName,
-        type: "safe_type",
+    it("renders 100-character unbroken name and hostile HTML string clamped inside diamond", () => {
+      const unbrokenName = "A".repeat(100);
+      const hostileRole = "<script>alert('xss')</script>";
+
+      const { container } = renderNode({
+        id: "hostile_decision",
+        name: unbrokenName,
+        type: "evaluator",
+        role: hostileRole,
+        edges: [
+          { from: "hostile_decision", to: "a", flows: "f1", condition: "c1" },
+          { from: "hostile_decision", to: "b", flows: "f2" },
+        ],
       });
-      expect(screen.getByText(hostileName)).toBeDefined();
+
+      const innerBox = container.querySelector(".diamond-inner-box");
+      expect(innerBox).not.toBeNull();
+      expect(screen.getByText(unbrokenName)).toBeDefined();
+      expect(screen.getByText(hostileRole)).toBeDefined();
       expect(document.querySelector("script")).toBeNull();
     });
   });

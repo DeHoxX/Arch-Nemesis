@@ -15,7 +15,7 @@ import "@xyflow/react/dist/style.css";
 import type { ArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
-import { NODE_HEIGHT, NODE_WIDTH, computeLayout } from "./layout";
+import { computeLayout } from "./layout";
 
 export interface BlockDiagramViewProps {
   spec: ArchitectureSpec;
@@ -29,19 +29,20 @@ const nodeTypes = {
 /**
  * BlockDiagramView: Simple conceptual block diagram view.
  *
- * Requirements (Stage A & User Decisions):
+ * Requirements (Stage B4e1):
  * - Boxes and arrows only.
- * - Nodes display name + [Entry]/[Exit] text marker in neutral card style.
+ * - Top-to-bottom layout with custom node heights and width 240px.
+ * - Handles: Top (target) and Bottom (source).
+ * - ReactFlow minZoom 0.3, maxZoom 1.5, fitView padding 0.2.
  * - Directed arrows with no edge/flow label text.
  * - Non-interactive: elementsSelectable={false}, nodesDraggable={false}, nodesConnectable={false}.
- * - Dagre left-to-right layout via shared computeLayout helper.
  * - Standard pan/zoom controls enabled; no minimap.
  */
 export function BlockDiagramView({
   spec,
   className,
 }: BlockDiagramViewProps): React.ReactElement {
-  // Pure Dagre layout calculation
+  // Pure Dagre top-to-bottom layout calculation
   const layout = useMemo(() => computeLayout(spec), [spec]);
 
   const entryIds = useMemo(() => new Set(spec.entry_ids || []), [spec.entry_ids]);
@@ -53,28 +54,28 @@ export function BlockDiagramView({
       id: pn.id,
       type: "blockNode",
       position: pn.position,
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-      initialWidth: NODE_WIDTH,
-      initialHeight: NODE_HEIGHT,
+      width: pn.width,
+      height: pn.height,
+      initialWidth: pn.width,
+      initialHeight: pn.height,
       selectable: false,
       draggable: false,
       handles: [
         {
           id: null,
           type: "target",
-          position: Position.Left,
-          x: 0,
-          y: NODE_HEIGHT / 2,
+          position: Position.Top,
+          x: pn.width / 2,
+          y: 0,
           width: 6,
           height: 6,
         },
         {
           id: null,
           type: "source",
-          position: Position.Right,
-          x: NODE_WIDTH,
-          y: NODE_HEIGHT / 2,
+          position: Position.Bottom,
+          x: pn.width / 2,
+          y: pn.height,
           width: 6,
           height: 6,
         },
@@ -87,6 +88,8 @@ export function BlockDiagramView({
         isEntry: entryIds.has(pn.id),
         isExit: exitIds.has(pn.id),
         edges: spec.edges,
+        width: pn.width,
+        height: pn.height,
       },
     }));
   }, [layout.nodes, entryIds, exitIds, spec.edges]);
@@ -124,6 +127,8 @@ export function BlockDiagramView({
         elementsSelectable={false}
         panOnDrag={true}
         zoomOnScroll={true}
+        minZoom={0.3}
+        maxZoom={1.5}
         fitView
         fitViewOptions={{ padding: 0.2 }}
       >

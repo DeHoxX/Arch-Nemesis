@@ -313,7 +313,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
               <TabsContent value="block-diagram" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   {/* Read-only Block Diagram Canvas */}
-                  <div className="lg:col-span-3 h-[600px] rounded-2xl border border-border/80 bg-card/40 overflow-hidden shadow-xl backdrop-blur-md">
+                  <div className="lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] rounded-2xl border border-border/80 bg-card/40 overflow-hidden shadow-xl backdrop-blur-md">
                     <BlockDiagramView spec={data.spec} />
                   </div>
 
@@ -334,7 +334,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
               <TabsContent value="architecture" className="space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   {/* Read-only Architecture Canvas */}
-                  <div className="lg:col-span-3 h-[600px] rounded-2xl border border-border/80 bg-card/40 overflow-hidden shadow-xl backdrop-blur-md">
+                  <div className="lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] rounded-2xl border border-border/80 bg-card/40 overflow-hidden shadow-xl backdrop-blur-md">
                     <DiagramView spec={data.spec} />
                   </div>
 

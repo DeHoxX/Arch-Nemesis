@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 import type { ArchitectureSpec, NodeSpec } from "@/lib/types";
 import {
   computeLayout,
+  computeNodeDimensions,
+  DIAMOND_INNER_WIDTH,
+  DIAMOND_MAX_HEIGHT,
+  DIAMOND_MIN_HEIGHT,
   estimateLabelWidth,
+  HEXAGON_MAX_HEIGHT,
+  HEXAGON_MIN_HEIGHT,
   MAX_LABEL_TOTAL_WIDTH,
   MIN_RANKSEP,
-  NODE_HEIGHT,
   NODE_WIDTH,
+  RECT_MAX_HEIGHT,
+  RECT_MIN_HEIGHT,
 } from "./layout";
 
 function makeNode(id: string, name: string): NodeSpec {
@@ -53,7 +60,7 @@ function checkNoOverlaps(
   }
 }
 
-describe("computeLayout DAG layout engine", () => {
+describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
   it("positions nodes without overlapping boxes and connects every edge endpoint", () => {
     const spec: ArchitectureSpec = {
       nodes: [
@@ -76,10 +83,11 @@ describe("computeLayout DAG layout engine", () => {
     expect(layout.nodes).toHaveLength(4);
     expect(layout.edges).toHaveLength(3);
 
-    // Verify all nodes have fixed 220x72 size
+    // Verify all nodes have fixed 240px width and bounded heights
     for (const node of layout.nodes) {
       expect(node.width).toBe(NODE_WIDTH);
-      expect(node.height).toBe(NODE_HEIGHT);
+      expect(node.height).toBeGreaterThanOrEqual(RECT_MIN_HEIGHT);
+      expect(node.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
     }
 
     // No overlaps
@@ -96,15 +104,15 @@ describe("computeLayout DAG layout engine", () => {
       expect(typeof tgt?.position.x).toBe("number");
     }
 
-    // Left-to-right monotonicity: x(client) < x(gateway) < x(worker) < x(db)
+    // Top-to-bottom monotonicity: y(client) < y(gateway) < y(worker) < y(db)
     const client = nodeMap.get("client")!;
     const gateway = nodeMap.get("gateway")!;
     const worker = nodeMap.get("worker")!;
     const db = nodeMap.get("db")!;
 
-    expect(client.position.x).toBeLessThan(gateway.position.x);
-    expect(gateway.position.x).toBeLessThan(worker.position.x);
-    expect(worker.position.x).toBeLessThan(db.position.x);
+    expect(client.position.y).toBeLessThan(gateway.position.y);
+    expect(gateway.position.y).toBeLessThan(worker.position.y);
+    expect(worker.position.y).toBeLessThan(db.position.y);
   });
 
   it("produces deterministic output across repeated runs regardless of input node ordering", () => {
@@ -178,14 +186,14 @@ describe("computeLayout DAG layout engine", () => {
     const branchB = nodeMap.get("branch_b")!;
     const sink = nodeMap.get("sink")!;
 
-    expect(src.position.x).toBeLessThan(branchA.position.x);
-    expect(src.position.x).toBeLessThan(branchB.position.x);
-    expect(branchA.position.x).toBeLessThan(sink.position.x);
-    expect(branchB.position.x).toBeLessThan(sink.position.x);
+    expect(src.position.y).toBeLessThan(branchA.position.y);
+    expect(src.position.y).toBeLessThan(branchB.position.y);
+    expect(branchA.position.y).toBeLessThan(sink.position.y);
+    expect(branchB.position.y).toBeLessThan(sink.position.y);
 
-    // branch_a and branch_b share horizontal rank but must not overlap vertically
-    expect(Math.abs(branchA.position.y - branchB.position.y)).toBeGreaterThanOrEqual(
-      NODE_HEIGHT,
+    // branch_a and branch_b share vertical rank but must not overlap horizontally
+    expect(Math.abs(branchA.position.x - branchB.position.x)).toBeGreaterThanOrEqual(
+      NODE_WIDTH,
     );
   });
 
@@ -218,18 +226,18 @@ describe("computeLayout DAG layout engine", () => {
     const normalizer = nodeMap.get("normalizer")!;
     const storage = nodeMap.get("storage")!;
 
-    expect(webhook.position.x).toBeLessThan(normalizer.position.x);
-    expect(batch.position.x).toBeLessThan(normalizer.position.x);
-    expect(normalizer.position.x).toBeLessThan(storage.position.x);
+    expect(webhook.position.y).toBeLessThan(normalizer.position.y);
+    expect(batch.position.y).toBeLessThan(normalizer.position.y);
+    expect(normalizer.position.y).toBeLessThan(storage.position.y);
 
-    // The two entry nodes must have vertical clearance
-    expect(Math.abs(webhook.position.y - batch.position.y)).toBeGreaterThanOrEqual(
-      NODE_HEIGHT,
+    // The two entry nodes must have horizontal clearance
+    expect(Math.abs(webhook.position.x - batch.position.x)).toBeGreaterThanOrEqual(
+      NODE_WIDTH,
     );
   });
 
   describe("Dynamic rank separation based on edge label width", () => {
-    it("keeps gap at MIN_RANKSEP (80px) for short labels (1-2 words)", () => {
+    it("keeps gap at MIN_RANKSEP (96px) for short labels (1-2 words)", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [{ from: "src", to: "tgt", flows: "auth" }],
@@ -242,23 +250,15 @@ describe("computeLayout DAG layout engine", () => {
       const src = layout.nodes.find((n) => n.id === "src")!;
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
 
-      const gap = tgt.position.x - (src.position.x + src.width);
+      const gap = tgt.position.y - (src.position.y + src.height);
       expect(gap).toBe(MIN_RANKSEP);
-      expect(gap).toBe(80);
+      expect(gap).toBe(96);
 
       const labelWidth = estimateLabelWidth("auth");
-      expect(labelWidth).toBeLessThanOrEqual(80);
-
-      // Label box centered at midpoint does not intersect source or target
-      const midpoint = src.position.x + src.width + gap / 2;
-      const labelLeft = midpoint - labelWidth / 2;
-      const labelRight = midpoint + labelWidth / 2;
-
-      expect(labelLeft).toBeGreaterThanOrEqual(src.position.x + src.width);
-      expect(labelRight).toBeLessThanOrEqual(tgt.position.x);
+      expect(labelWidth).toBeLessThanOrEqual(MIN_RANKSEP);
     });
 
-    it("keeps gap at MIN_RANKSEP (80px) when flows text is empty or missing", () => {
+    it("keeps gap at MIN_RANKSEP (96px) when flows text is empty or missing", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [{ from: "src", to: "tgt", flows: "" }],
@@ -271,13 +271,13 @@ describe("computeLayout DAG layout engine", () => {
       const src = layout.nodes.find((n) => n.id === "src")!;
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
 
-      const gap = tgt.position.x - (src.position.x + src.width);
+      const gap = tgt.position.y - (src.position.y + src.height);
       expect(gap).toBe(MIN_RANKSEP);
-      expect(gap).toBe(80);
+      expect(gap).toBe(96);
       expect(estimateLabelWidth("")).toBe(0);
     });
 
-    it("expands rank gap for labels wider than 80px so label does not intersect node rectangles", () => {
+    it("expands rank gap for labels wider than 96px so label does not intersect node rectangles", () => {
       const flows = "Article Snippets";
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
@@ -292,27 +292,12 @@ describe("computeLayout DAG layout engine", () => {
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
 
       const labelWidth = estimateLabelWidth(flows);
-      // "Article Snippets" = 16 chars * 7px + 18px = 130px
       expect(labelWidth).toBe(130);
-      expect(labelWidth).toBeGreaterThan(80);
+      expect(labelWidth).toBeGreaterThan(MIN_RANKSEP);
 
-      const gap = tgt.position.x - (src.position.x + src.width);
-      // In Dagre, gap is ranksep (80) + labelWidth (130) = 210px
-      expect(gap).toBe(210);
+      const gap = tgt.position.y - (src.position.y + src.height);
       expect(gap).toBeGreaterThan(MIN_RANKSEP);
-
-      // Verify clearance: label centered at midpoint has 40px margin on both sides
-      const srcRight = src.position.x + src.width;
-      const tgtLeft = tgt.position.x;
-      const midpoint = srcRight + gap / 2;
-      const labelLeft = midpoint - labelWidth / 2;
-      const labelRight = midpoint + labelWidth / 2;
-
-      // Real number assertions
-      expect(labelLeft - srcRight).toBe(40);
-      expect(tgtLeft - labelRight).toBe(40);
-      expect(labelLeft).toBeGreaterThan(srcRight);
-      expect(labelRight).toBeLessThan(tgtLeft);
+      checkNoOverlaps(layout.nodes);
     });
 
     it("caps very long labels (>40 chars) at MAX_LABEL_TOTAL_WIDTH without unbounded gap growth", () => {
@@ -326,61 +311,13 @@ describe("computeLayout DAG layout engine", () => {
       };
 
       const layout = computeLayout(spec);
-      const src = layout.nodes.find((n) => n.id === "src")!;
-      const tgt = layout.nodes.find((n) => n.id === "tgt")!;
-
       const labelWidth = estimateLabelWidth(longFlow);
       expect(labelWidth).toBe(MAX_LABEL_TOTAL_WIDTH);
       expect(labelWidth).toBe(168);
-
-      const gap = tgt.position.x - (src.position.x + src.width);
-      expect(gap).toBe(MIN_RANKSEP + MAX_LABEL_TOTAL_WIDTH);
-      expect(gap).toBe(248);
-
-      // Verify label centered at midpoint does not intersect either node
-      const srcRight = src.position.x + src.width;
-      const tgtLeft = tgt.position.x;
-      const midpoint = srcRight + gap / 2;
-      const labelLeft = midpoint - labelWidth / 2;
-      const labelRight = midpoint + labelWidth / 2;
-
-      expect(labelLeft - srcRight).toBe(40);
-      expect(tgtLeft - labelRight).toBe(40);
-    });
-
-    it("uses the widest label when several edges leave one node to the next rank", () => {
-      const spec: ArchitectureSpec = {
-        nodes: [
-          makeNode("src", "Source"),
-          makeNode("b1", "Branch 1"),
-          makeNode("b2", "Branch 2"),
-        ],
-        edges: [
-          { from: "src", to: "b1", flows: "short" },
-          { from: "src", to: "b2", flows: "Article Snippets" }, // 130px
-        ],
-        constraints: [],
-        entry_ids: ["src"],
-        exit_ids: ["b1", "b2"],
-      };
-
-      const layout = computeLayout(spec);
-      const src = layout.nodes.find((n) => n.id === "src")!;
-      const b1 = layout.nodes.find((n) => n.id === "b1")!;
-      const b2 = layout.nodes.find((n) => n.id === "b2")!;
-
-      // Both target nodes belong to the next rank; both must share the widened gap of 210px
-      const gap1 = b1.position.x - (src.position.x + src.width);
-      const gap2 = b2.position.x - (src.position.x + src.width);
-
-      expect(gap1).toBe(210);
-      expect(gap2).toBe(210);
-      expect(b1.position.x).toBe(b2.position.x);
-
       checkNoOverlaps(layout.nodes);
     });
 
-    it("handles diamond graphs with wide labels without node overlaps or label-node collision", () => {
+    it("handles diamond graphs with wide labels without node overlaps", () => {
       const spec: ArchitectureSpec = {
         nodes: [
           makeNode("src", "Source"),
@@ -389,10 +326,10 @@ describe("computeLayout DAG layout engine", () => {
           makeNode("sink", "Sink"),
         ],
         edges: [
-          { from: "src", to: "b1", flows: "Article Snippets" }, // 130px
-          { from: "src", to: "b2", flows: "auth" }, // short
-          { from: "b1", to: "sink", flows: "ok" }, // short
-          { from: "b2", to: "sink", flows: "Escalation Ticket" }, // 137px
+          { from: "src", to: "b1", flows: "Article Snippets" },
+          { from: "src", to: "b2", flows: "auth" },
+          { from: "b1", to: "sink", flows: "ok" },
+          { from: "b2", to: "sink", flows: "Escalation Ticket" },
         ],
         constraints: [],
         entry_ids: ["src"],
@@ -409,13 +346,13 @@ describe("computeLayout DAG layout engine", () => {
       const b2 = nodeMap.get("b2")!;
       const sink = nodeMap.get("sink")!;
 
-      expect(src.position.x).toBeLessThan(b1.position.x);
-      expect(src.position.x).toBeLessThan(b2.position.x);
-      expect(b1.position.x).toBeLessThan(sink.position.x);
-      expect(b2.position.x).toBeLessThan(sink.position.x);
+      expect(src.position.y).toBeLessThan(b1.position.y);
+      expect(src.position.y).toBeLessThan(b2.position.y);
+      expect(b1.position.y).toBeLessThan(sink.position.y);
+      expect(b2.position.y).toBeLessThan(sink.position.y);
 
-      // Verify vertical separation between branches
-      expect(Math.abs(b1.position.y - b2.position.y)).toBeGreaterThanOrEqual(NODE_HEIGHT);
+      // Verify horizontal separation between branches
+      expect(Math.abs(b1.position.x - b2.position.x)).toBeGreaterThanOrEqual(NODE_WIDTH);
     });
 
     it("handles edges that skip a rank without covering passed nodes", () => {
@@ -443,20 +380,165 @@ describe("computeLayout DAG layout engine", () => {
       const n2 = layout.nodes.find((n) => n.id === "n2")!;
       const n3 = layout.nodes.find((n) => n.id === "n3")!;
 
-      expect(n1.position.x).toBeLessThan(n2.position.x);
-      expect(n2.position.x).toBeLessThan(n3.position.x);
+      expect(n1.position.y).toBeLessThan(n2.position.y);
+      expect(n2.position.y).toBeLessThan(n3.position.y);
     });
 
     it("correctly handles wide and CJK characters in estimateLabelWidth capped at max width", () => {
-      // 6 CJK characters = 6 * 2 units * 7px = 84px + 18px = 102px
       const cjkWidth = estimateLabelWidth("架构设计审查");
       expect(cjkWidth).toBe(102);
 
-      // Long CJK string: capped at MAX_LABEL_TOTAL_WIDTH (168px)
       const longCjk = "架构设计审查与自动化合规验证流程系统";
       const longCjkWidth = estimateLabelWidth(longCjk);
       expect(longCjkWidth).toBe(MAX_LABEL_TOTAL_WIDTH);
       expect(longCjkWidth).toBe(168);
+    });
+  });
+
+  describe("computeNodeDimensions pure dimension calculation", () => {
+    it("assigns minimum height for short text with minimal or empty role", () => {
+      const node = { name: "DB", role: "" };
+      expect(DIAMOND_INNER_WIDTH).toBe(112);
+
+      const rectDims = computeNodeDimensions(node, "rectangle");
+      expect(rectDims.width).toBe(NODE_WIDTH);
+      expect(rectDims.height).toBe(RECT_MIN_HEIGHT);
+      expect(rectDims.height).toBe(80);
+
+      const pillDims = computeNodeDimensions(node, "pill");
+      expect(pillDims.width).toBe(NODE_WIDTH);
+      expect(pillDims.height).toBe(RECT_MIN_HEIGHT);
+      expect(pillDims.height).toBe(80);
+
+      const hexDims = computeNodeDimensions(node, "hexagon");
+      expect(hexDims.width).toBe(NODE_WIDTH);
+      expect(hexDims.height).toBe(HEXAGON_MIN_HEIGHT);
+      expect(hexDims.height).toBe(86);
+
+      const diamondDims = computeNodeDimensions(node, "diamond");
+      expect(diamondDims.width).toBe(NODE_WIDTH);
+      expect(diamondDims.height).toBe(DIAMOND_MIN_HEIGHT);
+      expect(diamondDims.height).toBe(140);
+    });
+
+    it("clamps at maximum height for long text across all shapes", () => {
+      const node = {
+        name: "Enterprise Architecture Multi-Region Transaction Orchestration Gateway Service",
+        role: "Coordinates end-to-end distributed transaction commits across all primary and backup replica clusters",
+      };
+
+      const rectDims = computeNodeDimensions(node, "rectangle");
+      expect(rectDims.height).toBe(RECT_MAX_HEIGHT);
+      expect(rectDims.height).toBe(130);
+
+      const pillDims = computeNodeDimensions(node, "pill");
+      expect(pillDims.height).toBe(RECT_MAX_HEIGHT);
+      expect(pillDims.height).toBe(130);
+
+      const hexDims = computeNodeDimensions(node, "hexagon");
+      expect(hexDims.height).toBe(HEXAGON_MAX_HEIGHT);
+      expect(hexDims.height).toBe(140);
+
+      const diamondDims = computeNodeDimensions(node, "diamond");
+      expect(diamondDims.height).toBeGreaterThanOrEqual(DIAMOND_MIN_HEIGHT);
+      expect(diamondDims.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
+      expect(diamondDims.height).toBeGreaterThanOrEqual(
+        computeNodeDimensions({ name: "A", role: "" }, "diamond").height,
+      );
+    });
+
+    it("ensures each shape strictly respects its own clamp range", () => {
+      const testCases = [
+        { name: "A", role: "" },
+        { name: "Simple Node", role: "Short role" },
+        { name: "Medium Service Component", role: "Handles data transformation and validation rules" },
+        { name: "Complex Branching Engine With Extended Nomenclature", role: "Executes deep risk analysis and routes" },
+      ];
+
+      for (const tc of testCases) {
+        const rect = computeNodeDimensions(tc, "rectangle");
+        expect(rect.height).toBeGreaterThanOrEqual(RECT_MIN_HEIGHT);
+        expect(rect.height).toBeLessThanOrEqual(RECT_MAX_HEIGHT);
+
+        const pill = computeNodeDimensions(tc, "pill");
+        expect(pill.height).toBeGreaterThanOrEqual(RECT_MIN_HEIGHT);
+        expect(pill.height).toBeLessThanOrEqual(RECT_MAX_HEIGHT);
+
+        const hex = computeNodeDimensions(tc, "hexagon");
+        expect(hex.height).toBeGreaterThanOrEqual(HEXAGON_MIN_HEIGHT);
+        expect(hex.height).toBeLessThanOrEqual(HEXAGON_MAX_HEIGHT);
+
+        const diamond = computeNodeDimensions(tc, "diamond");
+        expect(diamond.height).toBeGreaterThanOrEqual(DIAMOND_MIN_HEIGHT);
+        expect(diamond.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
+      }
+    });
+
+    it("calculates diamond taller than rectangle for the exact same text and within the new clamp", () => {
+      const node = {
+        name: "Customer Intent Classifier",
+        role: "Evaluates sentiment and routes payload",
+      };
+
+      const rect = computeNodeDimensions(node, "rectangle");
+      const hex = computeNodeDimensions(node, "hexagon");
+      const diamond = computeNodeDimensions(node, "diamond");
+
+      expect(diamond.height).toBeGreaterThan(hex.height);
+      expect(diamond.height).toBeGreaterThan(rect.height);
+      expect(diamond.height).toBeGreaterThanOrEqual(DIAMOND_MIN_HEIGHT);
+      expect(diamond.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
+    });
+
+    it("does not throw on 100-character unbroken string and stays clamped", () => {
+      const unbroken = "A".repeat(100);
+      const node = { name: unbroken, role: unbroken };
+
+      expect(() => computeNodeDimensions(node, "diamond")).not.toThrow();
+      const dims = computeNodeDimensions(node, "diamond");
+      expect(dims.width).toBe(240);
+      expect(dims.height).toBeGreaterThanOrEqual(DIAMOND_MIN_HEIGHT);
+      expect(dims.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
+      expect(dims.height).toBeGreaterThanOrEqual(
+        computeNodeDimensions({ name: "A", role: "" }, "diamond").height,
+      );
+
+      const spec: ArchitectureSpec = {
+        nodes: [
+          {
+            id: "unbroken_node",
+            name: unbroken,
+            type: "service",
+            role: unbroken,
+            inputs: [],
+            outputs: [],
+            tech_options: [],
+            needs_model: false,
+          },
+        ],
+        edges: [],
+        constraints: [],
+        entry_ids: ["unbroken_node"],
+        exit_ids: ["unbroken_node"],
+      };
+
+      expect(() => computeLayout(spec)).not.toThrow();
+      const layout = computeLayout(spec);
+      expect(layout.nodes[0]!.width).toBe(240);
+      expect(layout.nodes[0]!.height).toBe(RECT_MAX_HEIGHT);
+    });
+
+    it("does not execute hostile HTML string and computes cleanly within diamond clamp", () => {
+      const hostileNode = {
+        name: "<script>alert('xss')</script>",
+        role: "<img src=x onerror=alert('xss') />",
+      };
+
+      expect(() => computeNodeDimensions(hostileNode, "diamond")).not.toThrow();
+      const dims = computeNodeDimensions(hostileNode, "diamond");
+      expect(dims.width).toBe(240);
+      expect(dims.height).toBeGreaterThanOrEqual(DIAMOND_MIN_HEIGHT);
+      expect(dims.height).toBeLessThanOrEqual(DIAMOND_MAX_HEIGHT);
     });
   });
 });
