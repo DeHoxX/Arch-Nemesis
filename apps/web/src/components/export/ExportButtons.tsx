@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Download, FileDown, Printer, RefreshCw } from "lucide-react";
+import { Download, FileDown, RefreshCw } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -23,14 +23,13 @@ export interface ExportButtonsProps {
 /**
  * Results page export controls.
  *
- * Requirements (BUILD_PLAN.md:509 & User Decisions):
- * - Exactly 3 buttons:
+ * Requirements (BUILD_PLAN.md:509, Stage 6C2, & Deviation D-171):
+ * - Exactly 2 buttons:
  *   1. "Download diagram (PNG)"
  *   2. "Download explanation (.md)"
- *   3. "Print or save as PDF"
+ * - "Print or save as PDF" removed per D-171 due to browser diagram clipping.
  * - In-browser client execution: zero network calls, zero localStorage.
  * - PNG failure shows "Failed to export diagram image. Please try again." in-page without crashing.
- * - Print triggers window.print() with print stylesheet hiding buttons.
  */
 export function ExportButtons({
   designId,
@@ -78,13 +77,6 @@ export function ExportButtons({
     }
   };
 
-  const handlePrint = () => {
-    setErrorMessage(null);
-    if (typeof window !== "undefined") {
-      window.print();
-    }
-  };
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -113,17 +105,6 @@ export function ExportButtons({
         >
           <FileDown className="size-3.5" />
           Download explanation (.md)
-        </Button>
-
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handlePrint}
-          className="text-xs font-mono gap-1.5 h-8"
-        >
-          <Printer className="size-3.5" />
-          Print or save as PDF
         </Button>
       </div>
 

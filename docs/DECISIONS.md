@@ -1441,6 +1441,14 @@ If we removed it: Vitest tests reading jsdom Blob instances would receive string
 Decided by: user approved (Stage 6C2 test fix)
 Status: active
 
+### D-171 — Phase 6 — deviation
+What: Remove "Print or save as PDF" button and scoped print styles from the results page.
+Why: Browser print layout and PDF generation severely degraded the architecture diagram by clipping boundary elements (only 4 of 6 nodes visible in test prints) and dropping SVG connecting edges. BUILD_PLAN.md:509 instructed: "If the diagram does not print properly the agent reports it instead of hacking around it." Client-side PNG export (`html-to-image`) and Markdown walkthrough export provide complete, faithful representations of the design, making a broken print-to-PDF output unnecessary and confusing.
+Alternatives considered: Hacking SVG viewBox and CSS scale transforms for `@media print`. Rejected per explicit BUILD_PLAN.md:509 rule prohibiting print hacks.
+If we removed it: Users would rely on an inconsistent print mechanism that omits nodes and edges from their exported architectures.
+Decided by: agent proposed, user approved
+Status: active (supersedes D-165, D-167)
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

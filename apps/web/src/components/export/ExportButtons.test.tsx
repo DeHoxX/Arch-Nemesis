@@ -40,7 +40,7 @@ describe("ExportButtons Component", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders all three export buttons with exact mandated labels", () => {
+  it("renders exactly two export buttons with exact mandated labels and no print button", () => {
     render(
       <ExportButtons
         designId="design-123"
@@ -56,8 +56,12 @@ describe("ExportButtons Component", () => {
       screen.getByRole("button", { name: "Download explanation (.md)" })
     ).toBeDefined();
     expect(
-      screen.getByRole("button", { name: "Print or save as PDF" })
-    ).toBeDefined();
+      screen.queryByRole("button", { name: "Print or save as PDF" })
+    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /print/i })).toBeNull();
+
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(2);
   });
 
   it("triggers Markdown download on 'Download explanation (.md)' click without network requests", async () => {
@@ -150,24 +154,6 @@ describe("ExportButtons Component", () => {
     expect(alert).toBeDefined();
 
     document.body.removeChild(mockDiagramDiv);
-  });
-
-  it("triggers window.print() on 'Print or save as PDF' click", async () => {
-    const user = userEvent.setup();
-    const printSpy = vi.spyOn(window, "print").mockImplementation(() => {});
-
-    render(
-      <ExportButtons
-        designId="design-123"
-        versionNo={1}
-        explanation={mockExplanation}
-      />
-    );
-
-    const printBtn = screen.getByRole("button", { name: "Print or save as PDF" });
-    await user.click(printBtn);
-
-    expect(printSpy).toHaveBeenCalledTimes(1);
   });
 
   it("uses 'design' fallback in filename when designId is empty", async () => {

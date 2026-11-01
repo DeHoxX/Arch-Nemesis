@@ -126,10 +126,7 @@ describe("DesignPage Component (/design/[id])", () => {
       expect(screen.getByText(/Design design_test_123/)).toBeDefined();
     });
 
-    // Results print wrapper container present for scoped print CSS
-    expect(document.querySelector(".results-print-wrapper")).not.toBeNull();
-
-    // Export buttons present next to Contact button
+    // Export buttons present next to Contact button (PNG and Markdown, no Print button)
     expect(
       screen.getByRole("button", { name: "Download diagram (PNG)" })
     ).toBeDefined();
@@ -137,8 +134,8 @@ describe("DesignPage Component (/design/[id])", () => {
       screen.getByRole("button", { name: "Download explanation (.md)" })
     ).toBeDefined();
     expect(
-      screen.getByRole("button", { name: "Print or save as PDF" })
-    ).toBeDefined();
+      screen.queryByRole("button", { name: "Print or save as PDF" })
+    ).toBeNull();
 
     // Exact Banner text above tabs
     const exactBanner =
