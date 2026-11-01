@@ -32,6 +32,7 @@ ALL_CODES = {
     "W_NODE_NO_OUTPUTS",
     "W_TOO_FEW_NODES",
     "W_DUP_NODE_NAME",
+    "W_NO_AI_NODE",
 }
 
 TEMPLATE_PATTERNS = {
@@ -59,6 +60,7 @@ TEMPLATE_PATTERNS = {
     "W_NODE_NO_OUTPUTS": r"^Node '[^']+' lists no outputs\.$",
     "W_TOO_FEW_NODES": r"^The design has only \d+ nodes; most real systems need more parts\.$",
     "W_DUP_NODE_NAME": r"^Nodes '[^']+' and '[^']+' have the same name\.$",
+    "W_NO_AI_NODE": r"^No node in the architecture is marked as using an AI model \(needs_model: true\)\.$",
 }
 
 

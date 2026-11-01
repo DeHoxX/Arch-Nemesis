@@ -13,9 +13,10 @@ def load_prompt(filename: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def load_patterns() -> str:
-    """Load and concatenate all architecture patterns."""
-    patterns_dir = _PROMPTS_DIR / "patterns"
+def load_patterns(version: str = "v2") -> str:
+    """Load and concatenate all architecture patterns for the given version."""
+    subdir = "patterns_v2" if version == "v2" else "patterns"
+    patterns_dir = _PROMPTS_DIR / subdir
     if not patterns_dir.is_dir():
         return ""
     sections: list[str] = []

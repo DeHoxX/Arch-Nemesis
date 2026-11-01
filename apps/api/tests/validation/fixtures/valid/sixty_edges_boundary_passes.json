@@ -1,0 +1,569 @@
+{
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Node 01",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n02",
+      "name": "Node 02",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": true
+    },
+    {
+      "id": "n03",
+      "name": "Node 03",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n04",
+      "name": "Node 04",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n05",
+      "name": "Node 05",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n06",
+      "name": "Node 06",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n07",
+      "name": "Node 07",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n08",
+      "name": "Node 08",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n09",
+      "name": "Node 09",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n10",
+      "name": "Node 10",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n11",
+      "name": "Node 11",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n12",
+      "name": "Node 12",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n13",
+      "name": "Node 13",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n14",
+      "name": "Node 14",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n15",
+      "name": "Node 15",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n16",
+      "name": "Node 16",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n17",
+      "name": "Node 17",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n18",
+      "name": "Node 18",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n19",
+      "name": "Node 19",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n20",
+      "name": "Node 20",
+      "type": "processor",
+      "role": "Processes pipeline stage",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "n01",
+      "to": "n02",
+      "flows": "flow_1"
+    },
+    {
+      "from": "n02",
+      "to": "n03",
+      "flows": "flow_2"
+    },
+    {
+      "from": "n03",
+      "to": "n04",
+      "flows": "flow_3"
+    },
+    {
+      "from": "n04",
+      "to": "n05",
+      "flows": "flow_4"
+    },
+    {
+      "from": "n05",
+      "to": "n06",
+      "flows": "flow_5"
+    },
+    {
+      "from": "n06",
+      "to": "n07",
+      "flows": "flow_6"
+    },
+    {
+      "from": "n07",
+      "to": "n08",
+      "flows": "flow_7"
+    },
+    {
+      "from": "n08",
+      "to": "n09",
+      "flows": "flow_8"
+    },
+    {
+      "from": "n09",
+      "to": "n10",
+      "flows": "flow_9"
+    },
+    {
+      "from": "n10",
+      "to": "n11",
+      "flows": "flow_10"
+    },
+    {
+      "from": "n11",
+      "to": "n12",
+      "flows": "flow_11"
+    },
+    {
+      "from": "n12",
+      "to": "n13",
+      "flows": "flow_12"
+    },
+    {
+      "from": "n13",
+      "to": "n14",
+      "flows": "flow_13"
+    },
+    {
+      "from": "n14",
+      "to": "n15",
+      "flows": "flow_14"
+    },
+    {
+      "from": "n15",
+      "to": "n16",
+      "flows": "flow_15"
+    },
+    {
+      "from": "n16",
+      "to": "n17",
+      "flows": "flow_16"
+    },
+    {
+      "from": "n17",
+      "to": "n18",
+      "flows": "flow_17"
+    },
+    {
+      "from": "n18",
+      "to": "n19",
+      "flows": "flow_18"
+    },
+    {
+      "from": "n19",
+      "to": "n20",
+      "flows": "flow_19"
+    },
+    {
+      "from": "n01",
+      "to": "n03",
+      "flows": "flow_20"
+    },
+    {
+      "from": "n02",
+      "to": "n04",
+      "flows": "flow_21"
+    },
+    {
+      "from": "n03",
+      "to": "n05",
+      "flows": "flow_22"
+    },
+    {
+      "from": "n04",
+      "to": "n06",
+      "flows": "flow_23"
+    },
+    {
+      "from": "n05",
+      "to": "n07",
+      "flows": "flow_24"
+    },
+    {
+      "from": "n06",
+      "to": "n08",
+      "flows": "flow_25"
+    },
+    {
+      "from": "n07",
+      "to": "n09",
+      "flows": "flow_26"
+    },
+    {
+      "from": "n08",
+      "to": "n10",
+      "flows": "flow_27"
+    },
+    {
+      "from": "n09",
+      "to": "n11",
+      "flows": "flow_28"
+    },
+    {
+      "from": "n10",
+      "to": "n12",
+      "flows": "flow_29"
+    },
+    {
+      "from": "n11",
+      "to": "n13",
+      "flows": "flow_30"
+    },
+    {
+      "from": "n12",
+      "to": "n14",
+      "flows": "flow_31"
+    },
+    {
+      "from": "n13",
+      "to": "n15",
+      "flows": "flow_32"
+    },
+    {
+      "from": "n14",
+      "to": "n16",
+      "flows": "flow_33"
+    },
+    {
+      "from": "n15",
+      "to": "n17",
+      "flows": "flow_34"
+    },
+    {
+      "from": "n16",
+      "to": "n18",
+      "flows": "flow_35"
+    },
+    {
+      "from": "n17",
+      "to": "n19",
+      "flows": "flow_36"
+    },
+    {
+      "from": "n18",
+      "to": "n20",
+      "flows": "flow_37"
+    },
+    {
+      "from": "n01",
+      "to": "n04",
+      "flows": "flow_38"
+    },
+    {
+      "from": "n02",
+      "to": "n05",
+      "flows": "flow_39"
+    },
+    {
+      "from": "n03",
+      "to": "n06",
+      "flows": "flow_40"
+    },
+    {
+      "from": "n04",
+      "to": "n07",
+      "flows": "flow_41"
+    },
+    {
+      "from": "n05",
+      "to": "n08",
+      "flows": "flow_42"
+    },
+    {
+      "from": "n06",
+      "to": "n09",
+      "flows": "flow_43"
+    },
+    {
+      "from": "n07",
+      "to": "n10",
+      "flows": "flow_44"
+    },
+    {
+      "from": "n08",
+      "to": "n11",
+      "flows": "flow_45"
+    },
+    {
+      "from": "n09",
+      "to": "n12",
+      "flows": "flow_46"
+    },
+    {
+      "from": "n10",
+      "to": "n13",
+      "flows": "flow_47"
+    },
+    {
+      "from": "n11",
+      "to": "n14",
+      "flows": "flow_48"
+    },
+    {
+      "from": "n12",
+      "to": "n15",
+      "flows": "flow_49"
+    },
+    {
+      "from": "n13",
+      "to": "n16",
+      "flows": "flow_50"
+    },
+    {
+      "from": "n14",
+      "to": "n17",
+      "flows": "flow_51"
+    },
+    {
+      "from": "n15",
+      "to": "n18",
+      "flows": "flow_52"
+    },
+    {
+      "from": "n16",
+      "to": "n19",
+      "flows": "flow_53"
+    },
+    {
+      "from": "n17",
+      "to": "n20",
+      "flows": "flow_54"
+    },
+    {
+      "from": "n01",
+      "to": "n05",
+      "flows": "flow_55"
+    },
+    {
+      "from": "n02",
+      "to": "n06",
+      "flows": "flow_56"
+    },
+    {
+      "from": "n03",
+      "to": "n07",
+      "flows": "flow_57"
+    },
+    {
+      "from": "n04",
+      "to": "n08",
+      "flows": "flow_58"
+    },
+    {
+      "from": "n05",
+      "to": "n09",
+      "flows": "flow_59"
+    },
+    {
+      "from": "n06",
+      "to": "n10",
+      "flows": "flow_60"
+    }
+  ],
+  "constraints": [],
+  "entry_ids": [
+    "n01"
+  ],
+  "exit_ids": [
+    "n20"
+  ]
+}

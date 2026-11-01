@@ -60,4 +60,15 @@ def check_lints(spec: ArchitectureSpec) -> list[ValidationIssue]:
                 )
             )
 
+    # 5. W_NO_AI_NODE: No node in the architecture uses an AI model
+    if not any(node.needs_model for node in spec.nodes):
+        warnings.append(
+            ValidationIssue(
+                code="W_NO_AI_NODE",
+                severity="warning",
+                message="No node in the architecture is marked as using an AI model (needs_model: true).",
+                ids=[n.id for n in spec.nodes],
+            )
+        )
+
     return warnings

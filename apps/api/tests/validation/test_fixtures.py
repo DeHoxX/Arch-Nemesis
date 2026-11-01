@@ -93,3 +93,52 @@ def test_orphan_not_reported_as_unreachable() -> None:
     assert "E_ORPHAN" in codes
     assert "E_UNREACHABLE_FROM_ENTRY" not in codes
     assert "E_CANNOT_REACH_EXIT" not in codes
+
+
+def test_w_no_ai_node_lint_direct() -> None:
+    """W_NO_AI_NODE triggers only when zero nodes have needs_model: true and populates all node ids."""
+    from archnemesis.modules.validation.lints import check_lints
+    from archnemesis.modules.validation.models import ArchitectureSpec, NodeSpec
+
+    # Case 1: No model nodes -> triggers warning with all node ids
+    spec_no_ai = ArchitectureSpec(
+        nodes=[
+            NodeSpec(id="n1", name="N1", type="worker", role="R1", inputs=[], outputs=["out"]),
+            NodeSpec(id="n2", name="N2", type="sink", role="R2", inputs=["out"], outputs=[]),
+        ],
+        edges=[],
+        constraints=[],
+        entry_ids=["n1"],
+        exit_ids=["n2"],
+    )
+    warnings = check_lints(spec_no_ai)
+    warning_codes = [w.code for w in warnings]
+    assert "W_NO_AI_NODE" in warning_codes
+    w_issue = next(w for w in warnings if w.code == "W_NO_AI_NODE")
+    assert set(w_issue.ids) == {"n1", "n2"}
+    assert (
+        w_issue.message
+        == "No node in the architecture is marked as using an AI model (needs_model: true)."
+    )
+
+    # Case 2: At least one model node -> zero W_NO_AI_NODE warning
+    spec_with_ai = ArchitectureSpec(
+        nodes=[
+            NodeSpec(
+                id="n1",
+                name="N1",
+                type="agent",
+                role="R1",
+                inputs=[],
+                outputs=["out"],
+                needs_model=True,
+            ),
+            NodeSpec(id="n2", name="N2", type="sink", role="R2", inputs=["out"], outputs=[]),
+        ],
+        edges=[],
+        constraints=[],
+        entry_ids=["n1"],
+        exit_ids=["n2"],
+    )
+    warnings_with_ai = check_lints(spec_with_ai)
+    assert "W_NO_AI_NODE" not in [w.code for w in warnings_with_ai]

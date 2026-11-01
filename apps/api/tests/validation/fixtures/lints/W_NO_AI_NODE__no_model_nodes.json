@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {
+      "id": "node_a",
+      "name": "Ingress Gateway",
+      "type": "api_gateway",
+      "role": "Receives external requests",
+      "inputs": [],
+      "outputs": ["raw_request"],
+      "tech_options": ["FastAPI"],
+      "needs_model": false
+    },
+    {
+      "id": "node_b",
+      "name": "Worker Node",
+      "type": "queue_worker",
+      "role": "Processes incoming queue tasks",
+      "inputs": ["raw_request"],
+      "outputs": ["processed_record"],
+      "tech_options": ["Celery"],
+      "needs_model": false
+    },
+    {
+      "id": "node_c",
+      "name": "Database Sink",
+      "type": "relational_db",
+      "role": "Stores processed records",
+      "inputs": ["processed_record"],
+      "outputs": [],
+      "tech_options": ["PostgreSQL"],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "node_a",
+      "to": "node_b",
+      "flows": "dispatches task"
+    },
+    {
+      "from": "node_b",
+      "to": "node_c",
+      "flows": "writes record"
+    }
+  ],
+  "constraints": [],
+  "entry_ids": [
+    "node_a"
+  ],
+  "exit_ids": [
+    "node_c"
+  ]
+}

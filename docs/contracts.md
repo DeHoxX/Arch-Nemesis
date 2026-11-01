@@ -22,7 +22,7 @@ These are the load-bearing decisions. Changing them later means rewriting valida
 - `edges`: `{from, to, flows}`. `flows` max 200. No self-loops, no duplicate `(from, to)`.
 - `constraints`: `{id, text, kind, node_id (optional), a (optional), b (optional), covers[]}`. `covers` lists the brief constraint ids this one satisfies.
 - `entry_ids[]`, `exit_ids[]`.
-- Limits (configurable constants): more than 15 nodes or 40 edges is an error (`E_NODE_LIMIT`, `E_EDGE_LIMIT`); fewer than 3 nodes is only a warning (`W_TOO_FEW_NODES`).
+- Limits (configurable constants): more than 25 nodes or 60 edges is an error (`E_NODE_LIMIT`, `E_EDGE_LIMIT`); fewer than 3 nodes is only a warning (`W_TOO_FEW_NODES`).
 - v1 specs are acyclic (DAG). Feedback loops are described in a node's role, not drawn. Record as an ADR.
 
 ### Constraint kinds (closed set, nothing else is accepted)
@@ -41,7 +41,7 @@ A user requirement that fits no kind goes to `unverifiable_requirements`. It is 
 Each error carries a code, a plain message and the ids involved.
 
 ### Lints (warnings, never block)
-`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`.
+`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`, `W_NO_AI_NODE`.
 Shown as "Notes".
 
 ### Stored per design version
@@ -60,8 +60,8 @@ These live only in `settings.py` as environment-overridable settings, never as n
 
 | Setting | Default | Used for |
 | --- | --- | --- |
-| MAX_NODES | 15 | Largest allowed design |
-| MAX_EDGES | 40 | Largest allowed design |
+| MAX_NODES | 25 | Largest allowed design |
+| MAX_EDGES | 60 | Largest allowed design |
 | MAX_INPUT_CHARS | 4000 | One user message in intake |
 | MAX_FOLLOWUP_ROUNDS | 3 | Intake questions before it must proceed |
 | MAX_REPAIR_ATTEMPTS | 2 | Generator repairs after the first try |

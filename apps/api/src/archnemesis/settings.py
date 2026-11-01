@@ -27,8 +27,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Core limits and defaults (Section 7 table)
-    max_nodes: int = 15
-    max_edges: int = 40
+    max_nodes: int = 25
+    max_edges: int = 60
     max_input_chars: int = 4000
     max_followup_rounds: int = 3
     max_questions_per_round: int = 3

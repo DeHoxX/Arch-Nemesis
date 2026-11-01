@@ -151,7 +151,7 @@ async def test_create_design_from_ready_session_success(
     data = res.json()
     assert data["intake_session_id"] == db_session.id
     assert data["current_version"] == 1
-    assert data["prompt_version"] == "architect_v1"
+    assert data["prompt_version"] == "architect_v2"
     assert data["brief"]["summary"] == "Order processing pipeline."
     assert data["brief"]["unverifiable_requirements"] == ["Latency must feel instant"]
     assert "warnings" in data

@@ -11,6 +11,8 @@ from archnemesis.settings import get_settings
 from archnemesis.shared.brief import RequirementBrief
 
 MAX_ARCHITECT_CALLS: int = 3
+ARCHITECT_PROMPT_NAME: str = "architect_v2"
+ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v2"
 
 
 def _format_brief_prompt(brief: RequirementBrief) -> str:
@@ -56,8 +58,8 @@ async def generate_and_validate(
     brief_text = _format_brief_prompt(brief)
 
     # Call 1: Initial generation
-    system_prompt = load_prompt("architect_v1.md")
-    patterns_text = load_patterns()
+    system_prompt = load_prompt(f"{ARCHITECT_PROMPT_NAME}.md")
+    patterns_text = load_patterns(version="v2")
     user_prompt = (
         f"Architectural Reference Patterns:\n\n{patterns_text}\n\n"
         f"---\n\n"
@@ -78,13 +80,13 @@ async def generate_and_validate(
 
     spec, result = parse_and_validate(raw_output, brief_constraints, limits)
     if result.ok and spec is not None:
-        return spec, "architect_v1", 1
+        return spec, ARCHITECT_PROMPT_NAME, 1
 
     last_raw = raw_output
     last_errors = [err.message for err in result.errors]
 
     # Repair loop: Up to 2 repair calls (total calls = 3)
-    repair_system = load_prompt("architect_repair_v1.md")
+    repair_system = load_prompt(f"{ARCHITECT_REPAIR_PROMPT_NAME}.md")
 
     for call_idx in range(2, MAX_ARCHITECT_CALLS + 1):
         errors_formatted = "\n".join(f"- {err}" for err in last_errors)
@@ -112,7 +114,7 @@ async def generate_and_validate(
 
         spec, result = parse_and_validate(raw_output, brief_constraints, limits)
         if result.ok and spec is not None:
-            return spec, "architect_v1+architect_repair_v1", call_idx
+            return spec, f"{ARCHITECT_PROMPT_NAME}+{ARCHITECT_REPAIR_PROMPT_NAME}", call_idx
 
         last_raw = raw_output
         last_errors = [err.message for err in result.errors]

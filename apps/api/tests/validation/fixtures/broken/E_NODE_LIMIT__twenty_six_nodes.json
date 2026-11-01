@@ -1,0 +1,472 @@
+{
+  "nodes": [
+    {
+      "id": "n01",
+      "name": "Node 01",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n02",
+      "name": "Node 02",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": true
+    },
+    {
+      "id": "n03",
+      "name": "Node 03",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n04",
+      "name": "Node 04",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n05",
+      "name": "Node 05",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n06",
+      "name": "Node 06",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n07",
+      "name": "Node 07",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n08",
+      "name": "Node 08",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n09",
+      "name": "Node 09",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n10",
+      "name": "Node 10",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n11",
+      "name": "Node 11",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n12",
+      "name": "Node 12",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n13",
+      "name": "Node 13",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n14",
+      "name": "Node 14",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n15",
+      "name": "Node 15",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n16",
+      "name": "Node 16",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n17",
+      "name": "Node 17",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n18",
+      "name": "Node 18",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n19",
+      "name": "Node 19",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n20",
+      "name": "Node 20",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n21",
+      "name": "Node 21",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n22",
+      "name": "Node 22",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n23",
+      "name": "Node 23",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n24",
+      "name": "Node 24",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n25",
+      "name": "Node 25",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [
+        "data"
+      ],
+      "needs_model": false
+    },
+    {
+      "id": "n26",
+      "name": "Node 26",
+      "type": "worker",
+      "role": "Processes step data",
+      "inputs": [
+        "data"
+      ],
+      "outputs": [],
+      "needs_model": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "n01",
+      "to": "n02",
+      "flows": "forward data"
+    },
+    {
+      "from": "n02",
+      "to": "n03",
+      "flows": "forward data"
+    },
+    {
+      "from": "n03",
+      "to": "n04",
+      "flows": "forward data"
+    },
+    {
+      "from": "n04",
+      "to": "n05",
+      "flows": "forward data"
+    },
+    {
+      "from": "n05",
+      "to": "n06",
+      "flows": "forward data"
+    },
+    {
+      "from": "n06",
+      "to": "n07",
+      "flows": "forward data"
+    },
+    {
+      "from": "n07",
+      "to": "n08",
+      "flows": "forward data"
+    },
+    {
+      "from": "n08",
+      "to": "n09",
+      "flows": "forward data"
+    },
+    {
+      "from": "n09",
+      "to": "n10",
+      "flows": "forward data"
+    },
+    {
+      "from": "n10",
+      "to": "n11",
+      "flows": "forward data"
+    },
+    {
+      "from": "n11",
+      "to": "n12",
+      "flows": "forward data"
+    },
+    {
+      "from": "n12",
+      "to": "n13",
+      "flows": "forward data"
+    },
+    {
+      "from": "n13",
+      "to": "n14",
+      "flows": "forward data"
+    },
+    {
+      "from": "n14",
+      "to": "n15",
+      "flows": "forward data"
+    },
+    {
+      "from": "n15",
+      "to": "n16",
+      "flows": "forward data"
+    },
+    {
+      "from": "n16",
+      "to": "n17",
+      "flows": "forward data"
+    },
+    {
+      "from": "n17",
+      "to": "n18",
+      "flows": "forward data"
+    },
+    {
+      "from": "n18",
+      "to": "n19",
+      "flows": "forward data"
+    },
+    {
+      "from": "n19",
+      "to": "n20",
+      "flows": "forward data"
+    },
+    {
+      "from": "n20",
+      "to": "n21",
+      "flows": "forward data"
+    },
+    {
+      "from": "n21",
+      "to": "n22",
+      "flows": "forward data"
+    },
+    {
+      "from": "n22",
+      "to": "n23",
+      "flows": "forward data"
+    },
+    {
+      "from": "n23",
+      "to": "n24",
+      "flows": "forward data"
+    },
+    {
+      "from": "n24",
+      "to": "n25",
+      "flows": "forward data"
+    },
+    {
+      "from": "n25",
+      "to": "n26",
+      "flows": "forward data"
+    }
+  ],
+  "constraints": [],
+  "entry_ids": [
+    "n01"
+  ],
+  "exit_ids": [
+    "n26"
+  ]
+}

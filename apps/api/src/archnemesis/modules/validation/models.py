@@ -12,8 +12,8 @@ DataLabel = Annotated[str, Field(max_length=120)]
 class Limits:
     """Configurable limits passed into validation functions."""
 
-    max_nodes: int = 15
-    max_edges: int = 40
+    max_nodes: int = 25
+    max_edges: int = 60
 
 
 class NodeSpec(BaseModel):

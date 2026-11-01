@@ -115,7 +115,7 @@ async def test_architect_first_attempt_success() -> None:
     fake_llm = FakeLLMClient([VALID_SPEC])
     spec, prompt_version, calls_used = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
 
-    assert prompt_version == "architect_v1"
+    assert prompt_version == "architect_v2"
     assert calls_used == 1
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 1
@@ -127,7 +127,7 @@ async def test_architect_repair_attempt_success() -> None:
     fake_llm = FakeLLMClient([INVALID_SPEC_CYCLE, VALID_SPEC])
     spec, prompt_version, calls_used = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
 
-    assert prompt_version == "architect_v1+architect_repair_v1"
+    assert prompt_version == "architect_v2+architect_repair_v2"
     assert calls_used == 2
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 2
@@ -145,7 +145,7 @@ async def test_architect_uncovered_brief_constraint_triggers_repair() -> None:
     fake_llm = FakeLLMClient([SPEC_UNCOVERED_CONSTRAINT, VALID_SPEC])
     spec, prompt_version, calls_used = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
 
-    assert prompt_version == "architect_v1+architect_repair_v1"
+    assert prompt_version == "architect_v2+architect_repair_v2"
     assert calls_used == 2
     assert len(spec.constraints) == 1
     assert "bc1" in spec.constraints[0].covers
