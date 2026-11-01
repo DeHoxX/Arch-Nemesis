@@ -13,7 +13,7 @@ from archnemesis.modules.validation.models import (
     EdgeSpec,
     NodeSpec,
 )
-from archnemesis.modules.validation.repair import patch_constraints
+from archnemesis.modules.validation.repair import patch_constraints, patch_dead_ends
 
 
 def _create_node(node_id: str, is_model: bool = False) -> NodeSpec:
@@ -420,3 +420,210 @@ def test_hypothesis_patch_maintains_dag(node_count: int) -> None:
     for e in patched_spec.edges:
         g.add_edge(e.from_node, e.to)
     assert nx.is_directed_acyclic_graph(g)
+
+
+def test_patch_dead_ends_simple_sink_added() -> None:
+    """A dead-end sink node with in-degree > 0, out-degree 0 is added to exit_ids."""
+    nodes = [
+        _create_node("gateway"),
+        _create_node("worker"),
+        _create_node("delivery"),
+        _create_node("audit_sink"),
+    ]
+    edges = [
+        _edge("gateway", "worker"),
+        _edge("worker", "delivery"),
+        _edge("worker", "audit_sink"),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["gateway"],
+        exit_ids=["delivery"],  # audit_sink omitted
+    )
+    limits = Limits()
+
+    # Pre-check: validation fails with E_CANNOT_REACH_EXIT
+    orig_val = validate(spec, {}, limits)
+    assert not orig_val.ok
+    assert any(e.code == "E_CANNOT_REACH_EXIT" for e in orig_val.errors)
+
+    patched_spec, warnings = patch_dead_ends(spec, {}, limits)
+    assert "audit_sink" in patched_spec.exit_ids
+    assert len(warnings) == 1
+    assert warnings[0].code == "W_CODE_REPAIR_APPLIED"
+    assert "audit_sink" in warnings[0].message
+
+    val_res = validate(patched_spec, {}, limits)
+    assert val_res.ok
+
+
+def test_patch_dead_ends_with_pass_through_conflict_rerouted() -> None:
+    """Sink receives early data bypassing a must_pass_through checkpoint; repair reroutes bypass."""
+    nodes = [
+        _create_node("gateway"),
+        _create_node("checkpoint"),
+        _create_node("delivery"),
+        _create_node("audit_sink"),
+    ]
+    edges = [
+        _edge("gateway", "checkpoint"),
+        _edge("checkpoint", "delivery"),
+        _edge("gateway", "audit_sink"),  # bypasses checkpoint!
+    ]
+    constraints = [
+        ConstraintSpec(
+            id="c1",
+            kind="must_pass_through",
+            text="All traffic must pass through checkpoint",
+            node_id="checkpoint",
+            covers=["bc1"],
+        )
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=constraints,
+        entry_ids=["gateway"],
+        exit_ids=["delivery"],
+    )
+    brief_constraints = {"bc1": "Checkpoint mandatory"}
+    limits = Limits()
+
+    patched_spec, warnings = patch_dead_ends(spec, brief_constraints, limits)
+    assert "audit_sink" in patched_spec.exit_ids
+    assert len(warnings) == 1
+    assert warnings[0].code == "W_CODE_REPAIR_APPLIED"
+
+    # Edge from gateway to audit_sink is removed, edge from checkpoint to audit_sink is added
+    assert any(e.from_node == "checkpoint" and e.to == "audit_sink" for e in patched_spec.edges)
+    assert not any(e.from_node == "gateway" and e.to == "audit_sink" for e in patched_spec.edges)
+
+    val_res = validate(patched_spec, brief_constraints, limits)
+    assert val_res.ok
+
+
+def test_patch_dead_ends_unsafe_case_returns_original() -> None:
+    """Cyclic or unrepairable graph returns the original spec unchanged with zero warnings."""
+    nodes = [
+        _create_node("node_a"),
+        _create_node("node_b"),
+        _create_node("node_c"),
+    ]
+    edges = [
+        _edge("node_a", "node_b"),
+        _edge("node_b", "node_a"),  # cycle!
+        _edge("node_a", "node_c"),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["node_a"],
+        exit_ids=["node_b"],
+    )
+    limits = Limits()
+
+    patched_spec, warnings = patch_dead_ends(spec, {}, limits)
+    assert patched_spec == spec
+    assert warnings == []
+
+
+def test_patch_dead_ends_limit_exceeded_returns_original() -> None:
+    """When edge limit would be breached by repair rerouting, returns original spec."""
+    nodes = [
+        _create_node("gateway"),
+        _create_node("checkpoint"),
+        _create_node("delivery"),
+        _create_node("audit_sink"),
+    ]
+    edges = [
+        _edge("gateway", "checkpoint"),
+        _edge("checkpoint", "delivery"),
+        _edge("gateway", "audit_sink"),
+    ]
+    constraints = [
+        ConstraintSpec(
+            id="c1",
+            kind="must_pass_through",
+            text="Checkpoint required",
+            node_id="checkpoint",
+            covers=["bc1"],
+        )
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=constraints,
+        entry_ids=["gateway"],
+        exit_ids=["delivery"],
+    )
+    # Set limit to current edge count (3); reroute requires replacing edges
+    limits = Limits(max_edges=2)  # already exceeds or exactly 2
+
+    patched_spec, warnings = patch_dead_ends(spec, {"bc1": "req"}, limits)
+    assert patched_spec == spec
+    assert warnings == []
+
+
+def test_patch_dead_ends_determinism() -> None:
+    """Calling patch_dead_ends multiple times on identical input produces identical output."""
+    nodes = [
+        _create_node("gateway"),
+        _create_node("worker"),
+        _create_node("delivery"),
+        _create_node("audit_sink"),
+    ]
+    edges = [
+        _edge("gateway", "worker"),
+        _edge("worker", "delivery"),
+        _edge("worker", "audit_sink"),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["gateway"],
+        exit_ids=["delivery"],
+    )
+    limits = Limits()
+
+    p1, w1 = patch_dead_ends(spec, {}, limits)
+    p2, w2 = patch_dead_ends(spec, {}, limits)
+    assert p1.model_dump() == p2.model_dump()
+    assert [w.message for w in w1] == [w.message for w in w2]
+
+
+def test_patch_dead_ends_multi_sink() -> None:
+    """Multiple dead-end sinks are sorted deterministically and added to exit_ids."""
+    nodes = [
+        _create_node("gateway"),
+        _create_node("worker"),
+        _create_node("delivery"),
+        _create_node("telemetry_sink"),
+        _create_node("audit_sink"),
+    ]
+    edges = [
+        _edge("gateway", "worker"),
+        _edge("worker", "delivery"),
+        _edge("worker", "telemetry_sink"),
+        _edge("worker", "audit_sink"),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["gateway"],
+        exit_ids=["delivery"],
+    )
+    limits = Limits()
+
+    patched_spec, warnings = patch_dead_ends(spec, {}, limits)
+    assert "audit_sink" in patched_spec.exit_ids
+    assert "telemetry_sink" in patched_spec.exit_ids
+    assert patched_spec.exit_ids == sorted(patched_spec.exit_ids)
+    assert len(warnings) == 1
+    assert "audit_sink" in warnings[0].message
+    assert "telemetry_sink" in warnings[0].message
+    assert validate(patched_spec, {}, limits).ok

@@ -118,7 +118,7 @@ async def test_architect_first_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v3"
+    assert prompt_version == "architect_v4"
     assert calls_used == 1
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 1
@@ -132,7 +132,7 @@ async def test_architect_repair_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v3+architect_repair_v3"
+    assert prompt_version == "architect_v4+architect_repair_v4"
     assert calls_used == 2
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 2
@@ -152,7 +152,7 @@ async def test_architect_uncovered_brief_constraint_triggers_repair() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v3+architect_repair_v3"
+    assert prompt_version == "architect_v4+architect_repair_v4"
     assert calls_used == 2
     assert len(spec.constraints) == 1
     assert "bc1" in spec.constraints[0].covers
@@ -263,7 +263,73 @@ async def test_architect_applies_code_repair_on_first_attempt() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v3+code_repair"
+    assert prompt_version == "architect_v4+code_repair"
+    assert calls_used == 1
+    assert len(fake_llm.calls) == 1
+    assert result is not None
+    assert any(w.code == "W_CODE_REPAIR_APPLIED" for w in result.warnings)
+
+
+@pytest.mark.asyncio
+async def test_architect_applies_code_repair_to_dead_end_sink_on_first_attempt() -> None:
+    # Attempt 1 returns spec with an unlisted audit sink node; code repair fixes it on attempt 1
+    spec_with_dead_end = {
+        "nodes": [
+            {
+                "id": "gateway",
+                "name": "Gateway",
+                "type": "api_gateway",
+                "role": "Ingress gateway",
+                "inputs": [],
+                "outputs": ["req"],
+                "tech_options": ["Web Framework"],
+                "needs_model": False,
+            },
+            {
+                "id": "delivery",
+                "name": "Delivery",
+                "type": "service",
+                "role": "Output service",
+                "inputs": ["req"],
+                "outputs": [],
+                "tech_options": ["Runtime"],
+                "needs_model": False,
+            },
+            {
+                "id": "audit_sink",
+                "name": "Audit Sink",
+                "type": "database",
+                "role": "Audit logger",
+                "inputs": ["req"],
+                "outputs": [],
+                "tech_options": ["Document Store"],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "gateway", "to": "delivery", "flows": "req"},
+            {"from": "gateway", "to": "audit_sink", "flows": "audit"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Traffic must pass through api gateway",
+                "kind": "must_pass_through",
+                "node_id": "gateway",
+                "covers": ["bc1"],
+            }
+        ],
+        "entry_ids": ["gateway"],
+        "exit_ids": ["delivery"],  # audit_sink missing from exit_ids!
+    }
+    fake_llm = FakeLLMClient([spec_with_dead_end])
+    spec, prompt_version, calls_used, result = await service.generate_and_validate(
+        SAMPLE_BRIEF, fake_llm
+    )
+
+    assert spec is not None
+    assert "audit_sink" in spec.exit_ids
+    assert prompt_version == "architect_v4+code_repair"
     assert calls_used == 1
     assert len(fake_llm.calls) == 1
     assert result is not None
@@ -329,41 +395,49 @@ async def test_architect_applies_code_repair_after_call_2() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v3+architect_repair_v3+code_repair"
+    assert prompt_version == "architect_v4+architect_repair_v4+code_repair"
     assert calls_used == 2
     assert len(fake_llm.calls) == 2
     assert result is not None
     assert any(w.code == "W_CODE_REPAIR_APPLIED" for w in result.warnings)
 
 
-def test_architect_v1_and_v2_prompts_unchanged_and_loadable() -> None:
-    """Verify v1 and v2 architect prompts remain immutable and loadable."""
+def test_architect_v1_v2_v3_prompts_unchanged_and_loadable() -> None:
+    """Verify v1, v2, and v3 architect prompts remain immutable and loadable."""
     v1 = load_prompt("architect_v1.md")
     v1_repair = load_prompt("architect_repair_v1.md")
     v2 = load_prompt("architect_v2.md")
     v2_repair = load_prompt("architect_repair_v2.md")
+    v3 = load_prompt("architect_v3.md")
+    v3_repair = load_prompt("architect_repair_v3.md")
 
     assert len(v1) > 0
     assert len(v1_repair) > 0
     assert len(v2) > 0
     assert len(v2_repair) > 0
-    assert "architect_v1" not in v2  # independent files
+    assert len(v3) > 0
+    assert len(v3_repair) > 0
     assert "Qdrant" in v2  # v2 still has original examples
     assert "Kafka" in v2
 
 
-def test_architect_v3_prompt_content() -> None:
-    """Verify v3 contains the required verbatim line and no framework/product names."""
-    v3 = load_prompt("architect_v3.md")
+def test_architect_v4_prompt_content() -> None:
+    """Verify v4 contains the dead-end rule, verbatim agent line, and no framework names."""
+    v4 = load_prompt("architect_v4.md")
 
-    # Step 2d verbatim line
+    # Dead-end exit sink rule
+    assert "Every node must reach an exit; dead ends are forbidden" in v4
+    assert "Dead-end components (audit, logging, telemetry, storage sinks" in v4
+    assert "Feed such sinks only from nodes at or after any required checkpoint" in v4
+
+    # Step 2d verbatim line preserved
     verbatim_line = (
         "Use an agent only where the step needs tools and several decisions. "
         "Use a model only for one judgment. Do not add models or agents to fill the diagram."
     )
-    assert verbatim_line in v3
+    assert verbatim_line in v4
 
-    # Step 2e framework/product ban
+    # Framework/product ban
     forbidden_frameworks = [
         "Kafka",
         "RabbitMQ",
@@ -376,15 +450,23 @@ def test_architect_v3_prompt_content() -> None:
         "Envoy",
     ]
     for fw in forbidden_frameworks:
-        assert fw.lower() not in v3.lower(), f"Forbidden framework '{fw}' found in architect_v3.md"
+        assert fw.lower() not in v4.lower(), f"Forbidden framework '{fw}' found in architect_v4.md"
 
 
-def test_architect_repair_v3_prompt_content() -> None:
-    """Verify repair_v3 preserves decision conditions and human nodes."""
-    repair_v3 = load_prompt("architect_repair_v3.md")
-    sentence = (
+def test_architect_repair_v4_prompt_content() -> None:
+    """Verify repair_v4 preserves decision conditions, human nodes, and directs rerouting."""
+    repair_v4 = load_prompt("architect_repair_v4.md")
+    human_sentence = (
         "When repairing, keep decision condition labels and human nodes. "
         "Do not remove a human node to satisfy a rule."
     )
-    assert sentence in repair_v3
-    assert "W_AGENT_WITHOUT_TOOLS" not in repair_v3
+    assert human_sentence in repair_v4
+    assert "W_AGENT_WITHOUT_TOOLS" not in repair_v4
+
+    # Rerouting directive instead of unmarking exits
+    assert "Auxiliary background audit/telemetry stores must be fed AFTER node X" in repair_v4
+    assert (
+        "If a dead-end component must be an exit and that breaks a pass-through rule, "
+        "reroute its incoming edges so they originate from or after the required node."
+    ) in repair_v4
+    assert "or must not be designated as exit nodes" not in repair_v4

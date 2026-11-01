@@ -28,6 +28,79 @@ def _make_edge(from_node: str, to: str, flows: str = FIXED_FLOW_TEXT) -> EdgeSpe
     return EdgeSpec.model_validate({"from": from_node, "to": to, "flows": flows})
 
 
+def patch_dead_ends(
+    spec: ArchitectureSpec,
+    brief_constraints: dict[str, str],
+    limits: Limits,
+) -> tuple[ArchitectureSpec, list[ValidationIssue]]:
+    """Attempt deterministic repair of dead-end nodes missing from exit_ids.
+
+    For ANY node with in_degree > 0 and out_degree == 0 missing from exit_ids:
+    1. Add the dead-end node to exit_ids (deterministic sorted order).
+    2. If that introduces a must_pass_through or must_precede violation,
+       try rerouting incoming bypass edges through the required node using patch_constraints.
+    3. Accept only if validate(patched) is ok and limits hold;
+       otherwise return the original spec unchanged.
+    4. Emit W_CODE_REPAIR_APPLIED with exact change details.
+    """
+    from archnemesis.modules.validation.validate import validate
+
+    graph = build_graph(spec)
+    if not nx.is_directed_acyclic_graph(graph):
+        return spec, []
+
+    # Find nodes with in_degree > 0 and out_degree == 0 not in exit_ids (deterministic sorted order)
+    dead_ends = sorted(
+        [
+            node_id
+            for node_id in graph.nodes
+            if graph.in_degree(node_id) > 0
+            and graph.out_degree(node_id) == 0
+            and node_id not in spec.exit_ids
+        ]
+    )
+    if not dead_ends:
+        return spec, []
+
+    new_exit_ids = sorted(set(spec.exit_ids).union(dead_ends))
+    current_edges = list(spec.edges)
+    candidate_spec = spec.model_copy(update={"exit_ids": new_exit_ids, "edges": current_edges})
+
+    # Case 1: Simple addition to exit_ids resolves validation
+    val_result = validate(candidate_spec, brief_constraints, limits)
+    if val_result.ok and len(candidate_spec.edges) <= limits.max_edges:
+        node_str = ", ".join(f"'{n}'" for n in dead_ends)
+        warning = ValidationIssue(
+            code="W_CODE_REPAIR_APPLIED",
+            severity="warning",
+            message=f"Added dead-end sink node(s) {node_str} to exit_ids.",
+            ids=dead_ends,
+        )
+        return candidate_spec, [warning]
+
+    # Case 2: Adding to exit_ids created constraint violations; attempt rerouting bypasses
+    patched_spec, constraint_warnings = patch_constraints(candidate_spec, brief_constraints, limits)
+    if constraint_warnings:
+        final_val = validate(patched_spec, brief_constraints, limits)
+        if final_val.ok and len(patched_spec.edges) <= limits.max_edges:
+            node_str = ", ".join(f"'{n}'" for n in dead_ends)
+            repaired_targets = [w.ids[1] for w in constraint_warnings if len(w.ids) > 1]
+            target_str = ", ".join(f"'{t}'" for t in sorted(set(repaired_targets)))
+            warning = ValidationIssue(
+                code="W_CODE_REPAIR_APPLIED",
+                severity="warning",
+                message=(
+                    f"Added dead-end sink node(s) {node_str} to exit_ids and routed "
+                    f"bypass edge(s) through {target_str}."
+                ),
+                ids=dead_ends + [id_ for w in constraint_warnings for id_ in w.ids],
+            )
+            return patched_spec, [warning]
+
+    # If any error remains or limits violated, return original spec unchanged
+    return spec, []
+
+
 def patch_constraints(
     spec: ArchitectureSpec,
     brief_constraints: dict[str, str],

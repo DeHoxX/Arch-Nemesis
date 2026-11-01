@@ -1601,6 +1601,22 @@ If we removed it: The LLM would generate architectures without condition labels 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-191 — v2 Stage B5 — decision
+What: Introduce architect_v4.md, architect_repair_v4.md, and patterns_v4 with explicit sink-exit declarations and post-checkpoint routing.
+Why: In branched architectures, LLMs frequently include auxiliary components (such as audit logs, telemetry sinks, and data stores) that have no outgoing edges. In v3 prompts, these dead ends triggered E_CANNOT_REACH_EXIT because they were omitted from exit_ids. When the repair prompt instructed the model to avoid dead ends, adding them to exit_ids caused E_CONSTRAINT_VIOLATED because pre-checkpoint edges (e.g. from ingress) bypassed required gatekeepers. We introduce architect_v4.md, architect_repair_v4.md, and prompts/patterns_v4/ (with load_patterns defaulting to v4 while keeping v2 loadable). The v4 prompt mandates that every node must reach an exit, specifies that dead-end sinks must be listed in exit_ids, and instructs that auxiliary sinks must be fed only from nodes at or after required checkpoints (never directly from ingress). The repair prompt removes any suggestion to unmark exits, directing the model instead to reroute incoming bypass edges to originate from the required checkpoint.
+Alternatives considered: Editing v3 in place. Rejected per project rule requiring prompt immutability across prompt versions.
+If we removed it: Complex designs with audit sinks would repeatedly oscillate between E_CANNOT_REACH_EXIT and E_CONSTRAINT_VIOLATED across all 3 repair attempts, resulting in 422 DESIGN_FAILED.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-192 — v2 Stage B5 — decision
+What: Implement deterministic patch_dead_ends graph repair in validation/repair.py.
+Why: When the LLM produces a specification containing nodes with in-degree > 0 and out-degree == 0 that are omitted from exit_ids, patch_dead_ends deterministically repairs the graph without requiring additional LLM calls. It adds the unlisted sink nodes to exit_ids. If this creates a must_pass_through or must_precede violation due to pre-checkpoint bypass edges, it reroutes the bypass edges to originate from the required checkpoint node. The repair is accepted only if full validation passes and limits hold; otherwise the original specification is preserved. It emits W_CODE_REPAIR_APPLIED with the exact node and edge modifications, executing in deterministic order sorted by node ID.
+Alternatives considered: Connecting dead-end sinks to other exit nodes. Rejected because connecting an audit database to a customer webhook creates nonsensical physical architecture.
+If we removed it: Any LLM omission of a sink node from exit_ids would consume repair call budget or fail generation.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 

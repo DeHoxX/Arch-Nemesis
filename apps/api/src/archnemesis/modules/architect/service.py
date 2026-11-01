@@ -8,8 +8,13 @@ import structlog
 
 from archnemesis.errors import DesignFailedError, LLMNotConfiguredError
 from archnemesis.llm.base import LLMClient, LLMNotConfigured, LLMTask
-from archnemesis.modules.validation.models import ArchitectureSpec, Limits, ValidationResult
-from archnemesis.modules.validation.repair import patch_constraints
+from archnemesis.modules.validation.models import (
+    ArchitectureSpec,
+    Limits,
+    ValidationIssue,
+    ValidationResult,
+)
+from archnemesis.modules.validation.repair import patch_constraints, patch_dead_ends
 from archnemesis.modules.validation.validate import parse_and_validate, validate
 from archnemesis.prompts import load_patterns, load_prompt
 from archnemesis.settings import get_settings
@@ -18,8 +23,8 @@ from archnemesis.shared.brief import RequirementBrief
 logger = structlog.get_logger()
 
 MAX_ARCHITECT_CALLS: int = 3
-ARCHITECT_PROMPT_NAME: str = "architect_v3"
-ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v3"
+ARCHITECT_PROMPT_NAME: str = "architect_v4"
+ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v4"
 
 
 def _format_brief_prompt(brief: RequirementBrief) -> str:
@@ -47,6 +52,32 @@ def _format_brief_prompt(brief: RequirementBrief) -> str:
     return "\n".join(lines)
 
 
+def _apply_code_repair(
+    spec: ArchitectureSpec,
+    brief_constraints: dict[str, str],
+    limits: Limits,
+) -> tuple[ArchitectureSpec, list[ValidationIssue]]:
+    """Apply deterministic graph repair: dead-ends and constraints."""
+    patched_spec = spec
+    all_warnings: list[ValidationIssue] = []
+
+    # 1. Patch dead ends if any exist
+    dead_end_patched, dead_end_warnings = patch_dead_ends(patched_spec, brief_constraints, limits)
+    if dead_end_warnings:
+        patched_spec = dead_end_patched
+        all_warnings.extend(dead_end_warnings)
+
+    # 2. Patch constraints if any violations exist
+    constraint_patched, constraint_warnings = patch_constraints(
+        patched_spec, brief_constraints, limits
+    )
+    if constraint_warnings:
+        patched_spec = constraint_patched
+        all_warnings.extend(constraint_warnings)
+
+    return patched_spec, all_warnings
+
+
 async def generate_and_validate(
     brief: RequirementBrief,
     llm: LLMClient,
@@ -66,7 +97,7 @@ async def generate_and_validate(
 
     # Call 1: Initial generation
     system_prompt = load_prompt(f"{ARCHITECT_PROMPT_NAME}.md")
-    patterns_text = load_patterns(version="v2")
+    patterns_text = load_patterns(version="v4")
     user_prompt = (
         f"Architectural Reference Patterns:\n\n{patterns_text}\n\n"
         f"---\n\n"
@@ -93,14 +124,15 @@ async def generate_and_validate(
 
     # Attempt deterministic code repair after Call 1 failure
     if spec is not None:
-        patched_spec, repair_warnings = patch_constraints(spec, brief_constraints, limits)
+        patched_spec, repair_warnings = _apply_code_repair(spec, brief_constraints, limits)
         if repair_warnings:
             patched_result = validate(patched_spec, brief_constraints, limits)
-            repaired_c_ids = [w.ids[0] for w in repair_warnings if w.ids]
+            repaired_node_ids = [w.ids[0] for w in repair_warnings if w.ids]
             logger.info(
                 "code_repair",
                 attempt=1,
-                constraint_ids=repaired_c_ids,
+                issue_codes=[w.code for w in repair_warnings],
+                node_ids=repaired_node_ids,
                 edges_added_count=len(patched_spec.edges) - len(spec.edges),
             )
             if patched_result.ok:
@@ -160,14 +192,15 @@ async def generate_and_validate(
 
         # Attempt deterministic code repair after repair call failure
         if spec is not None:
-            patched_spec, repair_warnings = patch_constraints(spec, brief_constraints, limits)
+            patched_spec, repair_warnings = _apply_code_repair(spec, brief_constraints, limits)
             if repair_warnings:
                 patched_result = validate(patched_spec, brief_constraints, limits)
-                repaired_c_ids = [w.ids[0] for w in repair_warnings if w.ids]
+                repaired_node_ids = [w.ids[0] for w in repair_warnings if w.ids]
                 logger.info(
                     "code_repair",
                     attempt=call_idx,
-                    constraint_ids=repaired_c_ids,
+                    issue_codes=[w.code for w in repair_warnings],
+                    node_ids=repaired_node_ids,
                     edges_added_count=len(patched_spec.edges) - len(spec.edges),
                 )
                 if patched_result.ok:

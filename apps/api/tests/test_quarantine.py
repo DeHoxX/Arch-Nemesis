@@ -81,6 +81,8 @@ def test_all_system_prompts_contain_untrusted_user_text_quarantine() -> None:
         "architect_repair_v2.md",
         "architect_v3.md",
         "architect_repair_v3.md",
+        "architect_v4.md",
+        "architect_repair_v4.md",
     ]
     for prompt_name in system_prompts:
         content = load_prompt(prompt_name)
@@ -197,7 +199,7 @@ async def test_architect_first_call_quarantines_injection() -> None:
     assert spec is not None
     assert len(spec.nodes) == 2
     assert calls_used == 1
-    assert prompt_version == "architect_v3"
+    assert prompt_version == "architect_v4"
     assert len(fake_llm.calls) == 1
 
     call = fake_llm.calls[0]
