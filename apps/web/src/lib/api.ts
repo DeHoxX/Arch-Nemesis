@@ -74,12 +74,15 @@ export const nodeSpecSchema = z.object({
   outputs: z.array(z.string()).default([]),
   tech_options: z.array(z.string()).default([]),
   needs_model: z.boolean().default(false),
+  ai_role: z.enum(["none", "model", "agent"]).default("none").optional(),
+  tools: z.array(z.string()).default([]).optional(),
 });
 
 export const edgeSpecSchema = z.object({
   from: z.string(),
   to: z.string(),
   flows: z.string(),
+  condition: z.string().nullable().optional(),
 });
 
 export const constraintSpecSchema = z.object({

@@ -34,6 +34,7 @@ ALL_CODES = {
     "W_DUP_NODE_NAME",
     "W_NO_AI_NODE",
     "W_CODE_REPAIR_APPLIED",
+    "W_AGENT_WITHOUT_TOOLS",
 }
 
 TEMPLATE_PATTERNS = {
@@ -63,6 +64,7 @@ TEMPLATE_PATTERNS = {
     "W_DUP_NODE_NAME": r"^Nodes '[^']+' and '[^']+' have the same name\.$",
     "W_NO_AI_NODE": r"^No node in the architecture is marked as using an AI model \(needs_model: true\)\.$",
     "W_CODE_REPAIR_APPLIED": r"^Constraint '[^']+' satisfied by automated graph alignment: routed \d+ edge\(s\) through '[^']+'\.$",
+    "W_AGENT_WITHOUT_TOOLS": r"^Agent node '[^']+' is declared as an agent but lists no tools\.$",
 }
 
 

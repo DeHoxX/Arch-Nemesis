@@ -1,5 +1,6 @@
 import React from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
+import type { EdgeSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { classifyNodeShape } from "./classify";
 
@@ -9,18 +10,21 @@ export interface BlockNodeData {
   isEntry: boolean;
   isExit: boolean;
   needs_model?: boolean;
+  ai_role?: "none" | "model" | "agent";
+  edges?: EdgeSpec[];
   [key: string]: unknown;
 }
 
 /**
  * BlockNode: Simple, non-interactive block diagram node.
  *
- * Requirements (Stage A & B4a Decisions):
+ * Requirements (Stage A, B4a & B4b Decisions):
  * - Renders node name only + small [Entry] / [Exit] text marker.
  * - Shapes derived from structure:
  *   1. isEntry || isExit -> pill
- *   2. needs_model -> hexagon
- *   3. otherwise -> rectangle
+ *   2. diamond decision -> diamond
+ *   3. needs_model (or ai_role model/agent) -> hexagon
+ *   4. otherwise -> rectangle
  * - One neutral style (border-border bg-card).
  * - No component type, no role, no badges, no lock icon.
  * - Non-interactive: no tabIndex, role="img", aria-label announcing name and entry/exit status.
@@ -30,10 +34,15 @@ export function BlockNode({
   data,
 }: NodeProps & { data: BlockNodeData }): React.ReactElement {
   const shape = classifyNodeShape(
-    { id: data.id, needs_model: Boolean(data.needs_model) },
+    {
+      id: data.id,
+      needs_model: Boolean(data.needs_model),
+      ai_role: data.ai_role,
+    },
     {
       entry_ids: data.isEntry ? [data.id] : [],
       exit_ids: data.isExit ? [data.id] : [],
+      edges: data.edges || [],
     },
   );
 
@@ -49,6 +58,7 @@ export function BlockNode({
     : `Block: ${data.name}`;
 
   const isHexagon = shape === "hexagon";
+  const isDiamond = shape === "diamond";
   const isPill = shape === "pill";
 
   return (
@@ -57,9 +67,10 @@ export function BlockNode({
       aria-label={accessibleLabel}
       className={cn(
         "relative flex h-[72px] w-[220px] select-none flex-col justify-between text-card-foreground shadow-xs",
-        !isHexagon && "border border-border/80 bg-card p-3",
-        !isHexagon && (isPill ? "rounded-full px-5" : "rounded-lg"),
+        !isHexagon && !isDiamond && "border border-border/80 bg-card p-3",
+        !isHexagon && !isDiamond && (isPill ? "rounded-full px-5" : "rounded-lg"),
         isHexagon && "px-6 py-3",
+        isDiamond && "px-7 py-3",
       )}
     >
       {/* Hexagon SVG background & neutral border outline */}
@@ -72,6 +83,23 @@ export function BlockNode({
         >
           <polygon
             points="18,1 202,1 219,36 202,71 18,71 1,36"
+            className="fill-card stroke-border/80"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+
+      {/* Diamond SVG background & neutral border outline */}
+      {isDiamond && (
+        <svg
+          className="absolute inset-0 size-full pointer-events-none -z-10"
+          viewBox="0 0 220 72"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <polygon
+            points="110,1 219,36 110,71 1,36"
             className="fill-card stroke-border/80"
             strokeWidth="1.5"
             strokeLinejoin="round"

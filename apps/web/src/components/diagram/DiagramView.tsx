@@ -91,10 +91,11 @@ export function DiagramView({
         entry_ids: spec.entry_ids,
         exit_ids: spec.exit_ids,
         constraints: spec.constraints,
+        edges: spec.edges,
         onSelect: onSelectNode ? () => onSelectNode(pn.id) : undefined,
       },
     }));
-  }, [layout.nodes, spec.entry_ids, spec.exit_ids, spec.constraints, selectedNodeId, onSelectNode]);
+  }, [layout.nodes, spec.entry_ids, spec.exit_ids, spec.constraints, spec.edges, selectedNodeId, onSelectNode]);
 
   // Transform layout edges to React Flow Edge structure
   const edges: Edge[] = useMemo(() => {
@@ -105,6 +106,7 @@ export function DiagramView({
       type: "customEdge",
       data: {
         flows: pe.data.flows,
+        condition: pe.data.condition,
       },
     }));
   }, [layout.edges]);

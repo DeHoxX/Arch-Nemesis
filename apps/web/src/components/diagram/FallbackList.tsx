@@ -63,7 +63,10 @@ export function FallbackList({
         {orderedNodes.map((node, index) => {
           const sendsTo = spec.edges
             .filter((e) => e.from === node.id)
-            .map((e) => nodeNameMap.get(e.to) ?? e.to);
+            .map((e) => {
+              const targetName = nodeNameMap.get(e.to) ?? e.to;
+              return e.condition ? `${targetName} (when: ${e.condition})` : targetName;
+            });
 
           const isSelected = selectedNodeId === node.id;
 

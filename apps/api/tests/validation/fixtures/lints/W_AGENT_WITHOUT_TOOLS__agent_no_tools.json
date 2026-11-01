@@ -1,0 +1,52 @@
+{
+  "nodes": [
+    {
+      "id": "node_entry",
+      "name": "Entry Gateway",
+      "type": "gateway",
+      "role": "Receives user input",
+      "inputs": [],
+      "outputs": ["raw_input"],
+      "needs_model": false,
+      "ai_role": "none",
+      "tools": []
+    },
+    {
+      "id": "node_agent",
+      "name": "Autonomous Agent",
+      "type": "agent",
+      "role": "Solves problems iteratively",
+      "inputs": ["raw_input"],
+      "outputs": ["agent_result"],
+      "ai_role": "agent",
+      "tools": []
+    },
+    {
+      "id": "node_exit",
+      "name": "Output Dispatcher",
+      "type": "sink",
+      "role": "Emits final output",
+      "inputs": ["agent_result"],
+      "outputs": [],
+      "needs_model": false,
+      "ai_role": "none",
+      "tools": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "node_entry",
+      "to": "node_agent",
+      "flows": "request_data"
+    },
+    {
+      "from": "node_agent",
+      "to": "node_exit",
+      "flows": "response_data"
+    }
+  ],
+  "constraints": [],
+  "entry_ids": ["node_entry"],
+  "exit_ids": ["node_exit"]
+}
+

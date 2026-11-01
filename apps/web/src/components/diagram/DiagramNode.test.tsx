@@ -186,6 +186,39 @@ describe("DiagramNode component", () => {
       expect(node.className).toContain("rounded-xl");
     });
 
+    it("renders diamond shape for branching decision node with 2+ outgoing edges", () => {
+      const { container } = renderNode({
+        id: "decision_node",
+        name: "Claim Evaluator",
+        type: "evaluator",
+        edges: [
+          { from: "decision_node", to: "manual_review", flows: "flagged", condition: "risk > 80" },
+          { from: "decision_node", to: "auto_approve", flows: "approved" },
+        ],
+      });
+      const node = screen.getByRole("button", { name: "Node: Claim Evaluator, evaluator" });
+      expect(node.className).toContain("px-7");
+      const polygon = container.querySelector("polygon");
+      expect(polygon).not.toBeNull();
+      // Diamond polygon points start with (110,1)
+      expect(polygon?.getAttribute("points")).toContain("110,1");
+    });
+
+    it("renders agent double ring outline and Agent badge when ai_role is agent", () => {
+      const { container } = renderNode({
+        id: "agent_node",
+        name: "Autonomous Negotiator",
+        type: "agent",
+        ai_role: "agent",
+        tools: ["calculator", "search"],
+      });
+      expect(screen.getByText("Agent")).toBeDefined();
+      expect(screen.getByText("AI model")).toBeDefined();
+      const polygons = container.querySelectorAll("polygon");
+      // Double ring has two polygons (outer hexagon and inner ring)
+      expect(polygons.length).toBe(2);
+    });
+
     it("renders hostile string literally without HTML execution", () => {
       const hostileName = "<script>alert('xss')</script>";
       renderNode({

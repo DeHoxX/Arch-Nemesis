@@ -83,11 +83,13 @@ export function BlockDiagramView({
         id: pn.id,
         name: pn.data.name,
         needs_model: pn.data.needs_model,
+        ai_role: pn.data.ai_role,
         isEntry: entryIds.has(pn.id),
         isExit: exitIds.has(pn.id),
+        edges: spec.edges,
       },
     }));
-  }, [layout.nodes, entryIds, exitIds]);
+  }, [layout.nodes, entryIds, exitIds, spec.edges]);
 
   // Transform layout edges to React Flow Edge structure without flow labels
   const edges: Edge[] = useMemo(() => {

@@ -1,11 +1,13 @@
 """Pydantic models, issue definitions, and limits for ArchitectureSpec validation."""
 
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 DataLabel = Annotated[str, Field(max_length=120)]
+AIRole = Literal["none", "model", "agent"]
+ToolName = Annotated[str, Field(max_length=60)]
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,20 @@ class NodeSpec(BaseModel):
     outputs: list[DataLabel] = Field(default_factory=list, max_length=8)
     tech_options: list[str] = Field(default_factory=list, max_length=5)
     needs_model: bool = False
+    ai_role: AIRole = "none"
+    tools: list[ToolName] = Field(default_factory=list, max_length=5)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sync_ai_role_and_needs_model(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            ai_role = data.get("ai_role")
+            needs_model = data.get("needs_model", False)
+            if ai_role in ("model", "agent"):
+                data["needs_model"] = True
+            elif needs_model is True and (ai_role is None or ai_role == "none"):
+                data["ai_role"] = "model"
+        return data
 
 
 class EdgeSpec(BaseModel):
@@ -39,6 +55,7 @@ class EdgeSpec(BaseModel):
     from_node: str = Field(alias="from")
     to: str
     flows: str = Field(max_length=200)
+    condition: str | None = Field(default=None, max_length=100)
 
 
 class ConstraintSpec(BaseModel):

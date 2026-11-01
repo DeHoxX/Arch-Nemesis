@@ -160,4 +160,49 @@ describe("DetailPanel component", () => {
     await user.click(closeBtn);
     expect(handleClose).toHaveBeenCalledOnce();
   });
+
+  it("displays condition on Sends to target when edge has condition", () => {
+    const specWithCond: ArchitectureSpec = {
+      ...mockSpec,
+      edges: [
+        {
+          from: "intake_portal",
+          to: "reasoning_engine",
+          flows: "payload",
+          condition: "priority == 'urgent'",
+        },
+      ],
+    };
+
+    render(
+      <DetailPanel
+        node={specWithCond.nodes[0] as NodeSpec}
+        spec={specWithCond}
+      />,
+    );
+
+    expect(screen.getByText("Reasoning Engine")).toBeDefined();
+    expect(screen.getByText("(when: priority == 'urgent')")).toBeDefined();
+  });
+
+  it("displays Tools (suggested) section for agent nodes with tools", () => {
+    const agentNode: NodeSpec = {
+      id: "agent_node",
+      name: "Autonomous Researcher",
+      type: "agent",
+      role: "Conducts deep legal and financial analysis",
+      inputs: ["brief"],
+      outputs: ["memo"],
+      tech_options: [],
+      needs_model: true,
+      ai_role: "agent",
+      tools: ["sec_filings_api", "statute_search"],
+    };
+
+    render(<DetailPanel node={agentNode} spec={mockSpec} />);
+
+    expect(screen.getByText("Tools (suggested)")).toBeDefined();
+    expect(screen.getByText("sec_filings_api")).toBeDefined();
+    expect(screen.getByText("statute_search")).toBeDefined();
+  });
 });

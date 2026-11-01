@@ -200,10 +200,23 @@ describe("classifyNode structural classifier", () => {
     });
   });
 
-  describe("classifyNodeShape pure function", () => {
-    it("returns pill for entry node regardless of needs_model", () => {
-      const shape1 = classifyNodeShape({ id: "n1", needs_model: false }, { entry_ids: ["n1"], exit_ids: [] });
-      const shape2 = classifyNodeShape({ id: "n1", needs_model: true }, { entry_ids: ["n1"], exit_ids: [] });
+  describe("classifyNodeShape pure function and priority", () => {
+    it("returns pill for entry node regardless of needs_model or outgoing conditions", () => {
+      const shape1 = classifyNodeShape(
+        { id: "n1", needs_model: false },
+        {
+          entry_ids: ["n1"],
+          exit_ids: [],
+          edges: [
+            { from: "n1", to: "b", flows: "f1", condition: "cond" },
+            { from: "n1", to: "c", flows: "f2" },
+          ],
+        },
+      );
+      const shape2 = classifyNodeShape(
+        { id: "n1", needs_model: true },
+        { entry_ids: ["n1"], exit_ids: [] },
+      );
       expect(shape1).toBe("pill");
       expect(shape2).toBe("pill");
     });
@@ -215,7 +228,62 @@ describe("classifyNode structural classifier", () => {
       expect(shape2).toBe("pill");
     });
 
-    it("returns hexagon for internal needs_model node", () => {
+    it("returns diamond for internal decision node with 2+ outgoing edges and a condition", () => {
+      const shape = classifyNodeShape(
+        { id: "decision_node", needs_model: false },
+        {
+          entry_ids: [],
+          exit_ids: [],
+          edges: [
+            { from: "decision_node", to: "target_a", flows: "flow A", condition: "amount > 10k" },
+            { from: "decision_node", to: "target_b", flows: "flow B" },
+          ],
+        },
+      );
+      expect(shape).toBe("diamond");
+    });
+
+    it("priority: diamond beats hexagon when node has needs_model and branching condition", () => {
+      const shape = classifyNodeShape(
+        { id: "ai_decision", needs_model: true, ai_role: "model" },
+        {
+          entry_ids: [],
+          exit_ids: [],
+          edges: [
+            { from: "ai_decision", to: "out_a", flows: "f1", condition: "high_risk" },
+            { from: "ai_decision", to: "out_b", flows: "f2" },
+          ],
+        },
+      );
+      expect(shape).toBe("diamond");
+    });
+
+    it("does not return diamond if < 2 outgoing edges or no condition", () => {
+      const oneEdgeWithCond = classifyNodeShape(
+        { id: "single_edge", needs_model: false },
+        {
+          entry_ids: [],
+          exit_ids: [],
+          edges: [{ from: "single_edge", to: "target_a", flows: "f1", condition: "cond" }],
+        },
+      );
+      expect(oneEdgeWithCond).toBe("rectangle");
+
+      const twoEdgesNoCond = classifyNodeShape(
+        { id: "two_edges_no_cond", needs_model: false },
+        {
+          entry_ids: [],
+          exit_ids: [],
+          edges: [
+            { from: "two_edges_no_cond", to: "a", flows: "f1" },
+            { from: "two_edges_no_cond", to: "b", flows: "f2" },
+          ],
+        },
+      );
+      expect(twoEdgesNoCond).toBe("rectangle");
+    });
+
+    it("returns hexagon for internal needs_model node without decision edges", () => {
       const shape = classifyNodeShape({ id: "n3", needs_model: true }, { entry_ids: [], exit_ids: [] });
       expect(shape).toBe("hexagon");
     });
@@ -223,6 +291,22 @@ describe("classifyNode structural classifier", () => {
     it("returns rectangle for internal plain code node", () => {
       const shape = classifyNodeShape({ id: "n4", needs_model: false }, { entry_ids: [], exit_ids: [] });
       expect(shape).toBe("rectangle");
+    });
+  });
+
+  describe("Agent classification and badges", () => {
+    it("adds Agent badge and AI model badge when ai_role is agent", () => {
+      const agentNode = createMockNode({
+        id: "agent_node",
+        ai_role: "agent",
+        tools: ["tool1"],
+      });
+      const spec = { entry_ids: [], exit_ids: [], constraints: [] };
+      const res = classifyNode(agentNode, spec);
+      expect(res.badges).toContain("AI model");
+      expect(res.badges).toContain("Agent");
+      expect(res.borderColor).toBe("amber");
+      expect(res.shape).toBe("hexagon");
     });
   });
 });

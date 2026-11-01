@@ -74,4 +74,16 @@ def check_lints(spec: ArchitectureSpec) -> list[ValidationIssue]:
     # 6. W_CODE_REPAIR_APPLIED: Preserved if already present or checked on spec
     # (Produced by repair.patch_constraints)
 
+    # 7. W_AGENT_WITHOUT_TOOLS: Agent node lists no tools
+    for node in spec.nodes:
+        if node.ai_role == "agent" and not node.tools:
+            warnings.append(
+                ValidationIssue(
+                    code="W_AGENT_WITHOUT_TOOLS",
+                    severity="warning",
+                    message=f"Agent node '{node.id}' is declared as an agent but lists no tools.",
+                    ids=[node.id],
+                )
+            )
+
     return warnings

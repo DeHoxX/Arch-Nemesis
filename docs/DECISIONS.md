@@ -1545,6 +1545,30 @@ If we removed it: Diagram nodes in both technical and block views would remain i
 Decided by: agent proposed, user approved
 Status: active
 
+### D-184 — v2 Stage B4b — deviation
+What: Extend EdgeSpec with optional condition and NodeSpec with ai_role and tools while syncing needs_model.
+Why: Branching decision architectures require labeled condition paths (e.g. "claim > $10k") and agentic systems require differentiating single-prompt model calls from multi-step tool-using agents. We added optional condition (str | None, max 100) to EdgeSpec, and ai_role (none | model | agent) and tools (list[str], max 5 items, max 60 chars each) to NodeSpec. Using model_validator(mode="before"), needs_model is bidirectionally synchronized so older stored designs without ai_role parse with 100% backward compatibility.
+Alternatives considered: Removing needs_model entirely. Rejected because it would break existing database records and API consumers.
+If we removed it: Decision branches would lack condition labels and agentic workflows could not be modeled with toolsets.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-185 — v2 Stage B4b — decision
+What: Add non-blocking warning lint W_AGENT_WITHOUT_TOOLS and update contracts.md.
+Why: If a node is explicitly configured as an autonomous agent (ai_role: "agent"), it should declare the specific toolsets it utilizes. We added W_AGENT_WITHOUT_TOOLS ("Agent node '{id}' is declared as an agent but lists no tools.") to validation models, lints, and contracts.md. Following lints.py conventions, it produces a non-blocking diagnostic warning under Notes without failing validation.
+Alternatives considered: Making missing tools a blocking validation error. Rejected because it would exhaust repair budgets on early drafts.
+If we removed it: Agents declared without tools would pass without highlighting missing integrations.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-186 — v2 Stage B4b — deviation
+What: Introduce diamond decision nodes, agent double rings, and condition badges in the frontend.
+Why: To reflect edge conditions and agentic roles on the interactive canvas without violating Rule 3 (no type-based styling). We added diamond card shapes for nodes with 2+ outgoing edges where at least one edge has a condition, double-ring outlines and "Agent" badges for ai_role="agent", condition badges on edge paths, and "Tools (suggested)" sections in DetailPanel. Classify priority is strictly: entry/exit pill > diamond decision > hexagon AI > rectangle code.
+Alternatives considered: Using different background colors for decisions and agents. Rejected per user mandate to preserve the four core plan colors.
+If we removed it: Visual branching decisions and agentic distinction would not be visible on the canvas.
+Decided by: agent proposed, user approved
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

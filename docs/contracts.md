@@ -14,12 +14,12 @@ These are the load-bearing decisions. Changing them later means rewriting valida
 
 ### ArchitectureSpec (module validation, pure Pydantic)
 
-- `nodes`: `{id, name, type, role, inputs[], outputs[], tech_options[] (optional), needs_model (bool)}`. `id` matches `^[a-z][a-z0-9_]{1,40}$`. `name` max 60, `type` max 40 (free text), `role` max 300, each input or output max 120, max 8 each, max 5 tech_options.
+- `nodes`: `{id, name, type, role, inputs[], outputs[], tech_options[] (optional), needs_model (bool), ai_role (none|model|agent), tools[]}`. `id` matches `^[a-z][a-z0-9_]{1,40}$`. `name` max 60, `type` max 40 (free text), `role` max 300, each input or output max 120, max 8 each, max 5 tech_options. `ai_role` is `"none"`, `"model"`, or `"agent"` (default `"none"`). `tools` has max 5 items, each max 60 characters. `needs_model` is synchronized: `model` or `agent` sets `needs_model=true`.
   - `inputs` and `outputs` are short free-text data/payload labels describing what a component consumes or emits (e.g. "user query", "order event"). They are NOT node IDs.
   - Diagram connectivity comes ONLY from `edges`.
   - Phase 4 detail panel must derive "Connected from / Sends to" from diagram `edges`, displaying `inputs`/`outputs` as data labels.
   - Phase 5 walkthrough may use `edges` for connected component names.
-- `edges`: `{from, to, flows}`. `flows` max 200. No self-loops, no duplicate `(from, to)`.
+- `edges`: `{from, to, flows, condition (optional)}`. `flows` max 200. `condition` max 100 characters. No self-loops, no duplicate `(from, to)`.
 - `constraints`: `{id, text, kind, node_id (optional), a (optional), b (optional), covers[]}`. `covers` lists the brief constraint ids this one satisfies.
 - `entry_ids[]`, `exit_ids[]`.
 - Limits (configurable constants): more than 25 nodes or 60 edges is an error (`E_NODE_LIMIT`, `E_EDGE_LIMIT`); fewer than 3 nodes is only a warning (`W_TOO_FEW_NODES`).
@@ -41,7 +41,7 @@ A user requirement that fits no kind goes to `unverifiable_requirements`. It is 
 Each error carries a code, a plain message and the ids involved.
 
 ### Lints (warnings, never block)
-`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`, `W_NO_AI_NODE`, `W_CODE_REPAIR_APPLIED`.
+`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`, `W_NO_AI_NODE`, `W_CODE_REPAIR_APPLIED`, `W_AGENT_WITHOUT_TOOLS`.
 Shown as "Notes".
 
 ### Stored per design version

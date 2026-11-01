@@ -2,7 +2,7 @@ import React from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
 import { Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { ConstraintSpec, NodeSpec } from "@/lib/types";
+import type { ConstraintSpec, EdgeSpec, NodeSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { type BorderColor, classifyNode } from "./classify";
 
@@ -10,6 +10,7 @@ export type DiagramNodeData = NodeSpec & {
   entry_ids: string[];
   exit_ids: string[];
   constraints: ConstraintSpec[];
+  edges?: EdgeSpec[];
   onSelect?: (id: string) => void;
   [key: string]: unknown;
 };
@@ -31,15 +32,16 @@ const strokeColorMap: Record<BorderColor, string> = {
 /**
  * Custom Diagram Node card.
  *
- * Requirements (BUILD_PLAN.md:436-439 & B4a):
+ * Requirements (BUILD_PLAN.md:436-439, B4a & B4b):
  * - Fixed 220 by 72 pixels.
  * - Shapes by structure:
  *   1. entry_ids or exit_ids -> pill
- *   2. needs_model true -> hexagon
- *   3. otherwise -> rectangle
+ *   2. diamond decision -> diamond
+ *   3. needs_model true (or ai_role model/agent) -> hexagon (with agent double ring)
+ *   4. otherwise -> rectangle
  * - Name and role truncated (long unbroken strings must not break the card).
  * - Type text shown as small grey text and NEVER changes any style.
- * - Badges: Entry, Exit, AI model (from classify.ts).
+ * - Badges: Entry, Exit, AI model, Agent (from classify.ts).
  * - Border colour by priority: entry emerald, exit violet, needs_model amber, otherwise slate.
  * - Lock icon when node is named in any constraint.
  * - Focusable with tabIndex={0}, aria-label="Node: {name}, {type}".
@@ -52,10 +54,13 @@ export function DiagramNode({
     entry_ids: data.entry_ids || [],
     exit_ids: data.exit_ids || [],
     constraints: data.constraints || [],
+    edges: data.edges || [],
   });
 
   const isHexagon = shape === "hexagon";
+  const isDiamond = shape === "diamond";
   const isPill = shape === "pill";
+  const isAgent = data.ai_role === "agent";
 
   return (
     <div
@@ -72,14 +77,15 @@ export function DiagramNode({
       }}
       className={cn(
         "relative flex h-[72px] w-[220px] select-none flex-col justify-between text-card-foreground transition-all outline-none",
-        !isHexagon && "bg-card p-2.5",
-        !isHexagon && (isPill ? "rounded-full px-5 border" : "rounded-xl border p-2.5"),
-        !isHexagon && borderClassMap[borderColor],
+        !isHexagon && !isDiamond && "bg-card p-2.5",
+        !isHexagon && !isDiamond && (isPill ? "rounded-full px-5 border" : "rounded-xl border p-2.5"),
+        !isHexagon && !isDiamond && borderClassMap[borderColor],
         isHexagon && "px-6 py-2.5",
+        isDiamond && "px-7 py-2.5",
         selected
           ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
           : "hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        isHexagon && selected && "rounded-xl",
+        (isHexagon || isDiamond) && selected && "rounded-xl",
       )}
     >
       {/* Hexagon SVG background & border outline */}
@@ -92,6 +98,34 @@ export function DiagramNode({
         >
           <polygon
             points="18,1 202,1 219,36 202,71 18,71 1,36"
+            className="fill-card transition-colors"
+            stroke={strokeColorMap[borderColor]}
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+          />
+          {isAgent && (
+            <polygon
+              points="21,5 199,5 214,36 199,67 21,67 6,36"
+              className="fill-none"
+              stroke={strokeColorMap[borderColor]}
+              strokeWidth="1"
+              strokeLinejoin="round"
+              opacity="0.75"
+            />
+          )}
+        </svg>
+      )}
+
+      {/* Diamond SVG background & border outline */}
+      {isDiamond && (
+        <svg
+          className="absolute inset-0 size-full pointer-events-none -z-10"
+          viewBox="0 0 220 72"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <polygon
+            points="110,1 219,36 110,71 1,36"
             className="fill-card transition-colors"
             stroke={strokeColorMap[borderColor]}
             strokeWidth="1.5"
@@ -139,6 +173,7 @@ export function DiagramNode({
                 b === "Entry" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
                 b === "Exit" && "border-violet-500/50 text-violet-400 bg-violet-500/10",
                 b === "AI model" && "border-amber-500/50 text-amber-400 bg-amber-500/10",
+                b === "Agent" && "border-amber-500/50 text-amber-300 bg-amber-500/20",
               )}
             >
               {b}

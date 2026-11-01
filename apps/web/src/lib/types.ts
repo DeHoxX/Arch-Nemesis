@@ -47,12 +47,15 @@ export interface NodeSpec {
   outputs: string[];
   tech_options: string[];
   needs_model: boolean;
+  ai_role?: "none" | "model" | "agent";
+  tools?: string[];
 }
 
 export interface EdgeSpec {
   from: string;
   to: string;
   flows: string;
+  condition?: string | null;
 }
 
 export interface ConstraintSpec {

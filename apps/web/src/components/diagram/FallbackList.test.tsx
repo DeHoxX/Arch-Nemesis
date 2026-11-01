@@ -78,6 +78,27 @@ describe("FallbackList component", () => {
     expect(screen.getByText("None (exit node)")).toBeDefined();
   });
 
+  it("displays condition on Sends to target in fallback list when condition exists", () => {
+    const specWithCond: ArchitectureSpec = {
+      ...mockSpec,
+      edges: [
+        { from: "node_a", to: "node_b", flows: "stream", condition: "latency > 50ms" },
+        { from: "node_b", to: "node_c", flows: "score" },
+      ],
+    };
+
+    render(
+      <FallbackList
+        spec={specWithCond}
+        flowOrder={["node_a", "node_b", "node_c"]}
+      />,
+    );
+
+    expect(
+      screen.getByText("Analysis Worker (when: latency > 50ms)", { selector: "span" }),
+    ).toBeDefined();
+  });
+
   it("displays AI model badge for model-using components", () => {
     render(
       <FallbackList

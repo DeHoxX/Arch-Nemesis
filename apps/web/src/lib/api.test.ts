@@ -3,6 +3,8 @@ import {
   ApiError,
   apiErrorEnvelopeSchema,
   designResponseSchema,
+  edgeSpecSchema,
+  nodeSpecSchema,
 } from "./api";
 
 const VALID_DESIGN_FIXTURE = {
@@ -184,6 +186,39 @@ describe("api client Zod schema parsing", () => {
       expect(err.status).toBe(422);
       expect(err.code).toBe("DESIGN_FAILED");
       expect(err.issues).toHaveLength(2);
+    }
+  });
+
+  it("parses NodeSpec and EdgeSpec with optional condition, ai_role, and tools", () => {
+    const nodePayload = {
+      id: "agent_evaluator",
+      name: "Agent Evaluator",
+      type: "agent",
+      role: "Autonomous review agent",
+      inputs: ["contract_doc"],
+      outputs: ["risk_verdict"],
+      tech_options: [],
+      needs_model: true,
+      ai_role: "agent",
+      tools: ["code_interpreter", "legal_search"],
+    };
+    const nodeResult = nodeSpecSchema.safeParse(nodePayload);
+    expect(nodeResult.success).toBe(true);
+    if (nodeResult.success) {
+      expect(nodeResult.data.ai_role).toBe("agent");
+      expect(nodeResult.data.tools).toEqual(["code_interpreter", "legal_search"]);
+    }
+
+    const edgePayload = {
+      from: "agent_evaluator",
+      to: "review_queue",
+      flows: "risk dossier",
+      condition: "score > 85",
+    };
+    const edgeResult = edgeSpecSchema.safeParse(edgePayload);
+    expect(edgeResult.success).toBe(true);
+    if (edgeResult.success) {
+      expect(edgeResult.data.condition).toBe("score > 85");
     }
   });
 });

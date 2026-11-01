@@ -46,7 +46,10 @@ export function DetailPanel({
 
   const sendsTo = spec.edges
     .filter((e) => e.from === node.id)
-    .map((e) => nodeMap.get(e.to) ?? e.to);
+    .map((e) => ({
+      name: nodeMap.get(e.to) ?? e.to,
+      condition: e.condition,
+    }));
 
   // 7. Rules this part takes part in (matching constraint lock logic)
   const participatingRules = spec.constraints.filter(
@@ -112,9 +115,14 @@ export function DetailPanel({
             </h4>
             {sendsTo.length > 0 ? (
               <ul className="mt-1 list-disc list-inside text-foreground space-y-0.5">
-                {sendsTo.map((tgtName, idx) => (
-                  <li key={`${tgtName}-${idx}`} className="break-words">
-                    {tgtName}
+                {sendsTo.map((target, idx) => (
+                  <li key={`${target.name}-${idx}`} className="break-words">
+                    {target.name}
+                    {target.condition && (
+                      <span className="text-muted-foreground text-xs ml-1 font-mono">
+                        (when: {target.condition})
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -170,6 +178,25 @@ export function DetailPanel({
                 {node.tech_options.map((opt, idx) => (
                   <li key={`${opt}-${idx}`} className="break-words">
                     {opt}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+
+        {/* Tools (suggested) for agents */}
+        {node.ai_role === "agent" && node.tools && node.tools.length > 0 && (
+          <>
+            <Separator />
+            <div>
+              <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                Tools (suggested)
+              </h4>
+              <ul className="mt-1 list-disc list-inside text-foreground space-y-0.5">
+                {node.tools.map((t, idx) => (
+                  <li key={`${t}-${idx}`} className="break-words">
+                    {t}
                   </li>
                 ))}
               </ul>

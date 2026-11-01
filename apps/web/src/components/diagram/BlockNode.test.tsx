@@ -117,6 +117,22 @@ describe("BlockNode component", () => {
       expect(el.className).toContain("rounded-lg");
     });
 
+    it("renders diamond shape for decision node in block view", () => {
+      const { container } = renderBlockNode({
+        isEntry: false,
+        isExit: false,
+        edges: [
+          { from: "node_1", to: "b", flows: "f1", condition: "risk > 50" },
+          { from: "node_1", to: "c", flows: "f2" },
+        ],
+      });
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("px-7");
+      const polygon = container.querySelector("polygon");
+      expect(polygon).not.toBeNull();
+      expect(polygon?.getAttribute("points")).toContain("110,1");
+    });
+
     it("renders hostile string literally without HTML execution", () => {
       const hostileName = "<img src=x onerror=alert(1) />";
       renderBlockNode({ name: hostileName });
