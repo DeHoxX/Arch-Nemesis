@@ -14,6 +14,7 @@ from archnemesis.modules.validation.models import (
     ValidationResult,
 )
 from archnemesis.modules.validation.ordering import order_nodes
+from archnemesis.modules.validation.repair import patch_constraints
 from archnemesis.modules.validation.validate import parse_and_validate, validate
 
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "ValidationResult",
     "order_nodes",
     "parse_and_validate",
+    "patch_constraints",
     "validate",
 ]

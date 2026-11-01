@@ -71,4 +71,7 @@ def check_lints(spec: ArchitectureSpec) -> list[ValidationIssue]:
             )
         )
 
+    # 6. W_CODE_REPAIR_APPLIED: Preserved if already present or checked on spec
+    # (Produced by repair.patch_constraints)
+
     return warnings

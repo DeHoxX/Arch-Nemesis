@@ -37,4 +37,5 @@ Shape reference only. Do not copy these names or types; invent names for the use
 ## Invariant Constraints
 - `must_pass_through`: all user traffic must pass through `input_filter`.
 - `must_precede`: `task_dispatcher` must precede `join_aggregator`.
+- Auxiliary audit, logging, or telemetry sinks must be fed after the checkpoint node, not before.
 

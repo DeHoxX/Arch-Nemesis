@@ -41,7 +41,7 @@ A user requirement that fits no kind goes to `unverifiable_requirements`. It is 
 Each error carries a code, a plain message and the ids involved.
 
 ### Lints (warnings, never block)
-`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`, `W_NO_AI_NODE`.
+`W_MODEL_NODE_NO_INPUTS`, `W_NODE_NO_OUTPUTS`, `W_TOO_FEW_NODES`, `W_DUP_NODE_NAME`, `W_NO_AI_NODE`, `W_CODE_REPAIR_APPLIED`.
 Shown as "Notes".
 
 ### Stored per design version

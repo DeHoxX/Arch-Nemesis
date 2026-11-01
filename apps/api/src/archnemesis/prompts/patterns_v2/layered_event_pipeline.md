@@ -33,4 +33,5 @@ Shape reference only. Do not copy these names or types; invent names for the use
 ## Invariant Constraints
 - `must_pass_through`: all events must pass through `buffer_queue`.
 - `must_precede`: `consumer_worker` must precede `notification_dispatcher`.
+- Auxiliary audit, logging, or telemetry sinks must be fed after the checkpoint node, not before.
 

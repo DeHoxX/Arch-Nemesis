@@ -1505,6 +1505,38 @@ If we removed it: The LLM few-shot context would continue to bias generation tow
 Decided by: agent proposed, user approved
 Status: active
 
+### D-179 — v2 Stage B2 — step
+What: Implement structured design_attempt, design_created, and code_repair event logging.
+Why: BUILD_PLAN.md line 413 mandates structured logging events for generation attempts and design creations. We implemented design_attempt logging (attempt number, issue codes only) in architect/service.py after every validation check, design_created logging (design_id, node count, prompt version, model names) in designs/service.py, and code_repair logging (constraint ids, edges added count) when graph repair executes. Following Rule 6 and Rule 10, no user prompt text or raw LLM output is ever logged.
+Alternatives considered: Logging full validation errors and prompt snippets. Rejected because user text is untrusted data and must remain out of log files.
+If we removed it: Generation attempts and repair iterations would lack observable telemetry, making 422 diagnostic debugging impossible in production.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-180 — v2 Stage B2 — design
+What: Refine architect_v2.md, architect_repair_v2.md, and patterns_v2 with bottleneck routing and auxiliary sink guidelines.
+Why: In branched architectures, LLM models frequently create parallel bypasses around required checkpoints (e.g. claim approval bypassing fraud detection) or mark early telemetry/audit sinks as exits, violating must_pass_through. We added an explicit Priority F reminder to architect_v2.md, updated architect_repair_v2.md with plain-language definitions and concrete graph rewiring instructions for all four constraint kinds, and added explicit instructions to patterns_v2 ensuring auxiliary sinks are fed after checkpoint nodes.
+Alternatives considered: Relying only on raw error messages without graph-theoretic guidance. Rejected because the model repeatedly reintroduced bypasses.
+If we removed it: The model would continue to exhaust repair attempts on complex requirements with parallel branches.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-181 — v2 Stage B2 — fix
+What: Introduce pure deterministic patch_constraints graph repair module in validation.
+Why: To eliminate generation failures on complex branched briefs while respecting Rule 1 (code validates structure; LLM designs initial structure; code patches only to satisfy constraints). When must_pass_through or must_precede is violated by a bypass path, patch_constraints deterministically reroutes bypass edges through the required node using fixed neutral flows text ("Forward payload for verification"). The repair enforces cycle safety (NetworkX DAG check), edge limits (max 60), and exit-sink protection (structural sinks with out-degree 0 are fed downstream rather than converted to bottlenecks). Full validation runs immediately after patching.
+Alternatives considered: Falling back to linear v1 prompt generation on repeated failure. Rejected because v1 linear chains destroy rich multi-agent structure.
+If we removed it: Complex agentic architectures with parallel branches would frequently fail validation with 422 DESIGN_FAILED.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-182 — v2 Stage B2 — deviation
+What: Add non-blocking warning lint W_CODE_REPAIR_APPLIED and update contracts.md.
+Why: Full user transparency requires notifying the user whenever automated graph alignment patches a specification. We added W_CODE_REPAIR_APPLIED to validation models, lints, and contracts.md with a fixed message template ("Constraint '{constraint_id}' satisfied by automated graph alignment: routed {count} edge(s) through '{target_id}'."). Prompt versions for repaired designs record "architect_v2+code_repair" or "architect_v2+architect_repair_v2+code_repair".
+Alternatives considered: Silently applying code graph patches without user-visible notification. Rejected because Rule 12 and project transparency require disclosing all automated graph adjustments.
+If we removed it: Users would have no indication that edge routing was adjusted by deterministic code repair rather than the LLM.
+Decided by: agent proposed, user approved
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

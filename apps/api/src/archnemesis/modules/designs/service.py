@@ -2,6 +2,7 @@
 
 import json
 
+import structlog
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,8 @@ from archnemesis.modules.validation.models import ArchitectureSpec
 from archnemesis.modules.validation.ordering import order_nodes
 from archnemesis.settings import get_settings
 from archnemesis.shared.brief import RequirementBrief
+
+logger = structlog.get_logger()
 
 
 async def create_design(
@@ -67,13 +70,14 @@ async def create_design(
     brief = RequirementBrief.model_validate(brief_dict)
 
     # 4. Generate architecture via architect service
-    spec, prompt_version, _ = await architect_service.generate_and_validate(brief, llm)
+    spec, prompt_version, _, val_res = await architect_service.generate_and_validate(brief, llm)
 
     # 5. Save design and version 1 with concurrency protection
     settings = get_settings()
     models_dict = {"architect": settings.llm_model_architect or ""}
 
     try:
+        warnings_to_store = [w.message for w in val_res.warnings] if val_res else []
         design, version = await repo.create_design(
             db=db,
             session_id=request.session_id,
@@ -81,6 +85,14 @@ async def create_design(
             spec_dict=spec.model_dump(by_alias=True),
             prompt_version=prompt_version,
             models_dict=models_dict,
+            warnings=warnings_to_store,
+        )
+        logger.info(
+            "design_created",
+            design_id=design.id,
+            node_count=len(spec.nodes),
+            prompt_version=prompt_version,
+            models=list(models_dict.values()),
         )
         await intake_repo.update_session_status(db, request.session_id, "designed")
     except IntegrityError:

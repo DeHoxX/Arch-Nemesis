@@ -31,4 +31,5 @@ Shape reference only. Do not copy these names or types; invent names for the use
 ## Invariant Constraints
 - `must_pass_through`: all user traffic must pass through `input_guard`.
 - `must_precede`: `candidate_generator` must precede `output_guardrail`.
+- Auxiliary audit, logging, or telemetry sinks must be fed after the checkpoint node, not before.
 

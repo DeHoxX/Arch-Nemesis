@@ -33,6 +33,7 @@ ALL_CODES = {
     "W_TOO_FEW_NODES",
     "W_DUP_NODE_NAME",
     "W_NO_AI_NODE",
+    "W_CODE_REPAIR_APPLIED",
 }
 
 TEMPLATE_PATTERNS = {
@@ -61,6 +62,7 @@ TEMPLATE_PATTERNS = {
     "W_TOO_FEW_NODES": r"^The design has only \d+ nodes; most real systems need more parts\.$",
     "W_DUP_NODE_NAME": r"^Nodes '[^']+' and '[^']+' have the same name\.$",
     "W_NO_AI_NODE": r"^No node in the architecture is marked as using an AI model \(needs_model: true\)\.$",
+    "W_CODE_REPAIR_APPLIED": r"^Constraint '[^']+' satisfied by automated graph alignment: routed \d+ edge\(s\) through '[^']+'\.$",
 }
 
 
@@ -89,7 +91,9 @@ def test_every_code_produced_by_fixture_and_matches_template() -> None:
                 f"Message: {issue.message}\nPattern: {pattern}"
             )
 
-    missing_codes = ALL_CODES - observed_codes
+    # W_CODE_REPAIR_APPLIED is produced dynamically by patch_constraints (tested in test_repair.py)
+    # rather than statically by an error fixture in broken/ or lints/
+    missing_codes = (ALL_CODES - {"W_CODE_REPAIR_APPLIED"}) - observed_codes
     assert not missing_codes, (
         f"The following codes were not produced by any broken fixture: {missing_codes}"
     )

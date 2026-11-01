@@ -1,5 +1,7 @@
 """Comprehensive tests for architecture designs generation and retrieval."""
 
+import json
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -238,7 +240,10 @@ async def test_create_design_idempotency_returns_existing(
         == data2["brief"]["unverifiable_requirements"]
         == ["Latency must feel instant"]
     )
-    assert data1["warnings"] == data2["warnings"] == []
+    expected_no_ai_warning = [
+        "No node in the architecture is marked as using an AI model (needs_model: true)."
+    ]
+    assert data1["warnings"] == data2["warnings"] == expected_no_ai_warning
 
 
 @pytest.mark.asyncio
@@ -307,7 +312,10 @@ async def test_get_design_by_id_success_and_missing_404(
         assert data["brief"]["unverifiable_requirements"] == ["Latency must feel instant"]
         assert "warnings" in data
         assert isinstance(data["warnings"], list)
-        assert data["warnings"] == []
+        expected_no_ai_warning = [
+            "No node in the architecture is marked as using an AI model (needs_model: true)."
+        ]
+        assert data["warnings"] == expected_no_ai_warning
         assert data["flow_order"] == ["ingress", "worker", "db_sink"]
 
         # Missing design
@@ -393,3 +401,67 @@ async def test_create_design_llm_errors_return_friendly_envelope_and_store_nothi
 
     # Assert logs contain no user text
     assert secret_text not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_designs_logs_design_created(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
+    secret_summary = "Audit logging unique secret summary 12345"
+    brief = RequirementBrief(
+        summary=secret_summary,
+        users="Audit Team",
+        data_involved=["Telemetry"],
+        domain_hint="Observability",
+        stated_constraints=[BriefConstraint(id="bc1", text="Worker must process orders")],
+        unverifiable_requirements=[],
+        numbers_given=[],
+        assumptions=[],
+    )
+    async with temp_db_session_factory() as session:
+        db_session = await intake_repo.create_session(session, transcript=[], status="collecting")
+        await intake_repo.update_session(
+            db=session,
+            session=db_session,
+            transcript=[],
+            brief=brief.model_dump(by_alias=True),
+            status="ready",
+        )
+
+    fake_llm = FakeLLMClient([VALID_SPEC_DICT])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post("/api/designs", json={"session_id": db_session.id})
+
+    assert res.status_code == 200, res.text
+
+    # Guard against vacuous truth on empty log records
+    assert len(caplog.records) > 0, "Expected non-empty log output from design creation"
+
+    # Parse JSON from each record.getMessage()
+    records: list[dict[str, Any]] = []
+    for r in caplog.records:
+        msg = r.getMessage()
+        # Assert no user text appears in the logs
+        assert secret_summary not in msg
+        try:
+            records.append(json.loads(msg))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    assert len(records) > 0, "Expected valid JSON log lines from structlog"
+    created_events = [r for r in records if r.get("event") == "design_created"]
+    assert len(created_events) == 1, f"Expected 1 design_created event, found: {records}"
+    event_payload = created_events[0]
+
+    # Check required fields
+    assert "design_id" in event_payload
+    assert event_payload["node_count"] == 3
+    assert event_payload["prompt_version"] == "architect_v2"
+    assert "models" in event_payload
+    assert isinstance(event_payload["models"], list)

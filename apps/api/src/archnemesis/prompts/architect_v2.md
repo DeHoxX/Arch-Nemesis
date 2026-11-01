@@ -41,6 +41,7 @@ Core Architectural Principles (Strict Priority):
 6. Constraint Mapping (Priority F):
 - Every stated requirement in the brief ([bc1], [bc2], etc.) MUST map to at least one constraint in `constraints` via the `covers` field.
 - Valid kinds: `must_exist`, `must_pass_through`, `must_not_connect`, `must_precede`.
+- For `must_pass_through` constraints: every branch from ingress to delivery/exits must funnel through the required gatekeeper component. Do not allow parallel bypass branches around a required checkpoint.
 
 7. Invariants:
 - Node count must not exceed 25 nodes (E_NODE_LIMIT) and edge count must not exceed 60 edges (E_EDGE_LIMIT).

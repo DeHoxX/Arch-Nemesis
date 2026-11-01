@@ -1,14 +1,21 @@
 """Service layer for architecture generation and multi-step validation repair loop."""
 
+from __future__ import annotations
+
 import json
+
+import structlog
 
 from archnemesis.errors import DesignFailedError, LLMNotConfiguredError
 from archnemesis.llm.base import LLMClient, LLMNotConfigured, LLMTask
-from archnemesis.modules.validation.models import ArchitectureSpec, Limits
-from archnemesis.modules.validation.validate import parse_and_validate
+from archnemesis.modules.validation.models import ArchitectureSpec, Limits, ValidationResult
+from archnemesis.modules.validation.repair import patch_constraints
+from archnemesis.modules.validation.validate import parse_and_validate, validate
 from archnemesis.prompts import load_patterns, load_prompt
 from archnemesis.settings import get_settings
 from archnemesis.shared.brief import RequirementBrief
+
+logger = structlog.get_logger()
 
 MAX_ARCHITECT_CALLS: int = 3
 ARCHITECT_PROMPT_NAME: str = "architect_v2"
@@ -43,11 +50,11 @@ def _format_brief_prompt(brief: RequirementBrief) -> str:
 async def generate_and_validate(
     brief: RequirementBrief,
     llm: LLMClient,
-) -> tuple[ArchitectureSpec, str, int]:
+) -> tuple[ArchitectureSpec, str, int, ValidationResult | None]:
     """Generate an ArchitectureSpec with an automated repair loop capped at 3 calls total.
 
     Returns:
-        (ArchitectureSpec, prompt_version, total_calls_used)
+        (ArchitectureSpec, prompt_version, total_calls_used, validation_result)
     """
     settings = get_settings()
     if not settings.llm_model_architect:
@@ -79,8 +86,37 @@ async def generate_and_validate(
         raise LLMNotConfiguredError(str(exc)) from exc
 
     spec, result = parse_and_validate(raw_output, brief_constraints, limits)
+    logger.info("design_attempt", attempt=1, issue_codes=[err.code for err in result.errors])
+
     if result.ok and spec is not None:
-        return spec, ARCHITECT_PROMPT_NAME, 1
+        return spec, ARCHITECT_PROMPT_NAME, 1, result
+
+    # Attempt deterministic code repair after Call 1 failure
+    if spec is not None:
+        patched_spec, repair_warnings = patch_constraints(spec, brief_constraints, limits)
+        if repair_warnings:
+            patched_result = validate(patched_spec, brief_constraints, limits)
+            repaired_c_ids = [w.ids[0] for w in repair_warnings if w.ids]
+            logger.info(
+                "code_repair",
+                attempt=1,
+                constraint_ids=repaired_c_ids,
+                edges_added_count=len(patched_spec.edges) - len(spec.edges),
+            )
+            if patched_result.ok:
+                # Merge repair warnings into result warnings
+                merged_warnings = list(patched_result.warnings) + repair_warnings
+                final_result = ValidationResult(
+                    errors=patched_result.errors,
+                    warnings=merged_warnings,
+                    skipped=patched_result.skipped,
+                )
+                return (
+                    spec.model_validate(patched_spec.model_dump()),
+                    f"{ARCHITECT_PROMPT_NAME}+code_repair",
+                    1,
+                    final_result,
+                )
 
     last_raw = raw_output
     last_errors = [err.message for err in result.errors]
@@ -113,8 +149,43 @@ async def generate_and_validate(
             raise LLMNotConfiguredError(str(exc)) from exc
 
         spec, result = parse_and_validate(raw_output, brief_constraints, limits)
+        logger.info(
+            "design_attempt",
+            attempt=call_idx,
+            issue_codes=[err.code for err in result.errors],
+        )
+
         if result.ok and spec is not None:
-            return spec, f"{ARCHITECT_PROMPT_NAME}+{ARCHITECT_REPAIR_PROMPT_NAME}", call_idx
+            return spec, f"{ARCHITECT_PROMPT_NAME}+{ARCHITECT_REPAIR_PROMPT_NAME}", call_idx, result
+
+        # Attempt deterministic code repair after repair call failure
+        if spec is not None:
+            patched_spec, repair_warnings = patch_constraints(spec, brief_constraints, limits)
+            if repair_warnings:
+                patched_result = validate(patched_spec, brief_constraints, limits)
+                repaired_c_ids = [w.ids[0] for w in repair_warnings if w.ids]
+                logger.info(
+                    "code_repair",
+                    attempt=call_idx,
+                    constraint_ids=repaired_c_ids,
+                    edges_added_count=len(patched_spec.edges) - len(spec.edges),
+                )
+                if patched_result.ok:
+                    merged_warnings = list(patched_result.warnings) + repair_warnings
+                    final_result = ValidationResult(
+                        errors=patched_result.errors,
+                        warnings=merged_warnings,
+                        skipped=patched_result.skipped,
+                    )
+                    version_label = (
+                        f"{ARCHITECT_PROMPT_NAME}+{ARCHITECT_REPAIR_PROMPT_NAME}+code_repair"
+                    )
+                    return (
+                        spec.model_validate(patched_spec.model_dump()),
+                        version_label,
+                        call_idx,
+                        final_result,
+                    )
 
         last_raw = raw_output
         last_errors = [err.message for err in result.errors]

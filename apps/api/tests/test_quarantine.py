@@ -188,7 +188,7 @@ async def test_architect_first_call_quarantines_injection() -> None:
         assumptions=[],
     )
     fake_llm = FakeLLMClient([VALID_SPEC])
-    spec, prompt_version, calls_used = await architect_service.generate_and_validate(
+    spec, prompt_version, calls_used, _ = await architect_service.generate_and_validate(
         hostile_brief, fake_llm
     )
 
