@@ -1,6 +1,6 @@
 """Shared test fixtures and helpers for backend tests."""
 
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +10,30 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.db.engine import create_engine_and_session
 from archnemesis.db.tables import Base
+from archnemesis.settings import Settings, get_settings
+
+
+@pytest.fixture(autouse=True)
+def isolate_settings_from_env_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[None, None, None]:
+    """Ensure all backend tests run hermetically isolated from developer local .env file."""
+    # 1. Prevent Pydantic from reading on-disk .env file
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+    # 2. Provide dummy test model names so services don't fail with LLM_NOT_CONFIGURED
+    monkeypatch.setenv("LLM_MODEL_INTAKE", "test-model")
+    monkeypatch.setenv("LLM_MODEL_ARCHITECT", "test-model")
+    monkeypatch.setenv("LLM_MODEL_WRITER", "test-model")
+
+    # 3. Ensure secrets and credentials remain unset by default
+    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+
+    # 4. Clear cached settings before and after each test
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 def error_body(response: httpx.Response) -> dict[str, Any]:

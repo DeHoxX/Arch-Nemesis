@@ -1449,6 +1449,22 @@ If we removed it: Users would rely on an inconsistent print mechanism that omits
 Decided by: agent proposed, user approved
 Status: active (supersedes D-165, D-167)
 
+### D-172 — Phase 6 — fix
+What: Isolate backend test suite from developer local .env files via autouse conftest fixture.
+Why: `Settings` configures `model_config = SettingsConfigDict(env_file=".env")` so production applications read `.env`. In tests, calling `monkeypatch.delenv("ADMIN_TOKEN")` removed the variable from `os.environ`, but Pydantic's `Settings` instance fell back to reading developer `.env` files on disk, causing authentication tests (e.g. `test_admin_auth_unset_or_empty_token_returns_404`) to receive 401 instead of 404. We added an autouse fixture in `apps/api/tests/conftest.py` setting `Settings.model_config["env_file"] = None` and clearing `get_settings` cache, guaranteeing all tests run with clean code defaults regardless of developer local environment files.
+Alternatives considered: Setting `ADMIN_TOKEN=""` in individual tests. Rejected because it fails to test the true unset state (`None`), and leaves other settings (`GEMINI_API_KEY`, `DATABASE_URL`, limits) vulnerable to leaking from local `.env` into test runs.
+If we removed it: Tests checking unset environment variables or default settings would fail whenever a developer has secrets configured in their local `.env`.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-173 — Phase 6 — fix
+What: Provide dummy LLM model names in test isolation fixture to prevent LLM_NOT_CONFIGURED failures.
+Why: Decision D-172 disabled reading `.env` during test runs, but neglected that service handlers in `test_architect.py`, `test_designs.py`, `test_intake.py`, and `test_quarantine.py` check `settings.llm_model_intake` and `settings.llm_model_architect` before dispatching to injected `FakeLLMClient` instances. With `.env` ignored, model names defaulted to `None`, causing 26 backend tests to fail with `LLM_NOT_CONFIGURED`. We updated `isolate_settings_from_env_file` in `apps/api/tests/conftest.py` to set dummy test values (`LLM_MODEL_INTAKE`, `LLM_MODEL_ARCHITECT`, `LLM_MODEL_WRITER = "test-model"`) in `os.environ`, kept `ADMIN_TOKEN` and `GEMINI_API_KEY` unset by default, and preserved explicit test-level unsetting for tests that test unconfigured states.
+Alternatives considered: Hardcoding dummy model names into `Settings` defaults in `src/archnemesis/settings.py`. Rejected because production must enforce that model names are configured via environment variables, not hardcoded.
+If we removed it: Backend service and endpoint tests would fail when run in clean CI environments or on developer machines without active `.env` files.
+Decided by: agent proposed, user approved
+Status: active (supersedes D-172)
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
