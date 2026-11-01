@@ -5,6 +5,7 @@ import pytest
 from archnemesis.errors import DesignFailedError, LLMNotConfiguredError
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.modules.architect import service
+from archnemesis.prompts import load_prompt
 from archnemesis.settings import Settings
 from archnemesis.shared.brief import BriefConstraint, RequirementBrief
 
@@ -117,7 +118,7 @@ async def test_architect_first_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v2"
+    assert prompt_version == "architect_v3"
     assert calls_used == 1
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 1
@@ -131,7 +132,7 @@ async def test_architect_repair_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v2+architect_repair_v2"
+    assert prompt_version == "architect_v3+architect_repair_v3"
     assert calls_used == 2
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 2
@@ -151,7 +152,7 @@ async def test_architect_uncovered_brief_constraint_triggers_repair() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v2+architect_repair_v2"
+    assert prompt_version == "architect_v3+architect_repair_v3"
     assert calls_used == 2
     assert len(spec.constraints) == 1
     assert "bc1" in spec.constraints[0].covers
@@ -262,7 +263,7 @@ async def test_architect_applies_code_repair_on_first_attempt() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v2+code_repair"
+    assert prompt_version == "architect_v3+code_repair"
     assert calls_used == 1
     assert len(fake_llm.calls) == 1
     assert result is not None
@@ -328,8 +329,62 @@ async def test_architect_applies_code_repair_after_call_2() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v2+architect_repair_v2+code_repair"
+    assert prompt_version == "architect_v3+architect_repair_v3+code_repair"
     assert calls_used == 2
     assert len(fake_llm.calls) == 2
     assert result is not None
     assert any(w.code == "W_CODE_REPAIR_APPLIED" for w in result.warnings)
+
+
+def test_architect_v1_and_v2_prompts_unchanged_and_loadable() -> None:
+    """Verify v1 and v2 architect prompts remain immutable and loadable."""
+    v1 = load_prompt("architect_v1.md")
+    v1_repair = load_prompt("architect_repair_v1.md")
+    v2 = load_prompt("architect_v2.md")
+    v2_repair = load_prompt("architect_repair_v2.md")
+
+    assert len(v1) > 0
+    assert len(v1_repair) > 0
+    assert len(v2) > 0
+    assert len(v2_repair) > 0
+    assert "architect_v1" not in v2  # independent files
+    assert "Qdrant" in v2  # v2 still has original examples
+    assert "Kafka" in v2
+
+
+def test_architect_v3_prompt_content() -> None:
+    """Verify v3 contains the required verbatim line and no framework/product names."""
+    v3 = load_prompt("architect_v3.md")
+
+    # Step 2d verbatim line
+    verbatim_line = (
+        "Use an agent only where the step needs tools and several decisions. "
+        "Use a model only for one judgment. Do not add models or agents to fill the diagram."
+    )
+    assert verbatim_line in v3
+
+    # Step 2e framework/product ban
+    forbidden_frameworks = [
+        "Kafka",
+        "RabbitMQ",
+        "Celery",
+        "PostgreSQL",
+        "Redis",
+        "Qdrant",
+        "Pinecone",
+        "FastAPI",
+        "Envoy",
+    ]
+    for fw in forbidden_frameworks:
+        assert fw.lower() not in v3.lower(), f"Forbidden framework '{fw}' found in architect_v3.md"
+
+
+def test_architect_repair_v3_prompt_content() -> None:
+    """Verify repair_v3 preserves decision conditions and human nodes."""
+    repair_v3 = load_prompt("architect_repair_v3.md")
+    sentence = (
+        "When repairing, keep decision condition labels and human nodes. "
+        "Do not remove a human node to satisfy a rule."
+    )
+    assert sentence in repair_v3
+    assert "W_AGENT_WITHOUT_TOOLS" not in repair_v3

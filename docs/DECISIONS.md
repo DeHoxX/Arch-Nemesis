@@ -1593,6 +1593,14 @@ If we removed it: Edge labels in multi-branch architectures (such as 12-node ins
 Decided by: agent proposed, user approved
 Status: active
 
+### D-190 — v2 Stage B4c — decision
+What: Introduce architect_v3.md and architect_repair_v3.md prompts with decision edge conditions, dedicated human nodes, and explicit AI role taxonomy.
+Why: To reflect branching decisions and multi-agent roles introduced in B4b (EdgeSpec condition, NodeSpec ai_role and tools) without changing immutable v1/v2 prompts. The v3 prompt specifies that decision points with alternative paths must label outgoing edges with short condition text, mandates dedicated human review/approval nodes (ai_role: "none", needs_model: false) rather than embedding human tasks in AI nodes, defines precise taxonomy distinguishing single-judgment models (ai_role: "model") from multi-step tool-using agents (ai_role: "agent", 1-5 tools), generalizes layer and tech_options examples to neutral technology types without specific framework/product names, and appends preservation rules to repair_v3 for conditions and human nodes.
+Alternatives considered: Mutating architect_v2.md in place. Rejected per project rule requiring prompt immutability and backwards compatibility across prompt versions.
+If we removed it: The LLM would generate architectures without condition labels on branching edges, hide human review inside AI nodes, confuse single models with multi-step agents, and output concrete product names in tech options.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 
