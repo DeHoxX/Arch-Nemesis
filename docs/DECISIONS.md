@@ -1644,6 +1644,17 @@ If we removed it: Merges would continue to be styled as agents without developer
 Decided by: agent proposed, user approved
 Status: active
 
+### D-196 — Stage B6c — decision
+What: Safe error diagnostics and field-targeted feedback on explainer schema validation failures.
+Why: When the LLM technical writer produces an ExplanationDraft that fails Pydantic schema validation (e.g. models_text or flow_step exceeding character limits), generic X_BAD_OUTPUT was logged without field paths, and Attempt 2 received no specific guidance on which field failed, causing repeated fallback to the code-only explanation. In B6c, we: (1) enrich explainer_verify_failed structured logs with strictly safe metadata (error_type; for PydanticValidationError: error_count and failing_fields formatted as "loc.path:error_type" capped at 10 items; for LLMBadOutput: error_type and raw byte count), never logging prompts, model prose, node names, or input values; (2) preserve issue code X_BAD_OUTPUT while including safe field paths and error types in the message sent to Attempt 2 (e.g. "Schema validation failed: models_text: string_too_long"); (3) add offline reproduction tests verifying safe logging and successful two-call recovery.
+Alternatives considered:
+1. Reusing X_TOO_LONG: Rejected to preserve the semantic boundary that verify.py issue codes represent semantic and length checks on parsed drafts, while X_BAD_OUTPUT represents schema/format parse failures.
+2. Increasing schema limits without diagnostics: Rejected because the root cause was an unproven hypothesis and prompt limits must be respected.
+If we removed it: Developers and LLM repair loops would remain blind to which specific schema fields triggered X_BAD_OUTPUT.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 

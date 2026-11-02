@@ -1,6 +1,7 @@
 """Service layer for lazy explanation generation, verification, and fallback."""
 
 import json
+from typing import Any
 
 import structlog
 from pydantic import ValidationError as PydanticValidationError
@@ -37,6 +38,53 @@ MAX_EXPLAINER_CALLS: int = 2
 def _escape_untrusted_text(text: str) -> str:
     """Escape fake closing tags to prevent prompt injection."""
     return text.replace("</untrusted_user_text>", "&lt;/untrusted_user_text&gt;")
+
+
+def _extract_safe_validation_diagnostics(
+    exc: Exception,
+) -> tuple[dict[str, Any], str]:
+    """Extract strictly safe metadata for logging and LLM retry feedback.
+
+    Never exposes model prose, prompt content, node names, or input values.
+    """
+    error_type = type(exc).__name__
+    if isinstance(exc, PydanticValidationError):
+        raw_errors = exc.errors()
+        error_count = len(raw_errors)
+        failing_fields: list[str] = []
+        for err in raw_errors[:10]:
+            loc_parts = [str(p) for p in err.get("loc", ())]
+            loc_str = ".".join(loc_parts) if loc_parts else "root"
+            err_type = str(err.get("type", "unknown"))
+            failing_fields.append(f"{loc_str}:{err_type}")
+
+        log_meta: dict[str, Any] = {
+            "error_type": error_type,
+            "error_count": error_count,
+            "failing_fields": failing_fields,
+        }
+        msg = (
+            f"Schema validation failed: {', '.join(failing_fields)}"
+            if failing_fields
+            else "Output from model failed schema validation."
+        )
+        return log_meta, msg
+
+    if isinstance(exc, LLMBadOutput):
+        log_meta = {"error_type": error_type}
+        if hasattr(exc, "raw") and isinstance(exc.raw, (str, bytes)):
+            raw_len = len(exc.raw.encode("utf-8")) if isinstance(exc.raw, str) else len(exc.raw)
+            log_meta["raw_length_bytes"] = raw_len
+        elif hasattr(exc, "message") and isinstance(exc.message, str):
+            log_meta["raw_length_bytes"] = len(exc.message.encode("utf-8"))
+
+        msg = "Output from model was malformed or failed schema validation."
+        return log_meta, msg
+
+    # Fallback for ValueError or other parsing issues
+    log_meta = {"error_type": error_type}
+    msg = "Output from model was malformed or failed schema validation."
+    return log_meta, msg
 
 
 def _format_architecture_data(
@@ -151,6 +199,7 @@ async def get_or_generate_explanation(
     user_prompt = _format_explainer_user_prompt(spec, brief, flow_order)
     draft: ExplanationDraft | None = None
     issues: list[VerificationIssue] = []
+    diag_meta: dict[str, Any] = {}
 
     try:
         raw_output = await llm.generate_json(
@@ -164,12 +213,13 @@ async def get_or_generate_explanation(
     except (LLMUnavailable, LLMRateLimited, LLMTimeout, LLMNotConfigured):
         # Transient errors and configuration errors re-raise directly
         raise
-    except (LLMBadOutput, PydanticValidationError, ValueError):
+    except (LLMBadOutput, PydanticValidationError, ValueError) as exc:
         draft = None
+        diag_meta, diag_msg = _extract_safe_validation_diagnostics(exc)
         issues = [
             VerificationIssue(
                 code="X_BAD_OUTPUT",
-                message="Output from model was malformed or failed schema validation.",
+                message=diag_msg,
             )
         ]
 
@@ -191,6 +241,7 @@ async def get_or_generate_explanation(
         version_no=version_no,
         attempt=attempt,
         issue_codes=[i.code for i in issues],
+        **diag_meta,
     )
 
     # Attempt 2
@@ -204,6 +255,7 @@ async def get_or_generate_explanation(
     )
     draft_2: ExplanationDraft | None = None
     issues_2: list[VerificationIssue] = []
+    diag_meta_2: dict[str, Any] = {}
 
     try:
         raw_output_2 = await llm.generate_json(
@@ -216,12 +268,13 @@ async def get_or_generate_explanation(
         issues_2 = verify_draft(draft_2, spec, brief, flow_order)
     except (LLMUnavailable, LLMRateLimited, LLMTimeout, LLMNotConfigured):
         raise
-    except (LLMBadOutput, PydanticValidationError, ValueError):
+    except (LLMBadOutput, PydanticValidationError, ValueError) as exc_2:
         draft_2 = None
+        diag_meta_2, diag_msg_2 = _extract_safe_validation_diagnostics(exc_2)
         issues_2 = [
             VerificationIssue(
                 code="X_BAD_OUTPUT",
-                message="Output from model was malformed or failed schema validation.",
+                message=diag_msg_2,
             )
         ]
 
@@ -243,6 +296,7 @@ async def get_or_generate_explanation(
         version_no=version_no,
         attempt=attempt,
         issue_codes=[i.code for i in issues_2],
+        **diag_meta_2,
     )
     logger.info(
         "explainer_fallback_applied",

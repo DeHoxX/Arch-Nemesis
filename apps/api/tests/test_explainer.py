@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -11,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.db.tables import DesignTable, DesignVersionTable, IntakeSessionTable
 from archnemesis.dependencies import get_db_session, get_llm_client
-from archnemesis.llm.base import LLMClient, LLMUnavailable
+from archnemesis.llm.base import LLMBadOutput, LLMClient, LLMUnavailable
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.main import create_app
 from archnemesis.modules.explainer import repo as explainer_repo
@@ -423,10 +424,392 @@ async def test_logs_contain_no_explanation_text(
     async with temp_db_session_factory() as db:
         design_id, version_no = await _seed_design(db)
 
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         res = await client.post(f"/api/designs/{design_id}/versions/{version_no}/explanation")
         assert res.status_code == 200
 
-    # Verify secret prose text never appears in any captured log
-    all_logs = caplog.text
-    assert secret_marker not in all_logs
+    # Non-empty guard: ensure logs were actually captured
+    assert len(caplog.records) > 0, "Expected non-empty log output from explanation generation"
+    for r in caplog.records:
+        msg = r.getMessage()
+        assert secret_marker not in msg
+
+
+INSURANCE_12_NODE_SPEC_DICT: dict[str, Any] = {
+    "nodes": [
+        {
+            "id": "ingest_api",
+            "name": "Ingress Gateway",
+            "type": "api_gateway",
+            "role": "Accepts incoming claims",
+            "inputs": [],
+            "outputs": ["claim_raw"],
+            "tech_options": [],
+            "needs_model": False,
+        },
+        {
+            "id": "doc_intake",
+            "name": "Document Intake",
+            "type": "queue_worker",
+            "role": "Queues claim documents",
+            "inputs": ["claim_raw"],
+            "outputs": ["doc_job"],
+            "tech_options": [],
+            "needs_model": False,
+        },
+        {
+            "id": "doc_ocr_model",
+            "name": "Document OCR Model",
+            "type": "ai_model",
+            "role": "Extracts text from documents",
+            "inputs": ["doc_job"],
+            "outputs": ["extracted_text"],
+            "tech_options": [],
+            "needs_model": True,
+            "ai_role": "model",
+        },
+        {
+            "id": "photo_damage_model",
+            "name": "Damage Assessment Model",
+            "type": "ai_model",
+            "role": "Analyzes damage photos",
+            "inputs": ["doc_job"],
+            "outputs": ["damage_estimate"],
+            "tech_options": [],
+            "needs_model": True,
+            "ai_role": "model",
+        },
+        {
+            "id": "coverage_rules",
+            "name": "Coverage Rules Engine",
+            "type": "rule_engine",
+            "role": "Verifies policy boundaries",
+            "inputs": ["claim_raw"],
+            "outputs": ["coverage_status"],
+            "tech_options": [],
+            "needs_model": False,
+        },
+        {
+            "id": "policy_analysis_agent",
+            "name": "Policy Reasoning Agent",
+            "type": "ai_agent",
+            "role": "Evaluates coverage nuances",
+            "inputs": ["coverage_status", "extracted_text"],
+            "outputs": ["policy_verdict"],
+            "tech_options": [],
+            "needs_model": True,
+            "ai_role": "agent",
+        },
+        {
+            "id": "fraud_detection_agent",
+            "name": "Fraud Detection Agent",
+            "type": "ai_agent",
+            "role": "Flags fraud signals",
+            "inputs": ["damage_estimate", "extracted_text"],
+            "outputs": ["fraud_score"],
+            "tech_options": [],
+            "needs_model": True,
+            "ai_role": "agent",
+        },
+        {
+            "id": "claim_aggregator",
+            "name": "Claim Aggregator",
+            "type": "coordinator",
+            "role": "Synthesizes verdicts and estimates",
+            "inputs": ["policy_verdict", "fraud_score"],
+            "outputs": ["claim_decision"],
+            "tech_options": [],
+            "needs_model": True,
+            "ai_role": "agent",
+        },
+        {
+            "id": "settlement_engine",
+            "name": "Settlement Calculator",
+            "type": "calculation_engine",
+            "role": "Calculates payout amounts",
+            "inputs": ["claim_decision"],
+            "outputs": ["payout_statement"],
+            "tech_options": [],
+            "needs_model": False,
+        },
+        {
+            "id": "notification_svc",
+            "name": "Notification Service",
+            "type": "notification_service",
+            "role": "Sends claimant status updates",
+            "inputs": ["claim_decision"],
+            "outputs": ["notif_dispatch"],
+            "tech_options": [],
+            "needs_model": False,
+        },
+        {
+            "id": "audit_store",
+            "name": "Audit Log Sink",
+            "type": "database",
+            "role": "Records immutable audit history",
+            "inputs": ["claim_decision"],
+            "outputs": [],
+            "tech_options": [],
+            "needs_model": False,
+        },
+        {
+            "id": "claim_db",
+            "name": "Claims Database",
+            "type": "database",
+            "role": "Persists final claim status",
+            "inputs": ["payout_statement"],
+            "outputs": [],
+            "tech_options": [],
+            "needs_model": False,
+        },
+    ],
+    "edges": [
+        {"from": "ingest_api", "to": "doc_intake", "flows": "Incoming claim docs"},
+        {"from": "ingest_api", "to": "coverage_rules", "flows": "Policy reference"},
+        {"from": "doc_intake", "to": "doc_ocr_model", "flows": "Unstructured docs"},
+        {"from": "doc_intake", "to": "photo_damage_model", "flows": "Photo attachments"},
+        {"from": "doc_ocr_model", "to": "policy_analysis_agent", "flows": "Extracted policy terms"},
+        {"from": "doc_ocr_model", "to": "fraud_detection_agent", "flows": "Parsed statements"},
+        {
+            "from": "photo_damage_model",
+            "to": "fraud_detection_agent",
+            "flows": "Visual damage data",
+        },
+        {"from": "coverage_rules", "to": "policy_analysis_agent", "flows": "Eligibility rules"},
+        {"from": "policy_analysis_agent", "to": "claim_aggregator", "flows": "Policy evaluation"},
+        {"from": "fraud_detection_agent", "to": "claim_aggregator", "flows": "Fraud risk metrics"},
+        {"from": "claim_aggregator", "to": "settlement_engine", "flows": "Approved claim details"},
+        {"from": "claim_aggregator", "to": "notification_svc", "flows": "Claim status update"},
+        {"from": "claim_aggregator", "to": "audit_store", "flows": "Full claim audit telemetry"},
+        {"from": "settlement_engine", "to": "claim_db", "flows": "Settlement record"},
+        {"from": "notification_svc", "to": "audit_store", "flows": "Notification dispatch log"},
+    ],
+    "constraints": [
+        {
+            "id": "c1",
+            "text": "Claims must pass policy analysis.",
+            "kind": "must_pass_through",
+            "node_id": "policy_analysis_agent",
+            "a": None,
+            "b": None,
+            "covers": ["bc1"],
+        },
+        {
+            "id": "c2",
+            "text": "Damage photos must be assessed.",
+            "kind": "must_exist",
+            "node_id": "photo_damage_model",
+            "a": None,
+            "b": None,
+            "covers": ["bc2"],
+        },
+    ],
+    "entry_ids": ["ingest_api"],
+    "exit_ids": ["audit_store", "claim_db"],
+}
+
+INSURANCE_BRIEF_DICT: dict[str, Any] = {
+    "summary": "Automated insurance claim intake and multi-agent adjudication pipeline.",
+    "users": "Claim adjusters and policyholders",
+    "data_involved": ["claim submissions", "damage photos", "policy records"],
+    "domain_hint": "insurance",
+    "stated_constraints": [
+        {"id": "bc1", "text": "Claims must pass policy analysis."},
+        {"id": "bc2", "text": "Damage photos must be assessed."},
+    ],
+    "unverifiable_requirements": [],
+    "numbers_given": [],
+    "assumptions": [],
+}
+
+
+@pytest.mark.asyncio
+async def test_explainer_schema_validation_failure_safe_diagnostics_and_retry(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app, fake_llm = app_with_fake_llm
+    spec = ArchitectureSpec.model_validate(INSURANCE_12_NODE_SPEC_DICT)
+    flow_order = order_nodes(spec)
+    flow_steps = [{"node_id": nid, "text": f"Step for {nid}."} for nid in flow_order]
+    parts = [{"node_id": n.id, "text": f"Part explanation for {n.name}."} for n in spec.nodes]
+    checks = [
+        {"constraint_id": "c1", "text": "Ensures policy reasoning verifies coverage."},
+        {"constraint_id": "c2", "text": "Ensures damage photos are analyzed by vision model."},
+    ]
+
+    canary = "SECRET_PROSE_CANARY_X9"
+    canary_prefix = f"AI models in this insurance system ({canary}) include: "
+    padding = "p" * (410 - len(canary_prefix))
+    models_text_invalid = canary_prefix + padding
+    assert len(models_text_invalid) == 410
+
+    draft_call_1 = {
+        "overview": "Insurance system overview.",
+        "flow_steps": flow_steps,
+        "parts": parts,
+        "checks": checks,
+        "models_text": models_text_invalid,
+    }
+
+    models_text_valid = (
+        "AI models extract OCR data and evaluate photos; agents assess "
+        "policy coverage and detect fraud before the aggregator synthesizes findings."
+    )
+    assert len(models_text_valid) <= 400
+
+    draft_call_2 = {
+        "overview": "Insurance system overview.",
+        "flow_steps": flow_steps,
+        "parts": parts,
+        "checks": checks,
+        "models_text": models_text_valid,
+    }
+
+    fake_llm.script.extend([draft_call_1, draft_call_2])
+
+    async with temp_db_session_factory() as db:
+        session = IntakeSessionTable(
+            id="session-insurance-123",
+            status="designed",
+            rounds=1,
+            turns_json="[]",
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            created_at="2026-11-02T12:00:00Z",
+            updated_at="2026-11-02T12:00:00Z",
+        )
+        db.add(session)
+        await db.commit()
+
+        design = DesignTable(
+            id="design-insurance-123",
+            intake_session_id=session.id,
+            current_version=1,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(design)
+        version = DesignVersionTable(
+            id="version-insurance-123",
+            design_id=design.id,
+            version_no=1,
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            spec_json=json.dumps(INSURANCE_12_NODE_SPEC_DICT),
+            explanation_json=None,
+            prompt_version="architect_v4",
+            models_json=json.dumps({"architect": "gemini-3.5"}),
+            warnings_json="[]",
+            change_note=None,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(version)
+        await db.commit()
+
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(
+            f"/api/designs/{design.id}/versions/{version.version_no}/explanation"
+        )
+        assert res.status_code == 200
+        explanation_data = res.json()
+        assert explanation_data["source"] == "llm"
+
+    assert len(fake_llm.calls) == 2
+
+    # Guard against vacuous truth on empty log records
+    assert len(caplog.records) > 0, "Expected non-empty log output from explanation generation"
+
+    # Parse JSON from each record.getMessage()
+    records: list[dict[str, Any]] = []
+    for r in caplog.records:
+        msg = r.getMessage()
+        # Assert no canary or full invalid text appears anywhere in the raw log message
+        assert canary not in msg
+        assert models_text_invalid not in msg
+        try:
+            records.append(json.loads(msg))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    assert len(records) > 0, "Expected valid JSON log lines from structlog"
+    verify_failed_events = [r for r in records if r.get("event") == "explainer_verify_failed"]
+    assert len(verify_failed_events) >= 1, "Expected explainer_verify_failed event"
+
+    attempt_1_record = verify_failed_events[0]
+    assert attempt_1_record.get("attempt") == 1
+    assert "X_BAD_OUTPUT" in attempt_1_record.get("issue_codes", [])
+    assert attempt_1_record.get("error_type") == "ValidationError"
+    assert "models_text:string_too_long" in attempt_1_record.get("failing_fields", [])
+
+    # Check the full serialized records to verify no canary or invalid prose leaked into any key
+    for rec in records:
+        serialized = json.dumps(rec)
+        assert canary not in serialized
+        assert models_text_invalid not in serialized
+
+    # Assert Attempt 2 user prompt receives specific field hint and does not leak prose canary
+    second_user_prompt = fake_llm.calls[1]["user"]
+    assert "[X_BAD_OUTPUT]" in second_user_prompt
+    assert "models_text:string_too_long" in second_user_prompt
+    assert canary not in second_user_prompt
+
+
+@pytest.mark.asyncio
+async def test_explainer_llm_bad_output_safe_diagnostics(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app, fake_llm = app_with_fake_llm
+    fake_llm.script.append(LLMBadOutput("Malformed JSON payload syntax error"))
+    fake_llm.script.append(VALID_DRAFT_DICT)
+
+    async with temp_db_session_factory() as db:
+        design_id, version_no = await _seed_design(db)
+
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(f"/api/designs/{design_id}/versions/{version_no}/explanation")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["source"] == "llm"
+
+    assert len(fake_llm.calls) == 2
+
+    # Guard against vacuous truth on empty log records
+    assert len(caplog.records) > 0, "Expected non-empty log output from explanation generation"
+
+    bad_output_text = "Malformed JSON payload syntax error"
+    records: list[dict[str, Any]] = []
+    for r in caplog.records:
+        msg = r.getMessage()
+        assert bad_output_text not in msg
+        try:
+            records.append(json.loads(msg))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    assert len(records) > 0, "Expected valid JSON log lines from structlog"
+    verify_failed_events = [r for r in records if r.get("event") == "explainer_verify_failed"]
+    assert len(verify_failed_events) >= 1, "Expected explainer_verify_failed event"
+
+    attempt_1_record = verify_failed_events[0]
+    assert attempt_1_record.get("attempt") == 1
+    assert "X_BAD_OUTPUT" in attempt_1_record.get("issue_codes", [])
+    assert attempt_1_record.get("error_type") == "LLMBadOutput"
+
+    # Check full serialized records for absence of bad output text
+    for rec in records:
+        serialized = json.dumps(rec)
+        assert bad_output_text not in serialized
+
+    second_prompt = fake_llm.calls[1]["user"]
+    assert "[X_BAD_OUTPUT]" in second_prompt
+    assert "Output from model was malformed or failed schema validation." in second_prompt
