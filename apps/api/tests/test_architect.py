@@ -470,3 +470,73 @@ def test_architect_repair_v4_prompt_content() -> None:
         "reroute its incoming edges so they originate from or after the required node."
     ) in repair_v4
     assert "or must not be designated as exit nodes" not in repair_v4
+
+
+@pytest.mark.asyncio
+async def test_architect_logs_edges_net_change_on_code_repair() -> None:
+    """Structured logger records edges_net_change on code_repair events."""
+    from unittest.mock import patch
+
+    spec_with_dead_end = {
+        "nodes": [
+            {
+                "id": "gateway",
+                "name": "Gateway",
+                "type": "api_gateway",
+                "role": "Ingress gateway",
+                "inputs": [],
+                "outputs": ["req"],
+                "tech_options": ["Web Framework"],
+                "needs_model": False,
+            },
+            {
+                "id": "delivery",
+                "name": "Delivery",
+                "type": "service",
+                "role": "Output service",
+                "inputs": ["req"],
+                "outputs": [],
+                "tech_options": ["Runtime"],
+                "needs_model": False,
+            },
+            {
+                "id": "audit_sink",
+                "name": "Audit Sink",
+                "type": "database",
+                "role": "Audit logger",
+                "inputs": ["req"],
+                "outputs": [],
+                "tech_options": ["Document Store"],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "gateway", "to": "delivery", "flows": "req"},
+            {"from": "gateway", "to": "audit_sink", "flows": "audit"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Traffic must pass through api gateway",
+                "kind": "must_pass_through",
+                "node_id": "gateway",
+                "covers": ["bc1"],
+            }
+        ],
+        "entry_ids": ["gateway"],
+        "exit_ids": ["delivery"],
+    }
+    fake_llm = FakeLLMClient([spec_with_dead_end])
+    with patch("archnemesis.modules.architect.service.logger") as mock_logger:
+        spec, _prompt_version, _calls_used, _result = await service.generate_and_validate(
+            SAMPLE_BRIEF, fake_llm
+        )
+        assert spec is not None
+        repair_calls = [
+            call
+            for call in mock_logger.info.call_args_list
+            if call.args and call.args[0] == "code_repair"
+        ]
+        assert len(repair_calls) == 1
+        assert "edges_net_change" in repair_calls[0].kwargs
+        assert repair_calls[0].kwargs["edges_net_change"] == 0

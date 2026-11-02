@@ -1633,6 +1633,18 @@ If we removed it: Pressing the browser Back button after generating a design wou
 Decided by: user requested, agent implemented
 Status: active
 
+### D-195 — Stage B6a — decision
+What: Add W_MERGE_AS_AGENT non-blocking lint, refine auxiliary sink exit recognition in repair.py, and rename architect log field to edges_net_change.
+Why: In design 42a685da..., three issues surfaced: (1) merge/join nodes receiving inputs from parallel branches were unnecessarily tagged as AI agents and models, giving them diamond/hexagon shapes and agent badges; (2) _is_sink_exit disqualified nodes referenced in any constraint (including must_exist) from being recognized as auxiliary sinks, which caused code repair to route an entry-side bypass edge (intake_guardrail -> output_validator) across 8 ranks to satisfy a must_pass_through constraint; and (3) architect service logged edges_added_count with negative values when repair removed more edges than it added. In B6a: (1) W_MERGE_AS_AGENT is added as a purely structural, non-blocking lint (in-degree >= 2 AND needs_model true OR ai_role in agent/model) with fixed message template; (2) _is_sink_exit is refined so nodes referenced only in must_exist constraints remain eligible as auxiliary sink exits, preventing spurious cross-diagram bypass edges while preserving strict disqualification for must_pass_through, must_precede, and must_not_connect; and (3) edges_added_count is renamed to edges_net_change in structured logs.
+Alternatives considered:
+1. Blocking 422 error for merge nodes as agents: Rejected because some business needs legitimately require qualitative LLM synthesis at join points; warnings must remain non-blocking.
+2. Requiring "no outgoing condition edges" in W_MERGE_AS_AGENT: Rejected because real merge/decision nodes carry conditions on alternative paths and must still trigger the lint.
+3. Completely removing constraint checks from _is_sink_exit: Rejected because nodes that serve as must_pass_through bottlenecks or ordering points cannot be treated as terminal sinks.
+If we removed it: Merges would continue to be styled as agents without developer feedback, and audit stores mentioned in must_exist rules would continue to trigger long cross-rank bypass edges during code repair.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 

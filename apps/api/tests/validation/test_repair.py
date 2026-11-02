@@ -627,3 +627,87 @@ def test_patch_dead_ends_multi_sink() -> None:
     assert "audit_sink" in warnings[0].message
     assert "telemetry_sink" in warnings[0].message
     assert validate(patched_spec, {}, limits).ok
+
+
+def test_repair_must_exist_sink_does_not_create_long_bypass_edge() -> None:
+    """A sink referenced in must_exist is still an auxiliary sink; repair must not create an early bypass edge."""
+    nodes = [
+        _create_node("entry_gateway"),
+        _create_node("intake_guardrail"),
+        _create_node("branch_doc", is_model=True),
+        _create_node("branch_photo", is_model=True),
+        _create_node("aggregator"),
+        _create_node("output_validator"),
+        _create_node("delivery"),
+        _create_node("masked_audit_store"),
+    ]
+    edges = [
+        _edge("entry_gateway", "intake_guardrail", "raw_payload"),
+        _edge("intake_guardrail", "branch_doc", "doc_task"),
+        _edge("intake_guardrail", "branch_photo", "photo_task"),
+        _edge("branch_doc", "aggregator", "doc_res"),
+        _edge("branch_photo", "aggregator", "photo_res"),
+        _edge("aggregator", "output_validator", "claim_record"),
+        _edge("output_validator", "delivery", "validated_decision"),
+        # The early bypass edge directly into audit sink from intake
+        _edge("intake_guardrail", "masked_audit_store", "early_audit_data"),
+    ]
+    constraints = [
+        ConstraintSpec(
+            id="c_validator",
+            kind="must_pass_through",
+            text="All decisions must pass through output_validator",
+            node_id="output_validator",
+            covers=["bc1"],
+        ),
+        ConstraintSpec(
+            id="c_audit",
+            kind="must_exist",
+            text="Masked audit store must exist for compliance",
+            node_id="masked_audit_store",
+            covers=["bc2"],
+        ),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=constraints,
+        entry_ids=["entry_gateway"],
+        exit_ids=["delivery", "masked_audit_store"],
+    )
+    brief_constraints = {
+        "bc1": "Must pass through validator",
+        "bc2": "Audit store must exist",
+    }
+    limits = Limits()
+
+    # Initial spec fails validation because intake_guardrail -> masked_audit_store bypasses output_validator
+    orig_val = validate(spec, brief_constraints, limits)
+    assert not orig_val.ok
+
+    # Apply patch_constraints
+    patched_spec, warnings = patch_constraints(spec, brief_constraints, limits)
+    assert len(warnings) == 1
+    assert warnings[0].code == "W_CODE_REPAIR_APPLIED"
+
+    # Crucial regression assertions:
+    # 1. No long bypass edge intake_guardrail -> output_validator was added
+    assert not any(
+        e.from_node == "intake_guardrail" and e.to == "output_validator" for e in patched_spec.edges
+    ), "Spurious cross-rank bypass edge intake_guardrail -> output_validator should not be added"
+
+    # 2. Early edge to audit sink was removed
+    assert not any(
+        e.from_node == "intake_guardrail" and e.to == "masked_audit_store"
+        for e in patched_spec.edges
+    )
+
+    # 3. Sink is now fed post-checkpoint (from output_validator)
+    assert any(
+        e.from_node == "output_validator" and e.to == "masked_audit_store"
+        for e in patched_spec.edges
+    ), "Sink must be fed from post-checkpoint node"
+
+    # 4. Final patched spec passes validation
+    final_val = validate(patched_spec, brief_constraints, limits)
+    assert final_val.ok

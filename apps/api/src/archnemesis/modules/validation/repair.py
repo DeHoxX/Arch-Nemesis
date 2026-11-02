@@ -193,7 +193,8 @@ def _is_sink_exit(node_id: str, graph: nx.DiGraph[Any], spec: ArchitectureSpec) 
 
     A sink is NOT rerouted through T if:
     - It is not the only exit.
-    - It is not mentioned in any constraint (node_id, a, or b).
+    - It is not mentioned in any flow-altering bottleneck constraint (must_pass_through, must_precede, must_not_connect).
+      Nodes mentioned only in must_exist constraints remain eligible as auxiliary sinks.
     """
     if node_id not in spec.exit_ids:
         return False
@@ -202,9 +203,11 @@ def _is_sink_exit(node_id: str, graph: nx.DiGraph[Any], spec: ArchitectureSpec) 
     if graph.out_degree(node_id) > 0:
         return False
 
-    # Check if mentioned in any constraint
+    # Check if mentioned in any bottleneck or ordering constraint
     for c in spec.constraints:
-        if c.node_id == node_id or c.a == node_id or c.b == node_id:
+        if c.kind in ("must_pass_through", "must_precede", "must_not_connect") and (
+            c.node_id == node_id or c.a == node_id or c.b == node_id
+        ):
             return False
 
     return True

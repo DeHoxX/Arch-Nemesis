@@ -1,0 +1,90 @@
+{
+  "nodes": [
+    {
+      "id": "node_entry",
+      "name": "Entry Gateway",
+      "type": "gateway",
+      "role": "Receives incoming requests and dispatches subtasks",
+      "inputs": [],
+      "outputs": ["subtask_a", "subtask_b"],
+      "needs_model": false,
+      "ai_role": "none",
+      "tools": []
+    },
+    {
+      "id": "node_worker_a",
+      "name": "Worker A",
+      "type": "processor",
+      "role": "Processes branch A tasks",
+      "inputs": ["subtask_a"],
+      "outputs": ["result_a"],
+      "needs_model": false,
+      "ai_role": "none",
+      "tools": []
+    },
+    {
+      "id": "node_worker_b",
+      "name": "Worker B",
+      "type": "processor",
+      "role": "Processes branch B tasks",
+      "inputs": ["subtask_b"],
+      "outputs": ["result_b"],
+      "needs_model": false,
+      "ai_role": "none",
+      "tools": []
+    },
+    {
+      "id": "node_merge",
+      "name": "Merge Aggregator Agent",
+      "type": "aggregator",
+      "role": "Merges parallel results using autonomous tooling",
+      "inputs": ["result_a", "result_b"],
+      "outputs": ["merged_output"],
+      "needs_model": true,
+      "ai_role": "agent",
+      "tools": ["database_lookup"]
+    },
+    {
+      "id": "node_exit",
+      "name": "Delivery Sink",
+      "type": "sink",
+      "role": "Delivers final output to the user",
+      "inputs": ["merged_output"],
+      "outputs": [],
+      "needs_model": false,
+      "ai_role": "none",
+      "tools": []
+    }
+  ],
+  "edges": [
+    {
+      "from": "node_entry",
+      "to": "node_worker_a",
+      "flows": "subtask_a"
+    },
+    {
+      "from": "node_entry",
+      "to": "node_worker_b",
+      "flows": "subtask_b"
+    },
+    {
+      "from": "node_worker_a",
+      "to": "node_merge",
+      "flows": "result_a"
+    },
+    {
+      "from": "node_worker_b",
+      "to": "node_merge",
+      "flows": "result_b"
+    },
+    {
+      "from": "node_merge",
+      "to": "node_exit",
+      "flows": "merged_output"
+    }
+  ],
+  "constraints": [],
+  "entry_ids": ["node_entry"],
+  "exit_ids": ["node_exit"]
+}
+

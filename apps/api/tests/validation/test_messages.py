@@ -35,6 +35,7 @@ ALL_CODES = {
     "W_NO_AI_NODE",
     "W_CODE_REPAIR_APPLIED",
     "W_AGENT_WITHOUT_TOOLS",
+    "W_MERGE_AS_AGENT",
 }
 
 TEMPLATE_PATTERNS = {
@@ -65,6 +66,7 @@ TEMPLATE_PATTERNS = {
     "W_NO_AI_NODE": r"^No node in the architecture is marked as using an AI model \(needs_model: true\)\.$",
     "W_CODE_REPAIR_APPLIED": r"^Constraint '[^']+' satisfied by automated graph alignment: routed \d+ edge\(s\) through '[^']+'\.$",
     "W_AGENT_WITHOUT_TOOLS": r"^Agent node '[^']+' is declared as an agent but lists no tools\.$",
+    "W_MERGE_AS_AGENT": r"^Merge node '[^']+' combines parallel branches but is marked as an AI agent or model\. Plain code should be used unless AI judgment is required\.$",
 }
 
 

@@ -142,3 +142,175 @@ def test_w_no_ai_node_lint_direct() -> None:
     )
     warnings_with_ai = check_lints(spec_with_ai)
     assert "W_NO_AI_NODE" not in [w.code for w in warnings_with_ai]
+
+
+def test_w_merge_as_agent_lint_direct() -> None:
+    """W_MERGE_AS_AGENT triggers when in-degree >= 2 and node is an AI agent or model."""
+    from archnemesis.modules.validation.lints import check_lints
+    from archnemesis.modules.validation.models import ArchitectureSpec, EdgeSpec, NodeSpec
+
+    def _e(from_node: str, to: str, flows: str, condition: str | None = None) -> EdgeSpec:
+        d = {"from": from_node, "to": to, "flows": flows}
+        if condition is not None:
+            d["condition"] = condition
+        return EdgeSpec.model_validate(d)
+
+    # Case 1: Merge node with in-degree 2 and ai_role='agent' -> triggers warning
+    spec_agent_merge = ArchitectureSpec(
+        nodes=[
+            NodeSpec(
+                id="entry",
+                name="Entry",
+                type="gateway",
+                role="Entry",
+                inputs=[],
+                outputs=["a", "b"],
+            ),
+            NodeSpec(id="w1", name="W1", type="worker", role="W1", inputs=["a"], outputs=["out1"]),
+            NodeSpec(id="w2", name="W2", type="worker", role="W2", inputs=["b"], outputs=["out2"]),
+            NodeSpec(
+                id="aggregator",
+                name="Aggregator",
+                type="agent",
+                role="Merge",
+                inputs=["out1", "out2"],
+                outputs=["res"],
+                needs_model=True,
+                ai_role="agent",
+                tools=["search_tool"],
+            ),
+            NodeSpec(id="exit", name="Exit", type="sink", role="Exit", inputs=["res"], outputs=[]),
+        ],
+        edges=[
+            _e("entry", "w1", "a"),
+            _e("entry", "w2", "b"),
+            _e("w1", "aggregator", "out1"),
+            _e("w2", "aggregator", "out2"),
+            _e("aggregator", "exit", "res"),
+        ],
+        constraints=[],
+        entry_ids=["entry"],
+        exit_ids=["exit"],
+    )
+    warnings = check_lints(spec_agent_merge)
+    warning_codes = [w.code for w in warnings]
+    assert "W_MERGE_AS_AGENT" in warning_codes
+    w_issue = next(w for w in warnings if w.code == "W_MERGE_AS_AGENT")
+    assert w_issue.ids == ["aggregator"]
+    assert (
+        w_issue.message
+        == "Merge node 'aggregator' combines parallel branches but is marked as an AI agent or model. Plain code should be used unless AI judgment is required."
+    )
+
+    # Case 2: Plain code merge node (ai_role='none', needs_model=False) -> does NOT trigger W_MERGE_AS_AGENT
+    spec_plain_merge = spec_agent_merge.model_copy(deep=True)
+    for n in spec_plain_merge.nodes:
+        if n.id == "aggregator":
+            n.ai_role = "none"
+            n.needs_model = False
+            n.tools = []
+    warnings_plain = check_lints(spec_plain_merge)
+    assert "W_MERGE_AS_AGENT" not in [w.code for w in warnings_plain]
+
+    # Case 3: Merge node with conditional outgoing edges -> STILL triggers W_MERGE_AS_AGENT
+    spec_conditional_merge = ArchitectureSpec(
+        nodes=[
+            NodeSpec(
+                id="entry",
+                name="Entry",
+                type="gateway",
+                role="Entry",
+                inputs=[],
+                outputs=["a", "b"],
+            ),
+            NodeSpec(id="w1", name="W1", type="worker", role="W1", inputs=["a"], outputs=["out1"]),
+            NodeSpec(id="w2", name="W2", type="worker", role="W2", inputs=["b"], outputs=["out2"]),
+            NodeSpec(
+                id="aggregator",
+                name="Aggregator",
+                type="model",
+                role="Merge",
+                inputs=["out1", "out2"],
+                outputs=["res1", "res2"],
+                needs_model=True,
+                ai_role="model",
+            ),
+            NodeSpec(
+                id="exit1", name="Exit 1", type="sink", role="Exit 1", inputs=["res1"], outputs=[]
+            ),
+            NodeSpec(
+                id="exit2", name="Exit 2", type="sink", role="Exit 2", inputs=["res2"], outputs=[]
+            ),
+        ],
+        edges=[
+            _e("entry", "w1", "a"),
+            _e("entry", "w2", "b"),
+            _e("w1", "aggregator", "out1"),
+            _e("w2", "aggregator", "out2"),
+            _e("aggregator", "exit1", "res1", condition="amount < 1000"),
+            _e("aggregator", "exit2", "res2", condition="amount >= 1000"),
+        ],
+        constraints=[],
+        entry_ids=["entry"],
+        exit_ids=["exit1", "exit2"],
+    )
+    warnings_cond = check_lints(spec_conditional_merge)
+    assert "W_MERGE_AS_AGENT" in [w.code for w in warnings_cond]
+
+    # Case 4: Multiple merge nodes -> one warning per node, sorted ids
+    spec_multi_merge = ArchitectureSpec(
+        nodes=[
+            NodeSpec(
+                id="entry",
+                name="Entry",
+                type="gateway",
+                role="Entry",
+                inputs=[],
+                outputs=["a", "b"],
+            ),
+            NodeSpec(id="w1", name="W1", type="worker", role="W1", inputs=["a"], outputs=["o1"]),
+            NodeSpec(id="w2", name="W2", type="worker", role="W2", inputs=["b"], outputs=["o2"]),
+            NodeSpec(
+                id="merge_z",
+                name="Merge Z",
+                type="agent",
+                role="Z",
+                inputs=["o1", "o2"],
+                outputs=["oz"],
+                needs_model=True,
+                ai_role="agent",
+                tools=["t1"],
+            ),
+            NodeSpec(
+                id="merge_a",
+                name="Merge A",
+                type="model",
+                role="A",
+                inputs=["o1", "o2"],
+                outputs=["oa"],
+                needs_model=True,
+                ai_role="model",
+            ),
+            NodeSpec(
+                id="exit", name="Exit", type="sink", role="Exit", inputs=["oz", "oa"], outputs=[]
+            ),
+        ],
+        edges=[
+            _e("entry", "w1", "a"),
+            _e("entry", "w2", "b"),
+            _e("w1", "merge_z", "o1"),
+            _e("w2", "merge_z", "o2"),
+            _e("w1", "merge_a", "o1"),
+            _e("w2", "merge_a", "o2"),
+            _e("merge_z", "exit", "oz"),
+            _e("merge_a", "exit", "oa"),
+        ],
+        constraints=[],
+        entry_ids=["entry"],
+        exit_ids=["exit"],
+    )
+    warnings_multi = check_lints(spec_multi_merge)
+    merge_warnings = [w for w in warnings_multi if w.code == "W_MERGE_AS_AGENT"]
+    assert len(merge_warnings) == 2
+    assert merge_warnings[0].ids == ["merge_a"]
+    assert merge_warnings[1].ids == ["merge_z"]

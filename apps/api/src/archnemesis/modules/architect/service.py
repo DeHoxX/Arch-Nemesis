@@ -133,7 +133,7 @@ async def generate_and_validate(
                 attempt=1,
                 issue_codes=[w.code for w in repair_warnings],
                 node_ids=repaired_node_ids,
-                edges_added_count=len(patched_spec.edges) - len(spec.edges),
+                edges_net_change=len(patched_spec.edges) - len(spec.edges),
             )
             if patched_result.ok:
                 # Merge repair warnings into result warnings
@@ -201,7 +201,7 @@ async def generate_and_validate(
                     attempt=call_idx,
                     issue_codes=[w.code for w in repair_warnings],
                     node_ids=repaired_node_ids,
-                    edges_added_count=len(patched_spec.edges) - len(spec.edges),
+                    edges_net_change=len(patched_spec.edges) - len(spec.edges),
                 )
                 if patched_result.ok:
                     merged_warnings = list(patched_result.warnings) + repair_warnings

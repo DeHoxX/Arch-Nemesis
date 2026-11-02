@@ -86,4 +86,21 @@ def check_lints(spec: ArchitectureSpec) -> list[ValidationIssue]:
                 )
             )
 
+    # 8. W_MERGE_AS_AGENT: Node with in-degree >= 2 marked as agent or model
+    for node in sorted(spec.nodes, key=lambda n: n.id):
+        in_deg = sum(1 for e in spec.edges if e.to == node.id)
+        is_ai = bool(node.needs_model) or node.ai_role in ("agent", "model")
+        if in_deg >= 2 and is_ai:
+            warnings.append(
+                ValidationIssue(
+                    code="W_MERGE_AS_AGENT",
+                    severity="warning",
+                    message=(
+                        f"Merge node '{node.id}' combines parallel branches but is marked as an AI agent or model. "
+                        "Plain code should be used unless AI judgment is required."
+                    ),
+                    ids=[node.id],
+                )
+            )
+
     return warnings
