@@ -2161,6 +2161,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-201 — Stage E2 — decision
+What: Implement in-process evaluation runner in evals/run.py with isolated temporary SQLite database, dry-run mode, and quota-abort protection.
+Why: Evaluating architecture synthesis and walkthrough generation requires executing the full intake, design synthesis, and explanation pipeline repeatedly across test needs while strictly protecting the developer's development database (arch_nemesis.db) and API quota. evals/run.py executes services in-process, initializing an isolated temporary database in Python's tempfile directory with Base.metadata.create_all that is cleaned up on exit. A wrapper class around LLMClient deterministically measures call counts without application modifications, while an in-memory structlog event collector captures verification issue codes (X_ codes) and repair events. A --dry flag exercises the pipeline with FakeLLMClient for zero-quota structural verification, and unrecoverable quota errors (429/503) trigger immediate execution abort with partial result persistence to evals/results/.
+Alternatives considered:
+1. Running evaluations via HTTP against a running server: Rejected because it requires external background server management and loses structured verification diagnostics exposed in backend exceptions.
+2. Sharing arch_nemesis.db with a test session prefix: Rejected because test runs would pollute the primary local development database with synthetic sessions and designs.
+If we removed it: Prompts could not be statistically benchmarked across repeated runs without risking local database pollution or wasting quota on rate-limited failures.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
