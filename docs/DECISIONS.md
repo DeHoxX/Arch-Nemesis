@@ -1664,6 +1664,16 @@ If we removed it: Join nodes would continue to be styled as AI agents, and simpl
 Decided by: agent proposed, user approved
 Status: active
 
+### D-198 — Stage B6d — decision
+What: Code aligns explainer draft flow steps into topological flow_order when all nodes are present, and provides expected node ID sequences on verification failure.
+Why: In multi-branch architectures (e.g. design f6c61fd5 with 3 parallel branches), multiple topological orderings are valid request flow narratives, but order_nodes deterministically selects a single permutation using Kahn's algorithm with min-heap alphabetical tie-breaking. Raw LLM draft order matching Python's heapq alphabetical tie-breaker is no longer required: before verification in explainer/service.py, if the set of draft flow_step node_ids equals the set of flow_order IDs and each ID appears exactly once, code sorts draft.flow_steps into flow_order, guaranteeing that final output order is still flow_order (code-sorted). If a draft omits or duplicates nodes, it is not sorted, verify_draft stays strict and reports X_FLOW_ORDER, and the retry message explicitly provides the expected node ID sequence.
+Alternatives considered:
+1. Loosening verify_draft to accept any topological sort: Rejected because verify_draft must remain a pure, strict validator against the canonical flow_order contract.
+2. Forcing LLM to guess min-heap alphabetical tie-breaks via repeated retries: Rejected because it wastes LLM calls and forces fallback to code-only explanations when the prose is otherwise high quality.
+If we removed it: Explanations for parallel branch architectures would repeatedly fail with X_FLOW_ORDER and fall back to the basic code-built template.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 

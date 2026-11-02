@@ -813,3 +813,310 @@ async def test_explainer_llm_bad_output_safe_diagnostics(
     second_prompt = fake_llm.calls[1]["user"]
     assert "[X_BAD_OUTPUT]" in second_prompt
     assert "Output from model was malformed or failed schema validation." in second_prompt
+
+
+@pytest.mark.asyncio
+async def test_explainer_auto_sorts_flow_steps_when_all_nodes_present_in_alternate_order(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """If all node_ids are present exactly once, flow_steps are aligned into flow_order in 1 call."""
+    app, fake_llm = app_with_fake_llm
+    spec = ArchitectureSpec.model_validate(INSURANCE_12_NODE_SPEC_DICT)
+    flow_order = order_nodes(spec)
+
+    # Scramble the order of flow_steps (e.g. reverse it)
+    scrambled_ids = list(reversed(flow_order))
+    assert scrambled_ids != flow_order
+
+    flow_steps_scrambled = [
+        {"node_id": nid, "text": f"Step explanation for {nid}."} for nid in scrambled_ids
+    ]
+    parts = [{"node_id": n.id, "text": f"Part explanation for {n.name}."} for n in spec.nodes]
+    checks = [
+        {"constraint_id": "c1", "text": "Ensures policy reasoning verifies coverage."},
+        {"constraint_id": "c2", "text": "Ensures damage photos are analyzed by vision model."},
+    ]
+
+    draft_call_1 = {
+        "overview": "Insurance system overview with parallel branches.",
+        "flow_steps": flow_steps_scrambled,
+        "parts": parts,
+        "checks": checks,
+        "models_text": "Models and agents collaborate on claims.",
+    }
+    fake_llm.script.append(draft_call_1)
+
+    async with temp_db_session_factory() as db:
+        session = IntakeSessionTable(
+            id="session-align-123",
+            status="designed",
+            rounds=1,
+            turns_json="[]",
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            created_at="2026-11-02T12:00:00Z",
+            updated_at="2026-11-02T12:00:00Z",
+        )
+        db.add(session)
+        await db.commit()
+
+        design = DesignTable(
+            id="design-align-123",
+            intake_session_id=session.id,
+            current_version=1,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(design)
+        version = DesignVersionTable(
+            id="version-align-123",
+            design_id=design.id,
+            version_no=1,
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            spec_json=json.dumps(INSURANCE_12_NODE_SPEC_DICT),
+            explanation_json=None,
+            prompt_version="architect_v5",
+            models_json=json.dumps({"architect": "gemini-3.5"}),
+            warnings_json="[]",
+            change_note=None,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(version)
+        await db.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(
+            f"/api/designs/{design.id}/versions/{version.version_no}/explanation"
+        )
+        assert res.status_code == 200
+        explanation_data = res.json()
+        assert explanation_data["source"] == "llm"
+
+    # Exactly 1 LLM call was needed (code aligned the flow steps before verification)
+    assert len(fake_llm.calls) == 1
+
+    # Final flow steps are in exact canonical flow_order
+    resulting_flow_ids = [step["node_id"] for step in explanation_data["flow"]]
+    assert resulting_flow_ids == flow_order
+    assert [step["step"] for step in explanation_data["flow"]] == list(range(1, 13))
+
+
+@pytest.mark.asyncio
+async def test_explainer_flow_order_missing_or_duplicate_node_fails_with_expected_ids_retry_hint(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """When a node ID is missing or duplicate, draft is not sorted; retry prompt names expected IDs."""
+    app, fake_llm = app_with_fake_llm
+    spec = ArchitectureSpec.model_validate(INSURANCE_12_NODE_SPEC_DICT)
+    flow_order = order_nodes(spec)
+
+    # Missing the last node, duplicating the first node
+    invalid_step_ids = flow_order[:-1] + [flow_order[0]]
+    assert len(invalid_step_ids) == len(flow_order)
+    assert set(invalid_step_ids) != set(flow_order)
+
+    flow_steps_invalid = [{"node_id": nid, "text": f"Step for {nid}."} for nid in invalid_step_ids]
+    parts = [{"node_id": n.id, "text": f"Part for {n.name}."} for n in spec.nodes]
+    checks = [
+        {"constraint_id": "c1", "text": "Policy reasoning check."},
+        {"constraint_id": "c2", "text": "Damage photos check."},
+    ]
+
+    draft_call_1 = {
+        "overview": "Insurance system overview.",
+        "flow_steps": flow_steps_invalid,
+        "parts": parts,
+        "checks": checks,
+        "models_text": "Models and agents collaborate on claims.",
+    }
+
+    # Call 2 provides a valid draft with correct flow steps
+    flow_steps_valid = [{"node_id": nid, "text": f"Step for {nid}."} for nid in flow_order]
+    draft_call_2 = {
+        "overview": "Insurance system overview.",
+        "flow_steps": flow_steps_valid,
+        "parts": parts,
+        "checks": checks,
+        "models_text": "Models and agents collaborate on claims.",
+    }
+
+    fake_llm.script.extend([draft_call_1, draft_call_2])
+
+    async with temp_db_session_factory() as db:
+        session = IntakeSessionTable(
+            id="session-hint-123",
+            status="designed",
+            rounds=1,
+            turns_json="[]",
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            created_at="2026-11-02T12:00:00Z",
+            updated_at="2026-11-02T12:00:00Z",
+        )
+        db.add(session)
+        await db.commit()
+
+        design = DesignTable(
+            id="design-hint-123",
+            intake_session_id=session.id,
+            current_version=1,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(design)
+        version = DesignVersionTable(
+            id="version-hint-123",
+            design_id=design.id,
+            version_no=1,
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            spec_json=json.dumps(INSURANCE_12_NODE_SPEC_DICT),
+            explanation_json=None,
+            prompt_version="architect_v5",
+            models_json=json.dumps({"architect": "gemini-3.5"}),
+            warnings_json="[]",
+            change_note=None,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(version)
+        await db.commit()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(
+            f"/api/designs/{design.id}/versions/{version.version_no}/explanation"
+        )
+        assert res.status_code == 200
+        assert res.json()["source"] == "llm"
+
+    assert len(fake_llm.calls) == 2
+
+    # Check Attempt 2 retry prompt formatting
+    second_user_prompt = fake_llm.calls[1]["user"]
+    assert (
+        "- [X_FLOW_ORDER] Flow steps must list every node exactly once in flow order."
+        in second_user_prompt
+    )
+    expected_line_prefix = "Expected flow order (node ids):"
+    assert expected_line_prefix in second_user_prompt
+
+    matching_lines = [
+        l.strip() for l in second_user_prompt.splitlines() if expected_line_prefix in l
+    ]
+    assert len(matching_lines) == 1
+    expected_line = matching_lines[0]
+    assert expected_line == f"Expected flow order (node ids): {', '.join(flow_order)}"
+
+    # Ensure no node names or roles leaked into the expected flow order hint line
+    for node in spec.nodes:
+        assert node.name not in expected_line
+
+
+@pytest.mark.asyncio
+async def test_explainer_verify_failed_logs_flow_order_discrepancy_safely(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """explainer_verify_failed structured log captures expected and received node ID lists safely."""
+    app, fake_llm = app_with_fake_llm
+    spec_dict = dict(INSURANCE_12_NODE_SPEC_DICT)
+    spec_dict["nodes"] = [dict(n) for n in spec_dict["nodes"]]
+    canary = "CANARY_NODE_ROLE_SECRET_XYZ88"
+    spec_dict["nodes"][0]["role"] = f"Ingress with {canary}"
+    spec = ArchitectureSpec.model_validate(spec_dict)
+    flow_order = order_nodes(spec)
+
+    # Missing one node from flow_steps
+    missing_flow_steps = [{"node_id": nid, "text": f"Step for {nid}."} for nid in flow_order[:-1]]
+    parts = [{"node_id": n.id, "text": f"Part for {n.name}."} for n in spec.nodes]
+    checks = [
+        {"constraint_id": "c1", "text": "Policy reasoning check."},
+        {"constraint_id": "c2", "text": "Damage photos check."},
+    ]
+
+    draft_call_1 = {
+        "overview": "Insurance system overview.",
+        "flow_steps": missing_flow_steps,
+        "parts": parts,
+        "checks": checks,
+        "models_text": "Models and agents collaborate on claims.",
+    }
+
+    # Call 2 valid draft
+    valid_flow_steps = [{"node_id": nid, "text": f"Step for {nid}."} for nid in flow_order]
+    draft_call_2 = {
+        "overview": "Insurance system overview.",
+        "flow_steps": valid_flow_steps,
+        "parts": parts,
+        "checks": checks,
+        "models_text": "Models and agents collaborate on claims.",
+    }
+
+    fake_llm.script.extend([draft_call_1, draft_call_2])
+
+    async with temp_db_session_factory() as db:
+        session = IntakeSessionTable(
+            id="session-log-123",
+            status="designed",
+            rounds=1,
+            turns_json="[]",
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            created_at="2026-11-02T12:00:00Z",
+            updated_at="2026-11-02T12:00:00Z",
+        )
+        db.add(session)
+        await db.commit()
+
+        design = DesignTable(
+            id="design-log-123",
+            intake_session_id=session.id,
+            current_version=1,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(design)
+        version = DesignVersionTable(
+            id="version-log-123",
+            design_id=design.id,
+            version_no=1,
+            brief_json=json.dumps(INSURANCE_BRIEF_DICT),
+            spec_json=json.dumps(spec_dict),
+            explanation_json=None,
+            prompt_version="architect_v5",
+            models_json=json.dumps({"architect": "gemini-3.5"}),
+            warnings_json="[]",
+            change_note=None,
+            created_at="2026-11-02T12:00:00Z",
+        )
+        db.add(version)
+        await db.commit()
+
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(
+            f"/api/designs/{design.id}/versions/{version.version_no}/explanation"
+        )
+        assert res.status_code == 200
+
+    assert len(caplog.records) > 0, "Expected non-empty log output"
+
+    records: list[dict[str, Any]] = []
+    for r in caplog.records:
+        msg = r.getMessage()
+        assert canary not in msg
+        try:
+            records.append(json.loads(msg))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    assert len(records) > 0
+    verify_failed_events = [r for r in records if r.get("event") == "explainer_verify_failed"]
+    assert len(verify_failed_events) >= 1
+
+    attempt_1_record = verify_failed_events[0]
+    assert attempt_1_record.get("attempt") == 1
+    assert "X_FLOW_ORDER" in attempt_1_record.get("issue_codes", [])
+    assert attempt_1_record.get("expected_flow_order") == flow_order
+    assert attempt_1_record.get("received_flow_order") == [s["node_id"] for s in missing_flow_steps]
+
+    for rec in records:
+        serialized = json.dumps(rec)
+        assert canary not in serialized

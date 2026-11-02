@@ -40,6 +40,17 @@ def _escape_untrusted_text(text: str) -> str:
     return text.replace("</untrusted_user_text>", "&lt;/untrusted_user_text&gt;")
 
 
+def _maybe_align_flow_steps(
+    draft: ExplanationDraft,
+    flow_order: list[str],
+) -> None:
+    """Sort draft flow_steps into flow_order if all expected node IDs are present exactly once."""
+    step_ids = [step.node_id for step in draft.flow_steps]
+    if len(step_ids) == len(flow_order) and set(step_ids) == set(flow_order):
+        step_map = {step.node_id: step for step in draft.flow_steps}
+        draft.flow_steps = [step_map[nid] for nid in flow_order]
+
+
 def _extract_safe_validation_diagnostics(
     exc: Exception,
 ) -> tuple[dict[str, Any], str]:
@@ -144,7 +155,12 @@ def _format_explainer_user_prompt(
             "Produce a complete, verified ExplanationDraft adhering strictly to the system rules."
         )
 
-    issue_lines = [f"- [{i.code}] {i.message}" for i in issues]
+    issue_lines: list[str] = []
+    for i in issues:
+        line = f"- [{i.code}] {i.message}"
+        if i.code == "X_FLOW_ORDER":
+            line += f"\n  Expected flow order (node ids): {', '.join(flow_order)}"
+        issue_lines.append(line)
     issues_formatted = "\n".join(issue_lines)
     prev_draft_json = ""
     if previous_draft is not None:
@@ -209,6 +225,7 @@ async def get_or_generate_explanation(
             schema=ExplanationDraft,
         )
         draft = ExplanationDraft.model_validate(raw_output)
+        _maybe_align_flow_steps(draft, flow_order)
         issues = verify_draft(draft, spec, brief, flow_order)
     except (LLMUnavailable, LLMRateLimited, LLMTimeout, LLMNotConfigured):
         # Transient errors and configuration errors re-raise directly
@@ -235,13 +252,20 @@ async def get_or_generate_explanation(
         return await repo.save_explanation(db, design_id, version_no, assembled)
 
     # Attempt 1 failed verification
+    verify_meta: dict[str, Any] = dict(diag_meta)
+    if any(i.code == "X_FLOW_ORDER" for i in issues):
+        verify_meta["expected_flow_order"] = list(flow_order)
+        verify_meta["received_flow_order"] = [
+            step.node_id for step in (draft.flow_steps if draft else [])
+        ]
+
     logger.info(
         "explainer_verify_failed",
         design_id=design_id,
         version_no=version_no,
         attempt=attempt,
         issue_codes=[i.code for i in issues],
-        **diag_meta,
+        **verify_meta,
     )
 
     # Attempt 2
@@ -265,6 +289,7 @@ async def get_or_generate_explanation(
             schema=ExplanationDraft,
         )
         draft_2 = ExplanationDraft.model_validate(raw_output_2)
+        _maybe_align_flow_steps(draft_2, flow_order)
         issues_2 = verify_draft(draft_2, spec, brief, flow_order)
     except (LLMUnavailable, LLMRateLimited, LLMTimeout, LLMNotConfigured):
         raise
@@ -290,13 +315,20 @@ async def get_or_generate_explanation(
         return await repo.save_explanation(db, design_id, version_no, assembled)
 
     # Attempt 2 failed: fall back to deterministic code-only explanation
+    verify_meta_2: dict[str, Any] = dict(diag_meta_2)
+    if any(i.code == "X_FLOW_ORDER" for i in issues_2):
+        verify_meta_2["expected_flow_order"] = list(flow_order)
+        verify_meta_2["received_flow_order"] = [
+            step.node_id for step in (draft_2.flow_steps if draft_2 else [])
+        ]
+
     logger.info(
         "explainer_verify_failed",
         design_id=design_id,
         version_no=version_no,
         attempt=attempt,
         issue_codes=[i.code for i in issues_2],
-        **diag_meta_2,
+        **verify_meta_2,
     )
     logger.info(
         "explainer_fallback_applied",
