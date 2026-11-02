@@ -33,6 +33,7 @@ from archnemesis.shared.brief import RequirementBrief
 logger = structlog.get_logger(__name__)
 
 MAX_EXPLAINER_CALLS: int = 2
+EXPLAINER_PROMPT_NAME: str = "writer_v2"
 
 
 def _escape_untrusted_text(text: str) -> str:
@@ -207,8 +208,13 @@ async def get_or_generate_explanation(
     flow_order = order_nodes(spec)
 
     # 2. Generation Loop (outside of open DB transactions)
-    logger.info("explainer_generate_start", design_id=design_id, version_no=version_no)
-    system_prompt = load_prompt("writer_v1.md")
+    logger.info(
+        "explainer_generate_start",
+        design_id=design_id,
+        version_no=version_no,
+        explainer_prompt=EXPLAINER_PROMPT_NAME,
+    )
+    system_prompt = load_prompt(f"{EXPLAINER_PROMPT_NAME}.md")
 
     # Attempt 1
     attempt = 1
@@ -247,6 +253,7 @@ async def get_or_generate_explanation(
             version_no=version_no,
             attempt=attempt,
             source="llm",
+            explainer_prompt=EXPLAINER_PROMPT_NAME,
         )
         assembled = assemble_explanation(draft, spec, flow_order)
         return await repo.save_explanation(db, design_id, version_no, assembled)
@@ -265,6 +272,7 @@ async def get_or_generate_explanation(
         version_no=version_no,
         attempt=attempt,
         issue_codes=[i.code for i in issues],
+        explainer_prompt=EXPLAINER_PROMPT_NAME,
         **verify_meta,
     )
 
@@ -310,6 +318,7 @@ async def get_or_generate_explanation(
             version_no=version_no,
             attempt=attempt,
             source="llm",
+            explainer_prompt=EXPLAINER_PROMPT_NAME,
         )
         assembled = assemble_explanation(draft_2, spec, flow_order)
         return await repo.save_explanation(db, design_id, version_no, assembled)
@@ -328,6 +337,7 @@ async def get_or_generate_explanation(
         version_no=version_no,
         attempt=attempt,
         issue_codes=[i.code for i in issues_2],
+        explainer_prompt=EXPLAINER_PROMPT_NAME,
         **verify_meta_2,
     )
     logger.info(

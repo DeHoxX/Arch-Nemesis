@@ -1674,6 +1674,16 @@ If we removed it: Explanations for parallel branch architectures would repeatedl
 Decided by: agent proposed, user approved
 Status: active
 
+### D-199 — Stage B6e — deviation
+What: Introduce writer_v2.md prompt explicitly enumerating character limits, forbidden cost/effort words, compliance phrases, and standalone step requirements.
+Why: In two real Gemini 3.5 Flash explanation runs on 12-node designs, Attempt 1 repeatedly failed on forbidden words (e.g. cost, savings), compliance claims (e.g. fully secure), and models_text length limits (410 > 400 chars) because writer_v1.md lacked upfront negative constraints. Although BUILD_PLAN.md:483 states "Do not: ... add effort or cost words to the prompt", listing them as explicit negative prohibitions ("Never use any of the following forbidden words: cost, costs, price...") is necessary so the model avoids them on Attempt 1 rather than having only a single retry to discover them. Precedent exists in architect_v5.md:56 ("Never mention or invent cost, price, effort, or timeline figures anywhere"). In B6e: (1) writer_v2.md explicitly lists the 9 forbidden words, 6 compliance phrases, strict field limits with guidance to aim under 350 chars for models_text, the requirement to reference only numbers under "Known Numbers from Brief", and standalone step text; (2) explainer/service.py defines EXPLAINER_PROMPT_NAME = "writer_v2" and adds explainer_prompt to structured logs.
+Alternatives considered:
+1. Keeping writer_v1.md and relying on retry feedback: Rejected because real runs show that discovering multiple failure classes on Attempt 1 leaves zero margin of error on Attempt 2, frequently triggering fallback.
+2. Increasing schema character limits: Rejected because prompt-level conciseness guidance is the correct architectural boundary and keeps explanations digestible.
+If we removed it: Explainer runs would continue to fail on Attempt 1 due to untracked forbidden words and compliance claims, risking fallback.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 

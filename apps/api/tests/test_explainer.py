@@ -19,6 +19,7 @@ from archnemesis.modules.explainer import repo as explainer_repo
 from archnemesis.modules.explainer.service import _format_explainer_user_prompt
 from archnemesis.modules.validation.models import ArchitectureSpec
 from archnemesis.modules.validation.ordering import order_nodes
+from archnemesis.prompts import load_prompt
 from archnemesis.shared.brief import RequirementBrief
 from tests.conftest import error_body
 
@@ -1120,3 +1121,117 @@ async def test_explainer_verify_failed_logs_flow_order_discrepancy_safely(
     for rec in records:
         serialized = json.dumps(rec)
         assert canary not in serialized
+
+
+def test_writer_v1_and_v2_prompts_loadable() -> None:
+    """Verify writer_v1.md remains loadable and unchanged, and writer_v2.md has all required rules."""
+    v1 = load_prompt("writer_v1.md")
+    assert len(v1) > 0
+    assert "cost" not in v1  # v1 did not have forbidden words list
+
+    v2 = load_prompt("writer_v2.md")
+    assert len(v2) > 0
+
+    # The nine forbidden words
+    forbidden_words = [
+        "cost",
+        "costs",
+        "price",
+        "pricing",
+        "budget",
+        "timeline",
+        "effort",
+        "roi",
+        "savings",
+    ]
+    for word in forbidden_words:
+        assert word in v2, f"Forbidden word '{word}' missing in writer_v2.md"
+
+    # The six compliance phrases
+    compliance_phrases = [
+        "compliant",
+        "certified",
+        "guarantee",
+        "guarantees",
+        "guaranteed",
+        "fully secure",
+    ]
+    for phrase in compliance_phrases:
+        assert phrase in v2, f"Compliance phrase '{phrase}' missing in writer_v2.md"
+
+    # Limits: 600, 300, 400
+    assert "600 characters" in v2
+    assert "300 characters" in v2
+    assert "400 characters" in v2
+    assert "aim for under 350 characters" in v2
+
+    # Standalone step rule
+    assert "Each flow step and part explanation must be fully self-contained and stand alone" in v2
+    assert "Known Numbers from Brief" in v2
+
+
+@pytest.mark.asyncio
+async def test_explainer_uses_writer_v2_system_prompt(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Verify explainer passes writer_v2.md prompt to LLM on generation."""
+    app, fake_llm = app_with_fake_llm
+    fake_llm.script.append(VALID_DRAFT_DICT)
+
+    async with temp_db_session_factory() as db:
+        design_id, version_no = await _seed_design(db)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(f"/api/designs/{design_id}/versions/{version_no}/explanation")
+        assert res.status_code == 200
+
+    assert len(fake_llm.calls) == 1
+    call = fake_llm.calls[0]
+    system_text = call["system"]
+
+    # Verify writer_v2-only sentences are in the system prompt
+    assert "aim for under 350 characters" in system_text
+    assert "Never use any of the following forbidden words" in system_text
+    assert "fully secure" in system_text
+
+
+@pytest.mark.asyncio
+async def test_explainer_logs_contain_explainer_prompt(
+    app_with_fake_llm: tuple[Any, FakeLLMClient],
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify structured logs include explainer_prompt field."""
+    app, fake_llm = app_with_fake_llm
+    fake_llm.script.append(VALID_DRAFT_DICT)
+
+    async with temp_db_session_factory() as db:
+        design_id, version_no = await _seed_design(db)
+
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post(f"/api/designs/{design_id}/versions/{version_no}/explanation")
+        assert res.status_code == 200
+
+    assert len(caplog.records) > 0, "Expected non-empty log output"
+
+    records: list[dict[str, Any]] = []
+    for r in caplog.records:
+        msg = r.getMessage()
+        try:
+            records.append(json.loads(msg))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    assert len(records) > 0
+    start_events = [r for r in records if r.get("event") == "explainer_generate_start"]
+    success_events = [r for r in records if r.get("event") == "explainer_generate_success"]
+
+    assert len(start_events) == 1
+    assert start_events[0].get("explainer_prompt") == "writer_v2"
+
+    assert len(success_events) == 1
+    assert success_events[0].get("explainer_prompt") == "writer_v2"
