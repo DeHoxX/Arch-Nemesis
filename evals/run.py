@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import logging
 import sys
 import tempfile
 import time
@@ -29,6 +28,7 @@ if str(api_src) not in sys.path:
 if str(repo_root) not in sys.path:
     sys.path.insert(0, str(repo_root))
 
+import structlog
 from evals.metrics import (
     CaseRunRecord,
     aggregate_eval_runs,
@@ -59,21 +59,15 @@ from archnemesis.modules.validation.lints import check_lints
 from archnemesis.settings import get_settings
 
 
-class StructlogCaptureHandler(logging.Handler):
-    """In-memory logging handler capturing structlog JSON events."""
+class StructlogEventCollector:
+    """In-memory structlog processor capturing event dictionaries directly."""
 
     def __init__(self) -> None:
-        super().__init__(level=logging.INFO)
         self.events: list[dict[str, Any]] = []
 
-    def emit(self, record: logging.LogRecord) -> None:
-        msg = record.getMessage()
-        try:
-            parsed = json.loads(msg)
-            if isinstance(parsed, dict) and "event" in parsed:
-                self.events.append(parsed)
-        except (json.JSONDecodeError, ValueError):
-            pass
+    def __call__(self, logger: Any, method_name: str, event_dict: dict[str, Any]) -> dict[str, Any]:
+        self.events.append(dict(event_dict))
+        return event_dict
 
     def clear(self) -> None:
         self.events.clear()
@@ -227,7 +221,7 @@ async def execute_eval_suite(
     cases: list[dict[str, Any]],
     runs_per_case: int,
     client: InstrumentedLLMClient,
-    capture_handler: StructlogCaptureHandler,
+    event_collector: StructlogEventCollector,
     output_path: Path,
     dry_mode: bool = False,
 ) -> tuple[int, list[CaseRunRecord]]:
@@ -236,6 +230,17 @@ async def execute_eval_suite(
     completed_records: list[CaseRunRecord] = []
     aborted_due_to_quota = False
     started_time = datetime.now().strftime("%Y%m%d-%H%M")
+
+    # Configure structlog to ensure event_collector intercepts all service events
+    structlog.configure(
+        processors=[
+            event_collector,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer(),
+        ],
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=False,
+    )
 
     # Isolated temporary database for this evaluation execution
     temp_dir = tempfile.TemporaryDirectory()
@@ -257,7 +262,7 @@ async def execute_eval_suite(
             must_have_kinds = list(expect.get("must_have_constraint_kinds", []))
 
             for run_idx in range(1, runs_per_case + 1):
-                capture_handler.clear()
+                event_collector.clear()
                 start_calls = client.call_count
                 start_time = time.perf_counter()
 
@@ -347,7 +352,10 @@ async def execute_eval_suite(
                         code_repair_used = "+code_repair" in prompt_version
 
                         design_attempts = [
-                            e for e in capture_handler.events if e.get("event") == "design_attempt"
+                            e for e in event_collector.events if e.get("event") == "design_attempt"
+                        ]
+                        design_attempt_issues = [
+                            code for e in design_attempts for code in e.get("issue_codes", [])
                         ]
                         attempt_1_pass = (
                             len(design_attempts) <= 1
@@ -373,6 +381,19 @@ async def execute_eval_suite(
                         constraints_ok = all(k in found_kinds for k in must_have_kinds)
                         within_bounds = min_nodes <= node_count <= max_nodes
 
+                        code_repairs = [
+                            e for e in event_collector.events if e.get("event") == "code_repair"
+                        ]
+                        code_repair_events = [
+                            {
+                                "attempt": e.get("attempt"),
+                                "issue_codes": e.get("issue_codes", []),
+                                "node_ids": e.get("node_ids", []),
+                                "edges_net_change": e.get("edges_net_change", 0),
+                            }
+                            for e in code_repairs
+                        ]
+
                         # 4. Explainer generation
                         expl_res = await get_or_generate_explanation(
                             db=db,
@@ -384,12 +405,37 @@ async def execute_eval_suite(
                         explainer_source = expl_res.source
                         explainer_failed = [
                             e
-                            for e in capture_handler.events
+                            for e in event_collector.events
                             if e.get("event") == "explainer_verify_failed"
                         ]
-                        explainer_issues: list[str] = []
-                        for ef in explainer_failed:
-                            explainer_issues.extend(ef.get("issue_codes", []))
+                        att1_failed = [e for e in explainer_failed if e.get("attempt") == 1]
+                        explainer_attempt_1_issues = [
+                            code for e in att1_failed for code in e.get("issue_codes", [])
+                        ]
+                        att2_failed = [e for e in explainer_failed if e.get("attempt") == 2]
+                        explainer_attempt_2_issues = [
+                            code for e in att2_failed for code in e.get("issue_codes", [])
+                        ]
+                        all_explainer_issues = (
+                            explainer_attempt_1_issues + explainer_attempt_2_issues
+                        )
+
+                        expl_success = [
+                            e
+                            for e in event_collector.events
+                            if e.get("event") == "explainer_generate_success"
+                        ]
+                        if expl_success:
+                            explainer_attempt = int(
+                                expl_success[-1].get("attempt", len(explainer_failed) + 1)
+                            )
+                        elif explainer_failed:
+                            explainer_attempt = max(
+                                int(e.get("attempt", len(explainer_failed)))
+                                for e in explainer_failed
+                            )
+                        else:
+                            explainer_attempt = 1
 
                         elapsed = time.perf_counter() - start_time
                         calls_made = client.call_count - start_calls
@@ -415,8 +461,12 @@ async def execute_eval_suite(
                             expected_constraints_satisfied=constraints_ok,
                             within_node_bounds=within_bounds,
                             explainer_source=explainer_source,
-                            explainer_attempt=len(explainer_failed) + 1,
-                            explainer_issues=explainer_issues,
+                            explainer_attempt=explainer_attempt,
+                            explainer_issues=all_explainer_issues,
+                            explainer_attempt_1_issues=explainer_attempt_1_issues,
+                            explainer_attempt_2_issues=explainer_attempt_2_issues,
+                            code_repair_events=code_repair_events,
+                            design_attempt_issues=design_attempt_issues,
                             llm_call_count=calls_made,
                             wall_clock_seconds=round(elapsed, 2),
                         )
@@ -492,11 +542,17 @@ def main(argv: list[str] | None = None) -> int:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M")
         out_path = repo_root / "evals" / "results" / f"{timestamp}.json"
 
-    # Set up structlog capturing handler
-    capture_handler = StructlogCaptureHandler()
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    root_logger.addHandler(capture_handler)
+    # Set up structlog event collector
+    collector = StructlogEventCollector()
+    structlog.configure(
+        processors=[
+            collector,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.dev.ConsoleRenderer(),
+        ],
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=False,
+    )
 
     if args.dry:
         dry_script = build_dry_run_script(cases, args.runs)
@@ -526,13 +582,12 @@ def main(argv: list[str] | None = None) -> int:
             cases=cases,
             runs_per_case=args.runs,
             client=client,
-            capture_handler=capture_handler,
+            event_collector=collector,
             output_path=out_path,
             dry_mode=args.dry,
         )
     )
 
-    root_logger.removeHandler(capture_handler)
     print(f"Evaluation complete. Results written to: {out_path} (Runs: {len(records)})")
     return exit_code
 

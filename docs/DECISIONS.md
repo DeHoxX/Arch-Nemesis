@@ -2172,6 +2172,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-202 — Stage E2 — fix
+What: Capture evaluation structured logs using a direct structlog processor rather than standard library logging handler, and record per-attempt verification issue codes in CaseRunRecord.
+Why: In evaluation benchmarks, run.py failed to record explainer verification failure codes (such as X_COMPLIANCE_CLAIM) in by_case.issue_counts because setup_logging() was not called by the standalone runner, causing structlog to use its default ConsoleRenderer directly to stdout instead of emitting JSON via standard library logging. Replacing the standard library handler with an in-memory structlog processor (StructlogEventCollector) intercepts event dictionaries before rendering, making issue capture completely independent of render formatting. CaseRunRecord is expanded with explainer_attempt_1_issues, explainer_attempt_2_issues, code_repair_events, and design_attempt_issues to provide granular diagnostic visibility.
+Alternatives considered:
+1. Calling setup_logging() in run.py: Rejected because it forces JSON logging on the console, removing human-readable key=value output for interactive terminal runs.
+2. Parsing regex on console text: Rejected because it is fragile to formatting changes and cannot reliably deserialize nested issue code lists.
+If we removed it: Evaluation reports would show empty issue_counts even when verification retries were triggered, obscuring prompt failures.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

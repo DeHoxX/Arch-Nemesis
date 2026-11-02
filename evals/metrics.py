@@ -37,6 +37,10 @@ class CaseRunRecord:
     explainer_source: str = "llm"  # "llm" or "fallback"
     explainer_attempt: int = 1
     explainer_issues: list[str] = field(default_factory=list)
+    explainer_attempt_1_issues: list[str] = field(default_factory=list)
+    explainer_attempt_2_issues: list[str] = field(default_factory=list)
+    code_repair_events: list[dict[str, Any]] = field(default_factory=list)
+    design_attempt_issues: list[str] = field(default_factory=list)
     llm_call_count: int = 0
     wall_clock_seconds: float = 0.0
 
