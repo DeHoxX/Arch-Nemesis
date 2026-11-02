@@ -1654,6 +1654,16 @@ If we removed it: Developers and LLM repair loops would remain blind to which sp
 Decided by: agent proposed, user approved
 Status: active
 
+### D-197 — Stage B6b — decision
+What: Introduce architect prompt v5, repair v5, and patterns v5 to keep merge nodes as plain code and size small needs proportionally.
+Why: Live Gemini outputs revealed two issues: (1) join/aggregator nodes combining parallel fan-outs were unnecessarily marked with ai_role="agent" and needs_model=True (which also violated new lint W_MERGE_AS_AGENT); and (2) vague or small needs produced over-engineered designs with 7+ nodes, speculative fan-outs, and extra caching/agent layers because the prompt lacked concrete sizing guidance for simple needs while mentioning "aggregator agents" and "7 to 15 components". In B6b: (1) architect_v5.md instructs the model that merge/join/aggregator nodes are plain code (ai_role "none", needs_model false) unless the user request explicitly requires AI judgment at the join; (2) removes "aggregator agents" from illustrative layering; (3) establishes that vague or small needs usually yield 3 to 6 components without speculative fan-outs or agents, keeping assumptions in the brief; (4) removes "7 to 15 components" to avoid artificial inflation on complex needs; (5) architect_repair_v5.md instructs not to convert merges into models/agents during repair; (6) patterns_v5/parallel_fan_out_merge.md sets aggregator ai_role "none" and needs_model false and removes the dispatcher -> audit store edge; and (7) architect service updates its defaults and labels to architect_v5 and patterns v5.
+Alternatives considered:
+1. Adding a hard validation rule rejecting merge nodes as agents: Rejected because some legitimate designs require synthesis models at join points, so a prompt-level instruction combined with non-blocking lint W_MERGE_AS_AGENT is the correct design.
+2. Hardcoding component count limits: Rejected because architectural sizing should be guided by use case complexity rather than rigid node counts.
+If we removed it: Join nodes would continue to be styled as AI agents, and simple user needs would continue to generate over-complex multi-branch topologies.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 

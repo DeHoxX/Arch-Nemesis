@@ -23,8 +23,8 @@ from archnemesis.shared.brief import RequirementBrief
 logger = structlog.get_logger()
 
 MAX_ARCHITECT_CALLS: int = 3
-ARCHITECT_PROMPT_NAME: str = "architect_v4"
-ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v4"
+ARCHITECT_PROMPT_NAME: str = "architect_v5"
+ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v5"
 
 
 def _format_brief_prompt(brief: RequirementBrief) -> str:
@@ -97,7 +97,7 @@ async def generate_and_validate(
 
     # Call 1: Initial generation
     system_prompt = load_prompt(f"{ARCHITECT_PROMPT_NAME}.md")
-    patterns_text = load_patterns(version="v4")
+    patterns_text = load_patterns(version="v5")
     user_prompt = (
         f"Architectural Reference Patterns:\n\n{patterns_text}\n\n"
         f"---\n\n"
