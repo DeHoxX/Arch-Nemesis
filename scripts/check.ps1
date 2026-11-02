@@ -26,6 +26,10 @@ try {
     Write-Host "-> Pytest..." -ForegroundColor Yellow
     uv run pytest -q
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    Write-Host "-> Pytest evals..." -ForegroundColor Yellow
+    uv run pytest ..\..\evals\tests -q
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {
     Pop-Location

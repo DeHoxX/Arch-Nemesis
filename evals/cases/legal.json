@@ -1,0 +1,15 @@
+{
+  "id": "legal",
+  "need_text": "I need a contract review system. Lawyers upload contracts. The system extracts clauses, highlights risky clauses, and compares them with our standard clauses. No report may reach a lawyer without passing a reviewer step. High-risk contracts must be signed off by a senior lawyer. Contract text must never appear in plain text in logs.",
+  "followup_answers": [
+    "Users: lawyers and senior lawyers. Data: contract documents."
+  ],
+  "expect": {
+    "min_nodes": 3,
+    "max_nodes": 25,
+    "must_have_constraint_kinds": [
+      "must_pass_through"
+    ]
+  }
+}
+

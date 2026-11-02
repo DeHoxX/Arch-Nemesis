@@ -23,3 +23,7 @@ coverage/
 # Logs
 *.log
 
+# Evaluation results
+evals/results/*.json
+!evals/results/.gitkeep
+

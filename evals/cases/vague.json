@@ -1,0 +1,13 @@
+{
+  "id": "vague",
+  "need_text": "I need an app.",
+  "followup_answers": [
+    "A tool to help our team coordinate tasks. Users are team members and managers. Data is tasks and comments."
+  ],
+  "expect": {
+    "min_nodes": 3,
+    "max_nodes": 6,
+    "must_have_constraint_kinds": []
+  }
+}
+

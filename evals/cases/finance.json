@@ -1,0 +1,13 @@
+{
+  "id": "finance",
+  "need_text": "I need a system that flags suspicious bank transactions. It scores each transaction for fraud risk. High-risk transactions must go to a human analyst before any block or release. Small low-risk transactions can be released automatically. Every decision must be written to an audit record. We expect about 100,000 transactions per day.",
+  "followup_answers": [],
+  "expect": {
+    "min_nodes": 3,
+    "max_nodes": 25,
+    "must_have_constraint_kinds": [
+      "must_pass_through"
+    ]
+  }
+}
+

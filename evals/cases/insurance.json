@@ -1,0 +1,15 @@
+{
+  "id": "insurance",
+  "need_text": "I need an insurance claims processing system. Customers submit claims online with documents and photos. The system should check the documents, estimate damage from photos, look up the customer's policy, and run a fraud check. Claims under 1000 dollars with no fraud flag can be approved automatically. High-amount claims or claims with a fraud flag must go to a human adjuster for review. No decision may be sent to the customer without passing a validator. Personal data must never appear in plain text in the audit log. We expect about 50,000 customers and 2,000 claims per day. The last step should be a notification to the customer.",
+  "followup_answers": [
+    "Users: customers, human adjusters, fraud investigators. Data: claim forms, documents, photos, policy records."
+  ],
+  "expect": {
+    "min_nodes": 3,
+    "max_nodes": 25,
+    "must_have_constraint_kinds": [
+      "must_pass_through"
+    ]
+  }
+}
+

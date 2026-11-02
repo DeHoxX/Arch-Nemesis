@@ -1,0 +1,11 @@
+{
+  "id": "iot",
+  "need_text": "I need a system to monitor temperature sensors in a cold storage warehouse. It detects readings out of range and alerts staff. Critical alerts must go to a human supervisor. Raw sensor data must be stored for later analysis. We have about 500 sensors sending a reading every minute.",
+  "followup_answers": [],
+  "expect": {
+    "min_nodes": 3,
+    "max_nodes": 25,
+    "must_have_constraint_kinds": []
+  }
+}
+

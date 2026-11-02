@@ -1,0 +1,13 @@
+{
+  "id": "support",
+  "need_text": "I need a customer support assistant. Customers ask questions through chat. The system should answer from our help articles. If it cannot answer confidently, it must hand the case to a human support agent. Every answer must be checked by a reviewer step before the customer sees it. Customer personal data must never appear in plain text in the audit log. We expect about 5,000 chats per day.",
+  "followup_answers": [],
+  "expect": {
+    "min_nodes": 3,
+    "max_nodes": 25,
+    "must_have_constraint_kinds": [
+      "must_pass_through"
+    ]
+  }
+}
+

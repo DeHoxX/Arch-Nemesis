@@ -193,6 +193,16 @@ If we removed it: Antigravity would not automatically inject project rules into 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-015 — Phase 0 — file
 What: Create the foundational directory structure (`apps/api`, `apps/web`, `scripts`, `evals`) with `.gitkeep` files, and `docs/` populated with documentation.
 Why: Git only tracks files, not empty folders. Placing an empty `.gitkeep` file in empty directories ensures that the project layout defined in the plan is preserved in version control from the very beginning. The `docs/` folder does not need a `.gitkeep` because it contains `BUILD_PLAN.md`, `contracts.md`, and `DECISIONS.md`.
@@ -422,6 +432,16 @@ What: Map `httpx.ConnectError` to `LLMUnavailable` so transport-level connection
 Why: Network-level socket connection drops or transient DNS glitches when connecting to the Gemini API endpoint are transient network events identical in practical failure semantics to HTTP 503 unavailability. Retrying connection drops prevents premature fatal failures on momentary network blips.
 Alternatives considered: Raising an immediate fatal un-retried exception on connection drops. Rejected because network transport blips to cloud providers are common and inherently transient.
 If we removed it: Any transient TCP reset or connection glitch would immediately fail an architecture generation request instead of cleanly attempting retry.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -953,6 +973,16 @@ If we removed it: Any Vitest unit test mounting `@xyflow/react` or `DiagramView`
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-110 — Phase 4 — step
 What: Configure ESLint rule `react/no-danger: "error"` in `apps/web/eslint.config.mjs`.
 Why: Project Rule 5 strictly dictates that user text and LLM text are untrusted, must be rendered as plain text, and must never use `dangerouslySetInnerHTML`. Setting `react/no-danger: "error"` automates lint enforcement, causing static analysis and CI checks to fail immediately if unsafe HTML injection is introduced.
@@ -1265,11 +1295,31 @@ If we removed it: Form validation and error states would require complex manual 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-149 — Phase 6 — design
 What: Adding shadcn UI components (`dialog.tsx`, `input.tsx`, `label.tsx`) backed by `radix-ui`.
 Why: Per `BUILD_PLAN.md:499`, modal interaction, text input, and accessible labeling require standard styled primitives matching the app's neutral design tokens. `checkbox.tsx` is omitted per user instruction because consent is purely informational text.
 Alternatives considered: Native HTML dialog or unstyled inputs. Rejected because accessible keyboard navigation and unified OKLCH styling are app standards.
 If we removed it: Dialog accessibility and styling would be inconsistent with the rest of the UI.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1281,6 +1331,16 @@ If we removed it: Prospective leads could not contact the team directly from the
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-151 — Phase 6 — design
 What: Results page header integration binding "Contact our team" button to the currently viewed design version.
 Why: Per `BUILD_PLAN.md:507`, the "Contact our team" button in the results header opens the contact dialog and sends the version currently shown (`design.current_version`).
@@ -1289,11 +1349,31 @@ If we removed it: Users would have no clear entrypoint to initiate contact regar
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-152 — Phase 6 — design
 What: Constant `LEAD_NOTE_MAX_CHARS = 500` in frontend types/constants mirroring backend `lead_note_max_chars` in `settings.py:38`.
 Why: Frontend validation must enforce the identical 500-character note limit as backend setting `lead_note_max_chars` so validation errors trigger client-side before network dispatch.
 Alternatives considered: Dynamic fetching of limits endpoint. Rejected because Phase 6 does not define a public limits introspection route and limits are static v1 contracts.
 If we removed it: An arbitrary hardcoded literal in the form would drift from backend constraints without clear traceability.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1313,11 +1393,31 @@ If we removed it: Table layout would require ad-hoc inline styles or divergent m
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-155 — Phase 6 — design
 What: In-memory React Context (`AdminTokenContext`) in `apps/web/src/app/admin/context.tsx` for admin authentication state.
 Why: BUILD_PLAN.md:505 mandates that `/admin` keeps the admin token in React state only (never in `localStorage`, never in `sessionStorage`, never in URL). Wrapping the admin subtree in an in-memory context provider allows the token to survive client-side SPA navigation from `/admin` to `/admin/designs/[id]/[n]` without persistent storage.
 Alternatives considered: URL query parameter or sessionStorage. Rejected because BUILD_PLAN.md strictly forbids token in URL or persistent storage.
 If we removed it: Navigating between `/admin` leads list and design inspection would lose token state or violate security rules by persisting credentials.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1329,11 +1429,31 @@ If we removed it: Search crawlers could index administrative lead review interfa
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-157 — Phase 6 — design
 What: Client-side local storage history helper (`apps/web/src/lib/history.ts`) under key `archnemesis.history.v1`.
 Why: BUILD_PLAN.md:506 requires persisting past designs with schema `{design_id, title, created_at}`, newest first, capped at 20, with title derived from the first 60 characters of the brief summary. Reading is guarded by Zod validation, corrupt data is ignored, storage calls are wrapped in try/catch, and existing entries are deduplicated by `design_id`.
 Alternatives considered: Server-side user accounts or unvalidated raw localStorage. Rejected because v1 has no user accounts and unvalidated storage risks runtime crashes.
 If we removed it: Visitors would lose access to previously generated architectures upon leaving the page.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1345,11 +1465,31 @@ If we removed it: Notes would be truncated or hidden behind interaction toggles.
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-159 — Phase 6 — design
 What: Admin design inspection page (`/admin/designs/[id]/[n]`) is strictly read-only and triggers zero POST/LLM requests.
 Why: The admin route inspects historical snapshots returned by `GET /api/admin/designs/{id}/versions/{n}`. It reuses `DiagramView` and `ExplanationView` as pure presenter components. If the version has no explanation snapshot, it displays "No explanation generated yet." without triggering explanation generation.
 Alternatives considered: Allowing admin to trigger `POST .../explanation`. Rejected because admin review must not mutate design version state or incur LLM generation costs.
 If we removed it: Viewing designs in admin could accidentally trigger unwanted background LLM synthesis.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1361,11 +1501,31 @@ If we removed it: Incompatible stored brief versions would trigger uncaught UI c
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-161 — Phase 6 — fix
 What: shadcn add table pulled third-party "cn", removed, uses @/lib/utils (reference D-101).
 Why: Running `npx shadcn add table` improperly installed the obsolete third-party package `"cn": "^0.5.1"` and imported from `"cn"`. Per D-101 and the project conventions, class names must be merged using the internal `@/lib/utils` helper (`clsx` + `tailwind-merge`). The third-party package was uninstalled, removed from `package.json` and `package-lock.json`, and `table.tsx` was adjusted to import `cn` from `@/lib/utils`.
 Alternatives considered: Keeping the third-party package. Rejected because it violates repository conventions and dependency rules.
 If we removed it: Extraneous unvetted dependency remains in project manifests.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1393,11 +1553,31 @@ If we removed it: Visitors cannot take away a graphical PNG of their generated a
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-165 — Phase 6 — design
 What: Results page header export action buttons (`Download diagram (PNG)`, `Download explanation (.md)`, `Print or save as PDF`).
 Why: BUILD_PLAN.md:509 mandates three export buttons on the results page next to "Contact our team". The buttons trigger purely in-memory browser actions: PNG canvas rendering via `html-to-image`, client-side blob download of markdown walkthrough, and native browser print dialog. Zero network requests or storage writes are performed.
 Alternatives considered: Putting export actions in a sub-menu. Rejected to maintain direct discoverability for visitors taking designs away.
 If we removed it: Visitors cannot export or print their generated architectures.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1409,11 +1589,31 @@ If we removed it: Walkthrough cannot be exported as a portable document.
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-167 — Phase 6 — design
 What: Scoped results page print layout and diagram print limitation documentation.
 Why: BUILD_PLAN.md:509 mandates calling `window.print()` with a stylesheet that hides buttons and shows the banner, diagram, and explanation. Scoped CSS on the results page container displays both tab contents simultaneously during printing without altering global button or header styling on other pages or dialogs. We report honestly that native browser printing of interactive transformed canvas diagrams can suffer from omitted background graphics and boundary clipping.
 Alternatives considered: Global print CSS rules hiding all buttons across the site. Rejected because it mutates dialog and admin print layouts unexpectedly.
 If we removed it: Printing would hide the inactive tab content or print cluttered navigation controls.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1447,6 +1647,16 @@ Why: Browser print layout and PDF generation severely degraded the architecture 
 Alternatives considered: Hacking SVG viewBox and CSS scale transforms for `@media print`. Rejected per explicit BUILD_PLAN.md:509 rule prohibiting print hacks.
 If we removed it: Users would rely on an inconsistent print mechanism that omits nodes and edges from their exported architectures.
 Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
 Status: active (supersedes D-165, D-167)
 
 ### D-172 — Phase 6 — fix
@@ -1457,11 +1667,31 @@ If we removed it: Tests checking unset environment variables or default settings
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-173 — Phase 6 — fix
 What: Provide dummy LLM model names in test isolation fixture to prevent LLM_NOT_CONFIGURED failures.
 Why: Decision D-172 disabled reading `.env` during test runs, but neglected that service handlers in `test_architect.py`, `test_designs.py`, `test_intake.py`, and `test_quarantine.py` check `settings.llm_model_intake` and `settings.llm_model_architect` before dispatching to injected `FakeLLMClient` instances. With `.env` ignored, model names defaulted to `None`, causing 26 backend tests to fail with `LLM_NOT_CONFIGURED`. We updated `isolate_settings_from_env_file` in `apps/api/tests/conftest.py` to set dummy test values (`LLM_MODEL_INTAKE`, `LLM_MODEL_ARCHITECT`, `LLM_MODEL_WRITER = "test-model"`) in `os.environ`, kept `ADMIN_TOKEN` and `GEMINI_API_KEY` unset by default, and preserved explicit test-level unsetting for tests that test unconfigured states.
 Alternatives considered: Hardcoding dummy model names into `Settings` defaults in `src/archnemesis/settings.py`. Rejected because production must enforce that model names are configured via environment variables, not hardcoded.
 If we removed it: Backend service and endpoint tests would fail when run in clean CI environments or on developer machines without active `.env` files.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active (supersedes D-172)
 
@@ -1473,11 +1703,31 @@ If we removed it: Users would only have the detailed technical diagram view with
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-175 — v2 Stage B — deviation
 What: Raise architecture graph limits to 25 nodes and 60 edges in settings.py and validation/models.py defaults.
 Why: Detailed agentic AI architectures require parallel processing branches, fan-out/merge patterns, specialized reasoning agents, and supporting enterprise infrastructure (queues, caches, vector stores, guardrails, audit sinks) which exceed the original 15-node and 40-edge caps. We updated MAX_NODES to 25 and MAX_EDGES to 60 in Settings and Limits defaults, giving the LLM sufficient headroom to synthesize rich multi-agent systems without artificial truncation.
 Alternatives considered: Raising limits to 50 nodes. Rejected because large graphs cause extreme canvas scaling degradation and risk LLM generation timeouts.
 If we removed it: Complex agentic architectures would fail validation with E_NODE_LIMIT and E_EDGE_LIMIT.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1489,11 +1739,31 @@ If we removed it: Systems generated without any AI models would pass silently wi
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-177 — v2 Stage B — decision
 What: Introduce architect_v2.md and architect_repair_v2.md prompts and prompt constants.
 Why: To guide the LLM to design branched, parallel architectures with specialized agents while leaving v1 prompts immutable. The prompt mandates forward DAG flow, parallel fan-out and merge at aggregators, illustrative architectural layers, multi-sentence roles, inputs/outputs labels, and tech options, with explicit warnings against artificial padding. Service layer defines ARCHITECT_PROMPT_NAME and ARCHITECT_REPAIR_PROMPT_NAME constants, storing prompt_version ("architect_v2" or "architect_v2+architect_repair_v2") per design version.
 Alternatives considered: String replace tricks to determine repair prompt names. Rejected in favor of explicit constant declarations.
 If we removed it: Generated designs would remain linear chains of 5-7 nodes resembling block diagrams.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1505,11 +1775,31 @@ If we removed it: The LLM few-shot context would continue to bias generation tow
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-179 — v2 Stage B2 — step
 What: Implement structured design_attempt, design_created, and code_repair event logging.
 Why: BUILD_PLAN.md line 413 mandates structured logging events for generation attempts and design creations. We implemented design_attempt logging (attempt number, issue codes only) in architect/service.py after every validation check, design_created logging (design_id, node count, prompt version, model names) in designs/service.py, and code_repair logging (constraint ids, edges added count) when graph repair executes. Following Rule 6 and Rule 10, no user prompt text or raw LLM output is ever logged.
 Alternatives considered: Logging full validation errors and prompt snippets. Rejected because user text is untrusted data and must remain out of log files.
 If we removed it: Generation attempts and repair iterations would lack observable telemetry, making 422 diagnostic debugging impossible in production.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1521,11 +1811,31 @@ If we removed it: The model would continue to exhaust repair attempts on complex
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-181 — v2 Stage B2 — fix
 What: Introduce pure deterministic patch_constraints graph repair module in validation.
 Why: To eliminate generation failures on complex branched briefs while respecting Rule 1 (code validates structure; LLM designs initial structure; code patches only to satisfy constraints). When must_pass_through or must_precede is violated by a bypass path, patch_constraints deterministically reroutes bypass edges through the required node using fixed neutral flows text ("Forward payload for verification"). The repair enforces cycle safety (NetworkX DAG check), edge limits (max 60), and exit-sink protection (structural sinks with out-degree 0 are fed downstream rather than converted to bottlenecks). Full validation runs immediately after patching.
 Alternatives considered: Falling back to linear v1 prompt generation on repeated failure. Rejected because v1 linear chains destroy rich multi-agent structure.
 If we removed it: Complex agentic architectures with parallel branches would frequently fail validation with 422 DESIGN_FAILED.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1537,11 +1847,31 @@ If we removed it: Users would have no indication that edge routing was adjusted 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-183 — v2 Stage B4a — deviation
 What: Derive geometric node shapes from graph structure and AI metadata while preserving fixed 220x72 dimensions and existing border colors.
 Why: BUILD_PLAN.md line 437 defined node visual style based solely on borders and badges, leaving all nodes as uniform rounded rectangles. To allow users to visually distinguish system boundaries (entry/exit) and AI nodes from standard software without inspecting text, we introduce structural shape mapping: pill for entry/exit endpoints, hexagon for needs_model AI nodes, and rounded rectangle for standard components. Following Rule 3, shape is strictly derived from topology and boolean metadata, never from component type text.
 Alternatives considered: Keeping all nodes as rectangles or styling based on type strings. Rejected because uniform rectangles carry no visual meaning and styling from type text violates Rule 3.
 If we removed it: Diagram nodes in both technical and block views would remain indistinguishable rectangles.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1553,11 +1883,31 @@ If we removed it: Decision branches would lack condition labels and agentic work
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-185 — v2 Stage B4b — decision
 What: Add non-blocking warning lint W_AGENT_WITHOUT_TOOLS and update contracts.md.
 Why: If a node is explicitly configured as an autonomous agent (ai_role: "agent"), it should declare the specific toolsets it utilizes. We added W_AGENT_WITHOUT_TOOLS ("Agent node '{id}' is declared as an agent but lists no tools.") to validation models, lints, and contracts.md. Following lints.py conventions, it produces a non-blocking diagnostic warning under Notes without failing validation.
 Alternatives considered: Making missing tools a blocking validation error. Rejected because it would exhaust repair budgets on early drafts.
 If we removed it: Agents declared without tools would pass without highlighting missing integrations.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1569,11 +1919,31 @@ If we removed it: Visual branching decisions and agentic distinction would not b
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-187 — v2 Stage B4e1 — deviation
 What: Switch diagram layout to vertical top-to-bottom (rankdir TB), fixed node width 240px, and content-computed node height.
 Why: BUILD_PLAN.md line 436 stipulated left-to-right (LR) Dagre layout with fixed 220x72 rectangular nodes. In live complex architectures (e.g. 11+ nodes with branching), horizontal layout caused excessive horizontal scrolling and node names/roles were truncated inside shapes (hexagons, diamonds). We switch to vertical top-to-bottom layout (TB), increase node width to 240px, and dynamically compute node height per node based on text length clamped by shape constraints (rectangle/pill 80-130px, hexagon 86-140px, diamond 110-160px). Handles are relocated to top (target) and bottom (source).
 Alternatives considered: Retaining fixed 220x72 boxes with CSS ellipsis. Rejected because text is prematurely clipped and diamond/hexagon shapes suffer severe corner clipping without dynamic height scaling.
 If we removed it: Text would remain cut off inside non-rectangular nodes and deep branched architectures would require wide horizontal panning.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1593,11 +1963,31 @@ If we removed it: Edge labels in multi-branch architectures (such as 12-node ins
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-190 — v2 Stage B4c — decision
 What: Introduce architect_v3.md and architect_repair_v3.md prompts with decision edge conditions, dedicated human nodes, and explicit AI role taxonomy.
 Why: To reflect branching decisions and multi-agent roles introduced in B4b (EdgeSpec condition, NodeSpec ai_role and tools) without changing immutable v1/v2 prompts. The v3 prompt specifies that decision points with alternative paths must label outgoing edges with short condition text, mandates dedicated human review/approval nodes (ai_role: "none", needs_model: false) rather than embedding human tasks in AI nodes, defines precise taxonomy distinguishing single-judgment models (ai_role: "model") from multi-step tool-using agents (ai_role: "agent", 1-5 tools), generalizes layer and tech_options examples to neutral technology types without specific framework/product names, and appends preservation rules to repair_v3 for conditions and human nodes.
 Alternatives considered: Mutating architect_v2.md in place. Rejected per project rule requiring prompt immutability and backwards compatibility across prompt versions.
 If we removed it: The LLM would generate architectures without condition labels on branching edges, hide human review inside AI nodes, confuse single models with multi-step agents, and output concrete product names in tech options.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1609,11 +1999,31 @@ If we removed it: Complex designs with audit sinks would repeatedly oscillate be
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-192 — v2 Stage B5 — decision
 What: Implement deterministic patch_dead_ends graph repair in validation/repair.py.
 Why: When the LLM produces a specification containing nodes with in-degree > 0 and out-degree == 0 that are omitted from exit_ids, patch_dead_ends deterministically repairs the graph without requiring additional LLM calls. It adds the unlisted sink nodes to exit_ids. If this creates a must_pass_through or must_precede violation due to pre-checkpoint bypass edges, it reroutes the bypass edges to originate from the required checkpoint node. The repair is accepted only if full validation passes and limits hold; otherwise the original specification is preserved. It emits W_CODE_REPAIR_APPLIED with the exact node and edge modifications, executing in deterministic order sorted by node ID.
 Alternatives considered: Connecting dead-end sinks to other exit nodes. Rejected because connecting an audit database to a customer webhook creates nonsensical physical architecture.
 If we removed it: Any LLM omission of a sink node from exit_ids would consume repair call budget or fail generation.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1644,6 +2054,16 @@ If we removed it: Merges would continue to be styled as agents without developer
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-196 — Stage B6c — decision
 What: Safe error diagnostics and field-targeted feedback on explainer schema validation failures.
 Why: When the LLM technical writer produces an ExplanationDraft that fails Pydantic schema validation (e.g. models_text or flow_step exceeding character limits), generic X_BAD_OUTPUT was logged without field paths, and Attempt 2 received no specific guidance on which field failed, causing repeated fallback to the code-only explanation. In B6c, we: (1) enrich explainer_verify_failed structured logs with strictly safe metadata (error_type; for PydanticValidationError: error_count and failing_fields formatted as "loc.path:error_type" capped at 10 items; for LLMBadOutput: error_type and raw byte count), never logging prompts, model prose, node names, or input values; (2) preserve issue code X_BAD_OUTPUT while including safe field paths and error types in the message sent to Attempt 2 (e.g. "Schema validation failed: models_text: string_too_long"); (3) add offline reproduction tests verifying safe logging and successful two-call recovery.
@@ -1651,6 +2071,16 @@ Alternatives considered:
 1. Reusing X_TOO_LONG: Rejected to preserve the semantic boundary that verify.py issue codes represent semantic and length checks on parsed drafts, while X_BAD_OUTPUT represents schema/format parse failures.
 2. Increasing schema limits without diagnostics: Rejected because the root cause was an unproven hypothesis and prompt limits must be respected.
 If we removed it: Developers and LLM repair loops would remain blind to which specific schema fields triggered X_BAD_OUTPUT.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1664,6 +2094,16 @@ If we removed it: Join nodes would continue to be styled as AI agents, and simpl
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
+
 ### D-198 — Stage B6d — decision
 What: Code aligns explainer draft flow steps into topological flow_order when all nodes are present, and provides expected node ID sequences on verification failure.
 Why: In multi-branch architectures (e.g. design f6c61fd5 with 3 parallel branches), multiple topological orderings are valid request flow narratives, but order_nodes deterministically selects a single permutation using Kahn's algorithm with min-heap alphabetical tie-breaking. Raw LLM draft order matching Python's heapq alphabetical tie-breaker is no longer required: before verification in explainer/service.py, if the set of draft flow_step node_ids equals the set of flow_order IDs and each ID appears exactly once, code sorts draft.flow_steps into flow_order, guaranteeing that final output order is still flow_order (code-sorted). If a draft omits or duplicates nodes, it is not sorted, verify_draft stays strict and reports X_FLOW_ORDER, and the retry message explicitly provides the expected node ID sequence.
@@ -1671,6 +2111,16 @@ Alternatives considered:
 1. Loosening verify_draft to accept any topological sort: Rejected because verify_draft must remain a pure, strict validator against the canonical flow_order contract.
 2. Forcing LLM to guess min-heap alphabetical tie-breaks via repeated retries: Rejected because it wastes LLM calls and forces fallback to code-only explanations when the prose is otherwise high quality.
 If we removed it: Explanations for parallel branch architectures would repeatedly fail with X_FLOW_ORDER and fall back to the basic code-built template.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
 Decided by: agent proposed, user approved
 Status: active
 
@@ -1684,10 +2134,31 @@ If we removed it: Explainer runs would continue to fail on Attempt 1 due to untr
 Decided by: agent proposed, user approved
 Status: active
 
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
 
 
 
 
+
+
+
+### D-200 — Stage E1 — deviation
+What: Introduce evaluation suite cases, pure metrics aggregation in evals/metrics.py, side-by-side comparison in evals/compare.py, and dedicated test runner in evals/tests.
+Why: To systematically measure LLM prompt performance across multiple repeated runs rather than relying on single manual invocations, Stage E1 introduces the evaluation dataset in evals/cases/ and evaluation tools. evals/metrics.py is introduced as a pure calculation module containing run dataclasses and aggregation statistics (attempt-1 pass rate, final pass rate, fallback rate, code repair rate, average node counts, lint and error counts) with zero database, LLM, or app-layer imports. As a deviation approved by the user, tests live in evals/tests/test_evals.py rather than apps/api/tests/, preserving apps/api/pyproject.toml and its type-checker scope unchanged. scripts/check.ps1 receives one added step to run pytest on evals/tests from the apps/api virtual environment.
+Alternatives considered:
+1. Placing test_evals.py in apps/api/tests/: Rejected because it would require altering apps/api/pyproject.toml (adding repo-root to pythonpath and mypy_path), coupling the core API type-check scope to root developer tooling.
+2. Inlining metric calculations into evals/compare.py: Rejected because separating pure aggregation into evals/metrics.py allows clean unit testing without CLI argument parsing or presentation overhead.
+If we removed it: Prompt performance changes would remain anecdotal and could not be regression-tested deterministically across runs.
+Decided by: agent proposed, user approved
+Status: active
 
 
 ## Phase 3 Summary
