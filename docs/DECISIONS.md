@@ -1617,6 +1617,23 @@ If we removed it: Any LLM omission of a sink node from exit_ids would consume re
 Decided by: agent proposed, user approved
 Status: active
 
+### D-193 — Stage N1 — decision
+What: Add "New design" button on results and history pages navigating to /?new=1 with Suspense-wrapped fresh state reset.
+Why: Users finishing a design or reviewing past designs need an explicit way to start a fresh design intake without retaining previous chat dialogue, session ID, brief cards, input text, or errors. Automatic reset on plain browser Back navigation was rejected per user requirement to preserve ongoing sessions during accidental Back navigation. We added an accessible "New design" button to the results page header (/design/[id]) and history page (/history), navigating to /?new=1. On the home page (/), an inner HomeContent reads useSearchParams(); when new=1 is detected, it clears all local chat, session, brief, and mutation state, and silently cleans the URL to / using router.replace('/', { scroll: false }). To prevent Next.js App Router prerender errors (useSearchParams() should be wrapped in a suspense boundary, per D-122 and D-163), HomeContent is wrapped in Suspense with a lightweight HomeLoading shell fallback in the default export.
+Alternatives considered: Automatic reset on any Back navigation to / (rejected: destroys in-progress draft on accidental back navigation); reading from window.location directly (rejected: breaks Next.js client-side navigation hydration).
+If we removed it: Users would have to manually refresh the browser to start a new architecture session after viewing a design or history.
+Decided by: user requested, agent implemented
+Status: active
+
+### D-194 — Stage N2 — decision
+What: Restore intake conversation and brief state on browser Back navigation using tab-scoped versioned sessionStorage.
+Why: When users navigate back to the home page (e.g. via browser Back button) after generating a design or during multi-turn intake, losing the dialogue transcript and generated brief forces unnecessary re-prompting. In N1, the "New design" button was introduced to explicitly request a clean slate (?new=1). For natural Back navigation, we now persist the active intake session state in browser sessionStorage (tab-scoped, ephemeral, automatically destroyed when the browser tab closes). User privacy is strictly preserved: text stays entirely within the client tab's ephemeral storage, never written to persistent server storage or localStorage, never logged, and capped at 500 KB to prevent quota exhaustion. Reading from sessionStorage validates the payload against a strict Zod schema (versioned archnemesis.intake.v1) to gracefully ignore corrupted, incompatible, or tampered records without throwing errors. If a user subsequently attempts to submit further messages into an already finalized session, the UI intercepts HTTP 409 SESSION_CLOSED and presents a polite guidance message ("This design request is finished. Use New design to start another.") rather than a raw server error.
+Alternatives considered: Persisting in localStorage (rejected due to privacy risks and cross-tab leakage); storing draft sessions on backend with session cookies (rejected to avoid storing draft data or cookies without consent); no persistence (rejected because React component state is destroyed on navigation).
+If we removed it: Pressing the browser Back button after generating a design would show a blank home screen, losing all context from the preceding conversation.
+Decided by: user requested, agent implemented
+Status: active
+
+
 
 
 

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { AlertCircle, ArrowUp, RefreshCw } from "lucide-react";
 
@@ -15,20 +15,71 @@ import { ApiError, createDesign, sendIntakeTurn } from "@/lib/api";
 import { saveHistoryEntry } from "@/lib/history";
 import type { RequirementBrief } from "@/lib/types";
 
-interface ChatMessage {
-  id: string;
-  sender: "user" | "assistant";
-  text?: string;
-  questions?: string[];
+import {
+  clearIntakeState,
+  loadIntakeState,
+  saveIntakeState,
+  type StoredChatMessage,
+} from "../lib/intakeStorage";
+
+type ChatMessage = StoredChatMessage;
+
+function HomeLoading(): React.ReactElement {
+  return (
+    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-12 md:py-16 selection:bg-[#ccff00] selection:text-black">
+      <div
+        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#27272a15_1px,transparent_1px),linear-gradient(to_bottom,#27272a15_1px,transparent_1px)] bg-[size:32px_32px]"
+        aria-hidden="true"
+      />
+      <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center">
+        <header className="mb-8 text-center space-y-2">
+          <div className="flex items-center justify-between w-full mb-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
+              <span className="size-2 rounded-full bg-[#ccff00]" />
+              Arch-Nemesis System Architect
+            </div>
+            <Link
+              href="/history"
+              className="text-xs font-mono text-muted-foreground hover:text-[#ccff00] transition-colors underline underline-offset-4"
+            >
+              Past designs
+            </Link>
+          </div>
+          <h1 className="font-heading text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+            Describe the system you need
+          </h1>
+          <p className="text-sm md:text-base text-muted-foreground max-w-lg mx-auto">
+            Plain language intake dialogue turns your business need into a validated, interactive architecture diagram.
+          </p>
+        </header>
+      </div>
+    </main>
+  );
 }
 
-export default function HomePage(): React.ReactElement {
+interface HomeContentProps {
+  isNew: boolean;
+}
+
+function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
   const router = useRouter();
 
-  const [inputText, setInputText] = useState("");
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [brief, setBrief] = useState<RequirementBrief | null>(null);
+  const [inputText, setInputText] = useState(() => {
+    if (isNew || typeof window === "undefined") return "";
+    return loadIntakeState()?.inputText ?? "";
+  });
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    if (isNew || typeof window === "undefined") return null;
+    return loadIntakeState()?.sessionId ?? null;
+  });
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (isNew || typeof window === "undefined") return [];
+    return loadIntakeState()?.messages ?? [];
+  });
+  const [brief, setBrief] = useState<RequirementBrief | null>(() => {
+    if (isNew || typeof window === "undefined") return null;
+    return loadIntakeState()?.brief ?? null;
+  });
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Mutation for intake turns (initial prompt and answering follow-ups)
@@ -58,7 +109,13 @@ export default function HomePage(): React.ReactElement {
     },
     onError: (err: unknown) => {
       if (err instanceof ApiError) {
-        setValidationError(err.message);
+        if (err.status === 409 || err.code === "SESSION_CLOSED") {
+          setValidationError(
+            "This design request is finished. Use New design to start another.",
+          );
+        } else {
+          setValidationError(err.message);
+        }
       } else {
         setValidationError(
           err instanceof Error ? err.message : "An unexpected error occurred.",
@@ -80,9 +137,37 @@ export default function HomePage(): React.ReactElement {
         summary: data.brief.summary,
         created_at: new Date().toISOString(),
       });
+      saveIntakeState({
+        sessionId,
+        inputText,
+        messages,
+        brief,
+        designId: data.id,
+      });
       router.push(`/design/${encodeURIComponent(data.id)}`);
     },
   });
+
+  // When navigated with ?new=1, clear storage and silently clean URL
+  useEffect(() => {
+    if (isNew) {
+      clearIntakeState();
+      router.replace("/", { scroll: false });
+    }
+  }, [isNew, router]);
+
+  // Persist updated state to sessionStorage
+  useEffect(() => {
+    if (isNew) {
+      return;
+    }
+    saveIntakeState({
+      sessionId,
+      inputText,
+      messages,
+      brief,
+    });
+  }, [sessionId, inputText, messages, brief, isNew]);
 
   const handleSend = () => {
     const trimmed = inputText.trim();
@@ -306,5 +391,21 @@ export default function HomePage(): React.ReactElement {
         </div>
       </div>
     </main>
+  );
+}
+
+function HomeContentWrapper(): React.ReactElement {
+  const searchParams = useSearchParams();
+  const isNew = searchParams.get("new") === "1";
+  const contentKey = isNew ? "fresh-start" : "default-session";
+
+  return <HomeContent key={contentKey} isNew={isNew} />;
+}
+
+export default function HomePage(): React.ReactElement {
+  return (
+    <Suspense fallback={<HomeLoading />}>
+      <HomeContentWrapper />
+    </Suspense>
   );
 }

@@ -240,6 +240,9 @@ function DesignContent(): React.ReactElement {
               explanation={design.explanation || null}
               diagramContainerRef={diagramContainerRef}
             />
+            <Button asChild variant="outline" size="sm" className="text-xs font-mono">
+              <Link href="/?new=1">New design</Link>
+            </Button>
             <Button
               type="button"
               variant="outline"

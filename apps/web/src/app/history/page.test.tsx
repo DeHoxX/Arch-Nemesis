@@ -59,5 +59,29 @@ describe("History Page (/history)", () => {
     expect(screen.getByText(maliciousTitle)).toBeDefined();
     expect(document.querySelector("img")).toBeNull();
   });
+
+  it("renders New design button in the header linking to /?new=1 without modifying history", () => {
+    localStorage.setItem(
+      HISTORY_STORAGE_KEY,
+      JSON.stringify([
+        {
+          design_id: "design-preserve-123",
+          title: "Preserved Architecture",
+          created_at: "2026-10-31T01:00:00.000Z",
+        },
+      ])
+    );
+
+    render(<HistoryPage />);
+
+    const newDesignLink = screen.getByRole("link", { name: "New design" });
+    expect(newDesignLink).toBeDefined();
+    expect(newDesignLink.getAttribute("href")).toBe("/?new=1");
+
+    // History data remains preserved in localStorage
+    const stored = JSON.parse(localStorage.getItem(HISTORY_STORAGE_KEY) || "[]");
+    expect(stored.length).toBe(1);
+    expect(stored[0].design_id).toBe("design-preserve-123");
+  });
 });
 

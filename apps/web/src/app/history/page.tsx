@@ -34,9 +34,14 @@ export default function HistoryPage(): React.ReactElement {
             <ArrowLeft className="size-3.5" />
             Back to Home
           </Link>
-          <span className="text-xs font-mono text-muted-foreground">
-            {isHydrated ? `${history.length} saved design${history.length === 1 ? "" : "s"}` : ""}
-          </span>
+          <div className="flex items-center gap-3">
+            <Button asChild variant="outline" size="sm" className="text-xs font-mono">
+              <Link href="/?new=1">New design</Link>
+            </Button>
+            <span className="text-xs font-mono text-muted-foreground">
+              {isHydrated ? `${history.length} saved design${history.length === 1 ? "" : "s"}` : ""}
+            </span>
+          </div>
         </div>
 
         {/* Page Title */}

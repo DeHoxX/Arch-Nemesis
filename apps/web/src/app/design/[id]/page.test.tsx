@@ -527,4 +527,22 @@ describe("DesignPage Component (/design/[id])", () => {
     );
     expect(explanationCalls.length).toBe(0);
   });
+
+  it("renders New design button in the header linking to /?new=1", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockValidDesign,
+    } as unknown as Response);
+
+    renderWithClient(<DesignPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Ingest Node")).toBeDefined();
+    });
+
+    const newDesignLink = screen.getByRole("link", { name: "New design" });
+    expect(newDesignLink).toBeDefined();
+    expect(newDesignLink.getAttribute("href")).toBe("/?new=1");
+  });
 });

@@ -4,13 +4,18 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "./page";
+import { INTAKE_STORAGE_KEY } from "../lib/intakeStorage";
 
 const mockPush = vi.fn();
+const mockReplace = vi.fn();
+let mockSearchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: mockPush,
+    replace: mockReplace,
   }),
+  useSearchParams: () => mockSearchParams,
 }));
 
 function renderWithClient(ui: React.ReactElement) {
@@ -29,6 +34,10 @@ describe("HomePage Component", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mockPush.mockClear();
+    mockReplace.mockClear();
+    mockSearchParams = new URLSearchParams();
+    window.sessionStorage.clear();
+    window.localStorage.clear();
   });
 
   it("renders exact heading, placeholder, and Send button from the Build Plan", () => {
@@ -431,5 +440,317 @@ describe("HomePage Component", () => {
     expect(
       screen.getByText("Input must not exceed 4000 characters."),
     ).toBeDefined();
+  });
+
+  it("home page without fresh-start flag keeps existing state and does not call router.replace", () => {
+    mockSearchParams = new URLSearchParams(); // empty / no flag
+
+    renderWithClient(<HomePage />);
+
+    expect(mockReplace).not.toHaveBeenCalled();
+    expect(screen.getByRole("heading", { name: "Describe the system you need" })).toBeDefined();
+  });
+
+  it("home page with new=1 fresh-start flag clears state and cleans URL with router.replace", async () => {
+    mockSearchParams = new URLSearchParams("new=1");
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/", { scroll: false });
+    });
+    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    expect((textarea as HTMLTextAreaElement).value).toBe("");
+  });
+
+  it("restores chat messages, session ID, and brief card from sessionStorage on mount, hiding textarea", async () => {
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "session_restored_1",
+        inputText: "Restored draft prompt",
+        messages: [
+          { id: "m-user-1", sender: "user", text: "Claims processing pipeline" },
+          {
+            id: "m-asst-1",
+            sender: "assistant",
+            questions: ["What is the expected throughput?"],
+          },
+        ],
+        brief: {
+          summary: "Automated Claims Validation Pipeline",
+          users: "Claims adjusters",
+          data_involved: ["claims", "documents"],
+          domain_hint: "insurance",
+          stated_constraints: [{ id: "c1", text: "Must enforce data privacy" }],
+          unverifiable_requirements: [],
+          numbers_given: [],
+          assumptions: [],
+        },
+      }),
+    );
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Claims processing pipeline")).toBeDefined();
+      expect(screen.getByText("What is the expected throughput?")).toBeDefined();
+      expect(screen.getByText("Automated Claims Validation Pipeline")).toBeDefined();
+      expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
+      expect(screen.queryByPlaceholderText(/For example: a support assistant/)).toBeNull();
+    });
+  });
+
+  it("restores draft input text and chat messages from sessionStorage when brief is not yet ready", async () => {
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "session_restored_draft",
+        inputText: "Restored draft requirement text",
+        messages: [
+          { id: "m-user-draft", sender: "user", text: "Claims processing pipeline" },
+        ],
+        brief: null,
+      }),
+    );
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      expect((textarea as HTMLTextAreaElement).value).toBe("Restored draft requirement text");
+      expect(screen.getByText("Claims processing pipeline")).toBeDefined();
+      expect(screen.queryByRole("button", { name: "Generate design" })).toBeNull();
+    });
+  });
+
+  it("clears sessionStorage and starts clean when navigated with ?new=1", async () => {
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "session_old_1",
+        inputText: "Old text that must be cleared",
+        messages: [{ id: "m1", sender: "user", text: "Old message" }],
+        brief: null,
+      }),
+    );
+    mockSearchParams = new URLSearchParams("new=1");
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(mockReplace).toHaveBeenCalledWith("/", { scroll: false });
+    });
+
+    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    expect((textarea as HTMLTextAreaElement).value).toBe("");
+    expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
+  });
+
+  it("gracefully ignores corrupt JSON or invalid schema in sessionStorage", async () => {
+    window.sessionStorage.setItem(INTAKE_STORAGE_KEY, "not-valid-json{{{");
+
+    renderWithClient(<HomePage />);
+
+    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    expect((textarea as HTMLTextAreaElement).value).toBe("");
+    expect(screen.queryByText("not-valid-json")).toBeNull();
+  });
+
+  it("displays friendly guidance when intake turn returns 409 SESSION_CLOSED", async () => {
+    const user = userEvent.setup();
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: {
+          code: "SESSION_CLOSED",
+          message: "Session 'session_closed_1' is already ready.",
+        },
+      }),
+    } as unknown as Response);
+
+    renderWithClient(<HomePage />);
+
+    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    await user.type(textarea, "Another query after closure");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "This design request is finished. Use New design to start another.",
+        ),
+      ).toBeDefined();
+    });
+  });
+
+  it("navigates to existing design when Generate design is clicked on restored brief", async () => {
+    const user = userEvent.setup();
+
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "session_ready_existing",
+        inputText: "",
+        messages: [],
+        brief: {
+          summary: "Pre-existing Claim Architecture",
+          users: "Claims adjusters",
+          data_involved: ["claims"],
+          domain_hint: "insurance",
+          stated_constraints: [],
+          unverifiable_requirements: [],
+          numbers_given: [],
+          assumptions: [],
+        },
+      }),
+    );
+
+    global.fetch = vi.fn().mockImplementation(async (url: string) => {
+      if (url.includes("/api/designs")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: "design_existing_456",
+            intake_session_id: "session_ready_existing",
+            current_version: 1,
+            brief: {
+              summary: "Pre-existing Claim Architecture",
+              users: "Claims adjusters",
+              data_involved: ["claims"],
+              domain_hint: "insurance",
+              stated_constraints: [],
+              unverifiable_requirements: [],
+              numbers_given: [],
+              assumptions: [],
+            },
+            spec: {
+              nodes: [
+                {
+                  id: "entry_node",
+                  name: "Ingress",
+                  type: "gateway",
+                  role: "entry",
+                  inputs: [],
+                  outputs: ["sink_node"],
+                  tech_options: ["fastapi"],
+                  needs_model: false,
+                },
+                {
+                  id: "sink_node",
+                  name: "Database",
+                  type: "database",
+                  role: "storage",
+                  inputs: ["entry_node"],
+                  outputs: [],
+                  tech_options: ["postgres"],
+                  needs_model: false,
+                },
+              ],
+              edges: [
+                {
+                  from: "entry_node",
+                  to: "sink_node",
+                  flows: "records",
+                },
+              ],
+              constraints: [],
+              entry_ids: ["entry_node"],
+              exit_ids: ["sink_node"],
+            },
+            warnings: [],
+            flow_order: ["entry_node", "sink_node"],
+            prompt_version: "architect_v4",
+          }),
+        };
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Generate design" }));
+
+    await waitFor(() => {
+      expect(mockPush).toHaveBeenCalledWith("/design/design_existing_456");
+    });
+  });
+
+  it("preserves hostile input strings as literal text without execution", async () => {
+    const hostileDraft = "<script>alert('textarea-xss')</script>";
+    const hostileMessage = "<img src=x onerror=alert('message-xss') />";
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "session_xss",
+        inputText: hostileDraft,
+        messages: [{ id: "m-xss", sender: "user", text: hostileMessage }],
+        brief: null,
+      }),
+    );
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      expect((textarea as HTMLTextAreaElement).value).toBe(hostileDraft);
+      expect(screen.getByText(hostileMessage)).toBeDefined();
+    });
+  });
+
+  it("never logs user prompt or messages to console during restore", async () => {
+    const sensitiveDraft = "Very secret confidential input draft text";
+    const sensitiveMessage = "Proprietary classified architectural specification message";
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "session_confidential",
+        inputText: sensitiveDraft,
+        messages: [{ id: "m-sec", sender: "user", text: sensitiveMessage }],
+        brief: null,
+      }),
+    );
+
+    const logSpy = vi.spyOn(console, "log");
+    const warnSpy = vi.spyOn(console, "warn");
+    const errorSpy = vi.spyOn(console, "error");
+
+    renderWithClient(<HomePage />);
+
+    await waitFor(() => {
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      expect((textarea as HTMLTextAreaElement).value).toBe(sensitiveDraft);
+      expect(screen.getByText(sensitiveMessage)).toBeDefined();
+    });
+
+    const calls = [
+      ...logSpy.mock.calls,
+      ...warnSpy.mock.calls,
+      ...errorSpy.mock.calls,
+    ].flat();
+
+    expect(logSpy).toHaveBeenCalledTimes(0);
+    expect(warnSpy).toHaveBeenCalledTimes(0);
+    expect(errorSpy).toHaveBeenCalledTimes(0);
+
+    for (const arg of calls) {
+      if (typeof arg === "string") {
+        expect(arg).not.toContain(sensitiveDraft);
+        expect(arg).not.toContain(sensitiveMessage);
+      }
+    }
   });
 });
