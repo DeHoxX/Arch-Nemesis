@@ -2183,6 +2183,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-203 — Stage E3 — decision
+What: Evaluation runner pacing, 429 retry protection, fallback rate calculation fix, and design issue aggregation.
+Why: The baseline evaluation benchmark aborted after 28 runs due to Gemini's 15 requests/minute quota limit. We add `--pause-seconds` (defaulting to 8.0s derived from worst-case 7-call runs) to sleep strictly between runs, and implement single-retry handling on `LLMRateLimited` by parsing the retry delay from error text (with 1s safety margin, defaulting to 60s) before aborting. We fix an evaluation bug where 422 design failures initialized `explainer_source="fallback"`, which incorrectly equated fallback rate to 422 failure rate despite the explainer never executing; 422 runs now set `explainer_source="none"` and fallback rate is computed strictly over runs where the explainer ran. We capture `design_attempt_issues` across both 422 failures and retried designs, aggregating `design_issue_counts` in per-case and overall summaries, and update `compare.py` to display them safely with `.get("design_issue_counts", {})` so older result files continue loading.
+Alternatives considered:
+1. Hardcoded 60s sleep without parsing retry-after: Rejected because Gemini often requires only 12-25s to replenish window tokens, so parsing reduces benchmark latency while 60s remains a safe fallback.
+2. Including 422 failures in fallback rate denominator: Rejected because fallback specifically measures the explainer's inability to satisfy verification, whereas 422 occurs earlier in architecture synthesis.
+If we removed it: Benchmark evaluation runs would repeatedly abort on rate limits, explainer fallback statistics would remain distorted by 422s, and design-side validation failures would remain invisible in metric summaries.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

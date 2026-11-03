@@ -426,3 +426,464 @@ async def test_run_explainer_attempt_1_clean_pass(tmp_path: Path, repo_root_path
     assert data["summary"]["by_case"]["support"]["total_runs"] == 1
     assert data["summary"]["by_case"]["support"]["fallback_rate"] == 0.0
     assert len(data["runs"]) == 1
+
+
+def test_cli_pause_seconds_default() -> None:
+    """Verify --pause-seconds CLI flag defaults to 8.0."""
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--pause-seconds", type=float, default=8.0)
+    args = parser.parse_args([])
+    assert args.pause_seconds == 8.0
+
+
+@pytest.mark.asyncio
+async def test_pause_seconds_sleeps_between_runs_only(
+    tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify pause_seconds sleeps between runs and strictly not after the last run."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    cases = load_eval_cases(cases_dir, only_case_id="support")
+
+    out_file = tmp_path / "pause_test_results.json"
+    event_collector = StructlogEventCollector()
+
+    valid_intake = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Support brief",
+            "users": "Customers",
+            "data_involved": ["chats"],
+            "domain_hint": "support",
+            "stated_constraints": [],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+    valid_spec = {
+        "nodes": [
+            {
+                "id": "gw",
+                "name": "E",
+                "type": "gateway",
+                "role": "Entry",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "cl",
+                "name": "X",
+                "type": "client",
+                "role": "Exit",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+        ],
+        "edges": [{"from": "gw", "to": "cl", "flows": "data"}],
+        "constraints": [],
+        "entry_ids": ["gw"],
+        "exit_ids": ["cl"],
+    }
+    valid_draft = {
+        "overview": "Overview text.",
+        "flow_steps": [
+            {"node_id": "gw", "text": "Step 1."},
+            {"node_id": "cl", "text": "Step 2."},
+        ],
+        "parts": [
+            {"node_id": "gw", "text": "Part 1."},
+            {"node_id": "cl", "text": "Part 2."},
+        ],
+        "checks": [],
+        "models_text": "No models.",
+    }
+
+    script = [valid_intake, valid_spec, valid_draft, valid_intake, valid_spec, valid_draft]
+    client = InstrumentedLLMClient(FakeLLMClient(script=script))
+
+    sleep_calls: list[float] = []
+
+    async def mock_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
+    exit_code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=2,
+        client=client,
+        event_collector=event_collector,
+        output_path=out_file,
+        dry_mode=True,
+        pause_seconds=8.0,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 2
+    assert sleep_calls == [8.0], f"Expected exactly [8.0], got {sleep_calls}"
+
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["meta"]["pause_seconds"] == 8.0
+
+
+@pytest.mark.asyncio
+async def test_429_retry_once_then_success(
+    tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify a 429 on first attempt parses retry delay, sleeps once, retries, and succeeds."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    cases = load_eval_cases(cases_dir, only_case_id="support")
+
+    out_file = tmp_path / "retry_429_success.json"
+    event_collector = StructlogEventCollector()
+
+    valid_intake = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Support brief",
+            "users": "Customers",
+            "data_involved": ["chats"],
+            "domain_hint": "support",
+            "stated_constraints": [],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+    valid_spec = {
+        "nodes": [
+            {
+                "id": "gw",
+                "name": "E",
+                "type": "gateway",
+                "role": "Entry",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "cl",
+                "name": "X",
+                "type": "client",
+                "role": "Exit",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+        ],
+        "edges": [{"from": "gw", "to": "cl", "flows": "data"}],
+        "constraints": [],
+        "entry_ids": ["gw"],
+        "exit_ids": ["cl"],
+    }
+    valid_draft = {
+        "overview": "Overview text.",
+        "flow_steps": [
+            {"node_id": "gw", "text": "Step 1."},
+            {"node_id": "cl", "text": "Step 2."},
+        ],
+        "parts": [
+            {"node_id": "gw", "text": "Part 1."},
+            {"node_id": "cl", "text": "Part 2."},
+        ],
+        "checks": [],
+        "models_text": "No models.",
+    }
+
+    class OnceRateLimitedClient(LLMClient):
+        def __init__(self) -> None:
+            self.call_count = 0
+            self.inner = FakeLLMClient(script=[valid_intake, valid_spec, valid_draft])
+
+        async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
+            self.call_count += 1
+            return await self.inner.generate_text(task, system, user)
+
+        async def generate_json(
+            self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
+        ) -> dict[str, Any]:
+            self.call_count += 1
+            if self.call_count == 1:
+                raise LLMRateLimited("Resource exhausted: retry in ~14 s")
+            return await self.inner.generate_json(task, system, user, schema)
+
+    client = InstrumentedLLMClient(OnceRateLimitedClient())
+
+    sleep_calls: list[float] = []
+
+    async def mock_sleep(seconds: float) -> None:
+        sleep_calls.append(seconds)
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
+    exit_code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=client,
+        event_collector=event_collector,
+        output_path=out_file,
+        dry_mode=True,
+        pause_seconds=0.0,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    assert records[0].success is True
+    assert 15.0 in sleep_calls, f"Expected 15.0s sleep, got {sleep_calls}"
+
+
+@pytest.mark.asyncio
+async def test_429_twice_aborts_with_partial_results(
+    tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that two consecutive 429 errors in the same run triggers quota abort with exit code 2."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    cases = load_eval_cases(cases_dir, only_case_id="support")
+
+    out_file = tmp_path / "twice_429_abort.json"
+    event_collector = StructlogEventCollector()
+
+    class PersistentRateLimitedClient(LLMClient):
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
+            self.call_count += 1
+            raise LLMRateLimited("Rate limit exceeded")
+
+        async def generate_json(
+            self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
+        ) -> dict[str, Any]:
+            self.call_count += 1
+            raise LLMRateLimited("Rate limit exceeded")
+
+    client = InstrumentedLLMClient(PersistentRateLimitedClient())
+
+    async def mock_sleep(_seconds: float) -> None:
+        pass
+
+    import asyncio
+
+    monkeypatch.setattr(asyncio, "sleep", mock_sleep)
+
+    exit_code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=client,
+        event_collector=event_collector,
+        output_path=out_file,
+        dry_mode=True,
+    )
+
+    assert exit_code == 2
+    assert len(records) == 0
+    assert out_file.exists()
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["meta"]["aborted_due_to_quota"] is True
+
+
+@pytest.mark.asyncio
+async def test_422_design_failure_captures_none_and_design_issues(
+    tmp_path: Path, repo_root_path: Path
+) -> None:
+    """Verify that a 422 design failure records explainer_source='none' and captures design issues."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    cases = load_eval_cases(cases_dir, only_case_id="support")
+
+    out_file = tmp_path / "design_422_results.json"
+    event_collector = StructlogEventCollector()
+
+    valid_intake = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Support brief",
+            "users": "Customers",
+            "data_involved": ["chats"],
+            "domain_hint": "support",
+            "stated_constraints": [],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+
+    cyclic_spec = {
+        "nodes": [
+            {
+                "id": "na",
+                "name": "Node A",
+                "type": "service",
+                "role": "A",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "nb",
+                "name": "Node B",
+                "type": "service",
+                "role": "B",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "na", "to": "nb", "flows": "flow1"},
+            {"from": "nb", "to": "na", "flows": "flow2"},
+        ],
+        "constraints": [],
+        "entry_ids": ["na"],
+        "exit_ids": ["nb"],
+    }
+
+    script = [valid_intake, cyclic_spec, cyclic_spec, cyclic_spec]
+    client = InstrumentedLLMClient(FakeLLMClient(script=script))
+
+    exit_code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=client,
+        event_collector=event_collector,
+        output_path=out_file,
+        dry_mode=True,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    rec = records[0]
+
+    assert rec.is_422 is True
+    assert rec.success is False
+    assert rec.final_pass is False
+    assert rec.explainer_source == "none", (
+        f"Expected explainer_source 'none', got {rec.explainer_source}"
+    )
+    assert "E_CYCLE" in rec.design_attempt_issues, (
+        f"Expected E_CYCLE in design issues, got {rec.design_attempt_issues}"
+    )
+
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["summary"]["failure_422_rate"] == 1.0
+    assert data["summary"]["fallback_rate"] == 0.0, (
+        f"Expected fallback_rate 0.0 when 422 occurred, got {data['summary']['fallback_rate']}"
+    )
+    assert data["summary"]["design_issue_counts"].get("E_CYCLE", 0) >= 1
+
+
+def test_all_spec_fixtures_pass_parse_and_validate() -> None:
+    """Every spec fixture used in test_run.py must pass parse_and_validate (non-empty guard).
+
+    This catches 1-char node IDs and other schema violations before they silently
+    produce E_SCHEMA instead of the intended error (e.g., E_CYCLE) in runner tests.
+    """
+    from archnemesis.modules.validation import Limits, parse_and_validate
+    from archnemesis.settings import get_settings
+
+    settings = get_settings()
+    limits = Limits(max_nodes=settings.max_nodes, max_edges=settings.max_edges)
+
+    # Valid spec used in test_pause_seconds_sleeps_between_runs_only and
+    # test_429_retry_once_then_success (gateway "gw" -> client "cl").
+    valid_spec = {
+        "nodes": [
+            {
+                "id": "gw",
+                "name": "Gateway",
+                "type": "gateway",
+                "role": "Entry",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "cl",
+                "name": "Client",
+                "type": "client",
+                "role": "Exit",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+        ],
+        "edges": [{"from": "gw", "to": "cl", "flows": "data"}],
+        "constraints": [],
+        "entry_ids": ["gw"],
+        "exit_ids": ["cl"],
+    }
+
+    # Cyclic spec used in test_422_design_failure_captures_none_and_design_issues.
+    cyclic_spec = {
+        "nodes": [
+            {
+                "id": "na",
+                "name": "Node A",
+                "type": "service",
+                "role": "A",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "nb",
+                "name": "Node B",
+                "type": "service",
+                "role": "B",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "na", "to": "nb", "flows": "flow1"},
+            {"from": "nb", "to": "na", "flows": "flow2"},
+        ],
+        "constraints": [],
+        "entry_ids": ["na"],
+        "exit_ids": ["nb"],
+    }
+
+    # valid_spec: must parse without schema errors (structural errors like E_CYCLE are OK).
+    spec, result = parse_and_validate(valid_spec, brief_constraints={}, limits=limits)
+    assert spec is not None, f"valid_spec failed to parse: {result.errors}"
+    schema_errors = [e for e in result.errors if e.code == "E_SCHEMA"]
+    assert schema_errors == [], f"valid_spec produced unexpected E_SCHEMA: {schema_errors}"
+
+    # cyclic_spec: must parse but is expected to have E_CYCLE (not E_SCHEMA).
+    spec2, result2 = parse_and_validate(cyclic_spec, brief_constraints={}, limits=limits)
+    assert spec2 is not None, f"cyclic_spec failed to parse (schema error): {result2.errors}"
+    schema_errors2 = [e for e in result2.errors if e.code == "E_SCHEMA"]
+    assert schema_errors2 == [], f"cyclic_spec produced unexpected E_SCHEMA: {schema_errors2}"
+    cycle_errors = [e for e in result2.errors if e.code == "E_CYCLE"]
+    assert cycle_errors, f"cyclic_spec expected E_CYCLE but got: {[e.code for e in result2.errors]}"

@@ -76,6 +76,7 @@ class CaseAggregation:
     avg_llm_calls: float
     lint_counts: dict[str, int] = field(default_factory=dict)
     issue_counts: dict[str, int] = field(default_factory=dict)
+    design_issue_counts: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -96,6 +97,7 @@ class EvalSummary:
     avg_wall_clock_seconds: float
     total_llm_calls: int
     by_case: dict[str, CaseAggregation] = field(default_factory=dict)
+    design_issue_counts: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -122,16 +124,23 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
             expected_constraints_rate=0.0,
             avg_wall_clock_seconds=0.0,
             avg_llm_calls=0.0,
+            lint_counts={},
+            issue_counts={},
+            design_issue_counts={},
         )
 
     attempt_1_passes = sum(1 for r in runs if r.attempt_1_pass)
     final_passes = sum(1 for r in runs if r.final_pass)
     failures_422 = sum(1 for r in runs if r.is_422)
     repairs = sum(1 for r in runs if r.code_repair_used)
-    fallbacks = sum(1 for r in runs if r.explainer_source == "fallback")
+    fallbacks = sum(1 for r in runs if r.explainer_source == "fallback" and not r.is_422)
     within_bounds = sum(1 for r in runs if r.within_node_bounds)
     constraints_ok = sum(1 for r in runs if r.expected_constraints_satisfied)
     merge_as_agent_runs = sum(1 for r in runs if r.w_merge_as_agent_count > 0)
+
+    # Fallback rate: only among runs where explainer actually ran (not 422)
+    non_422_runs = [r for r in runs if not r.is_422]
+    fallback_rate = round(fallbacks / len(non_422_runs), 4) if non_422_runs else 0.0
 
     avg_nodes = sum(r.node_count for r in runs) / total
     avg_edges = sum(r.edge_count for r in runs) / total
@@ -142,6 +151,7 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
 
     lint_counts: dict[str, int] = {}
     issue_counts: dict[str, int] = {}
+    design_issue_counts: dict[str, int] = {}
 
     for r in runs:
         if r.w_merge_as_agent_count > 0:
@@ -154,6 +164,8 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
             lint_counts[w] = lint_counts.get(w, 0) + 1
         for issue in r.explainer_issues:
             issue_counts[issue] = issue_counts.get(issue, 0) + 1
+        for code in r.design_attempt_issues:
+            design_issue_counts[code] = design_issue_counts.get(code, 0) + 1
 
     return CaseAggregation(
         case_id=case_id,
@@ -162,7 +174,7 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
         final_pass_rate=round(final_passes / total, 4),
         failure_422_rate=round(failures_422 / total, 4),
         code_repair_rate=round(repairs / total, 4),
-        fallback_rate=round(fallbacks / total, 4),
+        fallback_rate=fallback_rate,
         avg_node_count=round(avg_nodes, 2),
         avg_edge_count=round(avg_edges, 2),
         avg_ai_nodes=round(avg_ai, 2),
@@ -174,6 +186,7 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
         avg_llm_calls=round(avg_calls, 2),
         lint_counts=lint_counts,
         issue_counts=issue_counts,
+        design_issue_counts=design_issue_counts,
     )
 
 
@@ -193,6 +206,7 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
             avg_wall_clock_seconds=0.0,
             total_llm_calls=0,
             by_case={},
+            design_issue_counts={},
         )
 
     # Group by case
@@ -206,11 +220,19 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
     final_passes = sum(1 for r in runs if r.final_pass)
     failures_422 = sum(1 for r in runs if r.is_422)
     repairs = sum(1 for r in runs if r.code_repair_used)
-    fallbacks = sum(1 for r in runs if r.explainer_source == "fallback")
+    fallbacks = sum(1 for r in runs if r.explainer_source == "fallback" and not r.is_422)
     merge_as_agent_runs = sum(1 for r in runs if r.w_merge_as_agent_count > 0)
     avg_nodes = sum(r.node_count for r in runs) / total
     avg_wall = sum(r.wall_clock_seconds for r in runs) / total
     total_calls = sum(r.llm_call_count for r in runs)
+
+    non_422_runs = [r for r in runs if not r.is_422]
+    fallback_rate = round(fallbacks / len(non_422_runs), 4) if non_422_runs else 0.0
+
+    overall_design_issue_counts: dict[str, int] = {}
+    for r in runs:
+        for code in r.design_attempt_issues:
+            overall_design_issue_counts[code] = overall_design_issue_counts.get(code, 0) + 1
 
     return EvalSummary(
         total_runs=total,
@@ -218,10 +240,11 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
         final_pass_rate=round(final_passes / total, 4),
         failure_422_rate=round(failures_422 / total, 4),
         code_repair_rate=round(repairs / total, 4),
-        fallback_rate=round(fallbacks / total, 4),
+        fallback_rate=fallback_rate,
         avg_node_count=round(avg_nodes, 2),
         w_merge_as_agent_rate=round(merge_as_agent_runs / total, 4),
         avg_wall_clock_seconds=round(avg_wall, 2),
         total_llm_calls=total_calls,
         by_case=by_case,
+        design_issue_counts=overall_design_issue_counts,
     )

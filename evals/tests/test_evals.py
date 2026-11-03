@@ -145,7 +145,7 @@ def test_metrics_case_aggregation_synthetic() -> None:
             w_merge_as_agent_count=0,
             w_no_ai_node_count=0,
             error_codes=["E_CYCLE"],
-            explainer_source="fallback",
+            explainer_source="none",
             llm_call_count=3,
             wall_clock_seconds=30.0,
         ),
@@ -157,7 +157,9 @@ def test_metrics_case_aggregation_synthetic() -> None:
     assert agg.final_pass_rate == 0.75  # 3 of 4
     assert agg.failure_422_rate == 0.25  # 1 of 4
     assert agg.code_repair_rate == 0.25  # 1 of 4
-    assert agg.fallback_rate == 0.5  # 2 of 4 (run 3 and run 4)
+    assert (
+        agg.fallback_rate == 0.3333
+    )  # 1 of 3 non-422 runs (run 3 only; run 4 is 422 and excluded from numerator)
     assert agg.w_merge_as_agent_rate == 0.25  # 1 of 4
     assert agg.avg_node_count == 8.25  # (10 + 12 + 11 + 0) / 4
     assert agg.avg_wall_clock_seconds == 32.5  # (25 + 35 + 40 + 30) / 4
@@ -166,6 +168,43 @@ def test_metrics_case_aggregation_synthetic() -> None:
     assert agg.lint_counts.get("W_MERGE_AS_AGENT") == 1
     assert agg.issue_counts.get("X_FLOW_ORDER") == 1
     assert agg.issue_counts.get("X_FORBIDDEN_WORD") == 1
+
+
+def test_422_run_with_fallback_source_not_counted_in_fallback_rate() -> None:
+    """A 422 run with explainer_source='fallback' (legacy bad data) must NOT be counted in fallback_rate."""
+    runs = [
+        # 422 run with wrong legacy source value
+        CaseRunRecord(
+            case_id="finance",
+            run_index=1,
+            success=False,
+            attempt_1_pass=False,
+            final_pass=False,
+            is_422=True,
+            code_repair_used=False,
+            prompt_version="architect_v5",
+            node_count=0,
+            edge_count=0,
+            ai_node_count=0,
+            agent_count=0,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            error_codes=["E_CYCLE"],
+            explainer_source="fallback",  # bad legacy value; should not count
+        ),
+    ]
+    agg = aggregate_case_runs("finance", runs)
+    # All runs are 422 => non-422 denominator is 0 => fallback_rate must be 0.0, not 1.0
+    assert agg.fallback_rate == 0.0, (
+        f"Expected fallback_rate 0.0 for single 422 run (even with bad legacy source), got {agg.fallback_rate}"
+    )
+    assert agg.failure_422_rate == 1.0
+
+    # Same check via aggregate_eval_runs
+    summary = aggregate_eval_runs(runs)
+    assert summary.fallback_rate == 0.0, (
+        f"aggregate_eval_runs: expected fallback_rate 0.0, got {summary.fallback_rate}"
+    )
 
 
 def test_metrics_overall_eval_aggregation() -> None:
@@ -329,3 +368,191 @@ def test_compare_runs_side_by_side_table_generation() -> None:
     assert "OVERALL" in table
     assert "IMPROVED" in table
     assert any(d.status == "IMPROVED" for d in diffs)
+
+
+def test_parse_retry_delay_formats() -> None:
+    """Verify parse_retry_delay handles all three format variants plus fallback with +1s margin."""
+    from evals.run import parse_retry_delay
+
+    # 1. Format: "retry in ~51 s"
+    delay1 = parse_retry_delay("Gemini rate limit exceeded: Resource exhausted... retry in ~51 s")
+    assert delay1 == 52.0, f"Expected 52.0, got {delay1}"
+
+    # 2. Format: "retry after 14s"
+    delay2 = parse_retry_delay("Quota exceeded for quota metric... retry after 14s")
+    assert delay2 == 15.0, f"Expected 15.0, got {delay2}"
+
+    # 3. Format: "retry_delay { seconds: 14 }"
+    delay3 = parse_retry_delay("Resource exhausted: retry_delay { seconds: 14 }")
+    assert delay3 == 15.0, f"Expected 15.0, got {delay3}"
+
+    # 4. Fallback: No numeric delay found -> default 60s + 1s = 61.0s
+    delay4 = parse_retry_delay("Quota exceeded: Rate limit exceeded without delay info.")
+    assert delay4 == 61.0, f"Expected 61.0, got {delay4}"
+
+
+def test_fallback_rate_and_design_issue_counts() -> None:
+    """Verify fallback_rate excludes 422 runs from denominator and design_issue_counts aggregates."""
+    # Scenario A: Only 422 runs exist -> fallback_rate must be 0.0, not NaN or 1.0
+    runs_422_only = [
+        CaseRunRecord(
+            case_id="legal",
+            run_index=1,
+            success=False,
+            attempt_1_pass=False,
+            final_pass=False,
+            is_422=True,
+            code_repair_used=False,
+            prompt_version="architect_v5",
+            node_count=0,
+            edge_count=0,
+            ai_node_count=0,
+            agent_count=0,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            error_codes=["E_CONSTRAINT_VIOLATED"],
+            explainer_source="none",
+            design_attempt_issues=["E_CONSTRAINT_VIOLATED", "E_CYCLE"],
+        ),
+        CaseRunRecord(
+            case_id="legal",
+            run_index=2,
+            success=False,
+            attempt_1_pass=False,
+            final_pass=False,
+            is_422=True,
+            code_repair_used=False,
+            prompt_version="architect_v5",
+            node_count=0,
+            edge_count=0,
+            ai_node_count=0,
+            agent_count=0,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            error_codes=["E_CONSTRAINT_BAD_PARAM"],
+            explainer_source="none",
+            design_attempt_issues=["E_CONSTRAINT_BAD_PARAM"],
+        ),
+    ]
+
+    agg_422 = aggregate_case_runs("legal", runs_422_only)
+    assert agg_422.fallback_rate == 0.0, (
+        f"Expected fallback_rate 0.0 when all runs are 422, got {agg_422.fallback_rate}"
+    )
+    assert agg_422.failure_422_rate == 1.0
+    assert agg_422.design_issue_counts.get("E_CONSTRAINT_VIOLATED") == 1
+    assert agg_422.design_issue_counts.get("E_CYCLE") == 1
+    assert agg_422.design_issue_counts.get("E_CONSTRAINT_BAD_PARAM") == 1
+
+    # Scenario B: Mixed runs: 1 run 422, 1 run clean pass (llm), 1 run explainer fallback
+    mixed_runs = [
+        runs_422_only[0],  # 422 run
+        CaseRunRecord(
+            case_id="legal",
+            run_index=2,
+            success=True,
+            attempt_1_pass=True,
+            final_pass=True,
+            is_422=False,
+            code_repair_used=False,
+            prompt_version="architect_v5",
+            node_count=5,
+            edge_count=6,
+            ai_node_count=1,
+            agent_count=1,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            explainer_source="llm",
+            design_attempt_issues=[],
+        ),
+        CaseRunRecord(
+            case_id="legal",
+            run_index=3,
+            success=True,
+            attempt_1_pass=True,
+            final_pass=True,
+            is_422=False,
+            code_repair_used=False,
+            prompt_version="architect_v5",
+            node_count=5,
+            edge_count=6,
+            ai_node_count=1,
+            agent_count=1,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            explainer_source="fallback",
+            design_attempt_issues=["E_CONSTRAINT_VIOLATED"],
+        ),
+    ]
+
+    agg_mixed = aggregate_case_runs("legal", mixed_runs)
+    # Total runs = 3. 422 runs = 1. Non-422 runs = 2. Fallbacks = 1.
+    # fallback_rate = 1 / 2 = 0.50 (NOT 1/3 = 0.3333)
+    assert agg_mixed.fallback_rate == 0.5, (
+        f"Expected fallback_rate 0.5 (1 fallback / 2 explainer runs), got {agg_mixed.fallback_rate}"
+    )
+    assert agg_mixed.failure_422_rate == round(1 / 3, 4)
+    assert agg_mixed.design_issue_counts.get("E_CONSTRAINT_VIOLATED") == 2
+
+    # Overall summary aggregation
+    summary = aggregate_eval_runs(mixed_runs)
+    assert summary.fallback_rate == 0.5
+    assert summary.failure_422_rate == round(1 / 3, 4)
+    assert summary.design_issue_counts.get("E_CONSTRAINT_VIOLATED") == 2
+    assert summary.design_issue_counts.get("E_CYCLE") == 1
+
+
+def test_compare_loads_old_file_without_design_issue_counts() -> None:
+    """Verify compare_runs safely handles legacy result files lacking design_issue_counts."""
+    old_data_a = {
+        "meta": {"timestamp": "20261102-1200", "prompt_architect": "v5"},
+        "summary": {
+            "total_runs": 2,
+            "attempt_1_pass_rate": 0.5,
+            "final_pass_rate": 1.0,
+            "fallback_rate": 0.0,
+            "code_repair_rate": 0.0,
+            "w_merge_as_agent_rate": 0.0,
+            "by_case": {
+                "finance": {
+                    "attempt_1_pass_rate": 0.5,
+                    "final_pass_rate": 1.0,
+                    "fallback_rate": 0.0,
+                    "code_repair_rate": 0.0,
+                    "w_merge_as_agent_rate": 0.0,
+                    "avg_node_count": 7.0,
+                }
+            },
+        },
+    }
+
+    new_data_b = {
+        "meta": {"timestamp": "20261102-1300", "prompt_architect": "v5"},
+        "summary": {
+            "total_runs": 2,
+            "attempt_1_pass_rate": 1.0,
+            "final_pass_rate": 1.0,
+            "fallback_rate": 0.0,
+            "code_repair_rate": 0.0,
+            "w_merge_as_agent_rate": 0.0,
+            "design_issue_counts": {"E_CONSTRAINT_VIOLATED": 1},
+            "by_case": {
+                "finance": {
+                    "attempt_1_pass_rate": 1.0,
+                    "final_pass_rate": 1.0,
+                    "fallback_rate": 0.0,
+                    "code_repair_rate": 0.0,
+                    "w_merge_as_agent_rate": 0.0,
+                    "avg_node_count": 7.0,
+                    "design_issue_counts": {"E_CONSTRAINT_VIOLATED": 1},
+                }
+            },
+        },
+    }
+
+    # Must load and format without throwing KeyError
+    table, _diffs = compare_runs(old_data_a, new_data_b)
+    assert len(table) > 50
+    assert "ARCH-NEMESIS EVALUATION COMPARISON" in table
+    assert "DESIGN ISSUE CODES" in table
+    assert "E_CONSTRAINT_VIOLATED" in table

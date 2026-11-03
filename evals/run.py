@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import re
 import sys
 import tempfile
 import time
@@ -217,6 +218,28 @@ def build_dry_run_script(cases: list[dict[str, Any]], runs_count: int) -> list[d
     return script
 
 
+def parse_retry_delay(err_msg: str, default_seconds: float = 60.0) -> float:
+    """Extract retry delay in seconds from error text with +1s margin.
+
+    Handles formats such as:
+    - 'retry_delay { seconds: 14 }'
+    - 'retry in ~51 s'
+    - 'retry after 14s' / 'retry after: 14s'
+    Falls back to default_seconds + 1.0s if no number is matched.
+    """
+    # Pattern 1: protobuf style 'retry_delay { seconds: 14 }'
+    m = re.search(r"retry_delay\s*\{\s*seconds:\s*(\d+(?:\.\d+)?)", err_msg, re.IGNORECASE)
+    if m:
+        return float(m.group(1)) + 1.0
+
+    # Pattern 2: 'retry in ~51 s', 'retry after 14s', 'retry after: 12 s'
+    m = re.search(r"retry\s+(?:in|after)\s*[~:=]?\s*(\d+(?:\.\d+)?)", err_msg, re.IGNORECASE)
+    if m:
+        return float(m.group(1)) + 1.0
+
+    return default_seconds + 1.0
+
+
 async def execute_eval_suite(
     cases: list[dict[str, Any]],
     runs_per_case: int,
@@ -224,6 +247,7 @@ async def execute_eval_suite(
     event_collector: StructlogEventCollector,
     output_path: Path,
     dry_mode: bool = False,
+    pause_seconds: float = 8.0,
 ) -> tuple[int, list[CaseRunRecord]]:
     """Run the evaluation suite sequentially across cases and runs."""
     settings = get_settings()
@@ -251,6 +275,9 @@ async def execute_eval_suite(
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+    total_runs = len(cases) * runs_per_case
+    runs_done = 0
+
     try:
         for case in cases:
             case_id = str(case.get("id"))
@@ -262,223 +289,265 @@ async def execute_eval_suite(
             must_have_kinds = list(expect.get("must_have_constraint_kinds", []))
 
             for run_idx in range(1, runs_per_case + 1):
-                event_collector.clear()
-                start_calls = client.call_count
-                start_time = time.perf_counter()
+                run_attempt = 1
+                while True:
+                    event_collector.clear()
+                    start_calls = client.call_count
+                    start_time = time.perf_counter()
 
-                try:
-                    async with session_factory() as db:
-                        # 1. Intake turn 1
-                        turn_res = await handle_turn(
-                            db=db,
-                            request=IntakeTurnRequest(text=need_text),
-                            llm=client,
-                        )
-
-                        # Feed followups if needed
-                        for ans in followups:
-                            if turn_res.status == "needs_info":
-                                turn_res = await handle_turn(
-                                    db=db,
-                                    request=IntakeTurnRequest(
-                                        session_id=turn_res.session_id,
-                                        text=ans,
-                                    ),
-                                    llm=client,
-                                )
-
-                        if turn_res.status != "ready":
-                            # Intake did not produce a brief
-                            elapsed = time.perf_counter() - start_time
-                            rec = CaseRunRecord(
-                                case_id=case_id,
-                                run_index=run_idx,
-                                success=False,
-                                attempt_1_pass=False,
-                                final_pass=False,
-                                is_422=False,
-                                code_repair_used=False,
-                                prompt_version="intake_incomplete",
-                                node_count=0,
-                                edge_count=0,
-                                ai_node_count=0,
-                                agent_count=0,
-                                w_merge_as_agent_count=0,
-                                w_no_ai_node_count=0,
-                                error_codes=["INTAKE_INCOMPLETE"],
-                                explainer_source="fallback",
-                                llm_call_count=client.call_count - start_calls,
-                                wall_clock_seconds=round(elapsed, 2),
-                            )
-                            completed_records.append(rec)
-                            continue
-
-                        # 2. Design creation
-                        try:
-                            design_res = await create_design(
+                    try:
+                        async with session_factory() as db:
+                            # 1. Intake turn 1
+                            turn_res = await handle_turn(
                                 db=db,
-                                request=CreateDesignRequest(session_id=turn_res.session_id),
+                                request=IntakeTurnRequest(text=need_text),
                                 llm=client,
                             )
-                        except DesignFailedError as exc:
-                            # 422 Design failure
+
+                            # Feed followups if needed
+                            for ans in followups:
+                                if turn_res.status == "needs_info":
+                                    turn_res = await handle_turn(
+                                        db=db,
+                                        request=IntakeTurnRequest(
+                                            session_id=turn_res.session_id,
+                                            text=ans,
+                                        ),
+                                        llm=client,
+                                    )
+
+                            if turn_res.status != "ready":
+                                # Intake did not produce a brief
+                                elapsed = time.perf_counter() - start_time
+                                rec = CaseRunRecord(
+                                    case_id=case_id,
+                                    run_index=run_idx,
+                                    success=False,
+                                    attempt_1_pass=False,
+                                    final_pass=False,
+                                    is_422=False,
+                                    code_repair_used=False,
+                                    prompt_version="intake_incomplete",
+                                    node_count=0,
+                                    edge_count=0,
+                                    ai_node_count=0,
+                                    agent_count=0,
+                                    w_merge_as_agent_count=0,
+                                    w_no_ai_node_count=0,
+                                    error_codes=["INTAKE_INCOMPLETE"],
+                                    explainer_source="none",
+                                    llm_call_count=client.call_count - start_calls,
+                                    wall_clock_seconds=round(elapsed, 2),
+                                )
+                                completed_records.append(rec)
+                                break
+
+                            # 2. Design creation
+                            try:
+                                design_res = await create_design(
+                                    db=db,
+                                    request=CreateDesignRequest(session_id=turn_res.session_id),
+                                    llm=client,
+                                )
+                            except DesignFailedError as exc:
+                                # 422 Design failure
+                                elapsed = time.perf_counter() - start_time
+                                design_attempts = [
+                                    e
+                                    for e in event_collector.events
+                                    if e.get("event") == "design_attempt"
+                                ]
+                                design_attempt_issues = [
+                                    code
+                                    for e in design_attempts
+                                    for code in e.get("issue_codes", [])
+                                ]
+                                rec = CaseRunRecord(
+                                    case_id=case_id,
+                                    run_index=run_idx,
+                                    success=False,
+                                    attempt_1_pass=False,
+                                    final_pass=False,
+                                    is_422=True,
+                                    code_repair_used=False,
+                                    prompt_version=ARCHITECT_PROMPT_NAME,
+                                    node_count=0,
+                                    edge_count=0,
+                                    ai_node_count=0,
+                                    agent_count=0,
+                                    w_merge_as_agent_count=0,
+                                    w_no_ai_node_count=0,
+                                    error_codes=list(exc.issues),
+                                    explainer_source="none",
+                                    design_attempt_issues=design_attempt_issues,
+                                    llm_call_count=client.call_count - start_calls,
+                                    wall_clock_seconds=round(elapsed, 2),
+                                )
+                                completed_records.append(rec)
+                                break
+
+                            # 3. Architect metrics extraction
+                            spec = design_res.spec
+                            prompt_version = design_res.prompt_version
+                            code_repair_used = "+code_repair" in prompt_version
+
+                            design_attempts = [
+                                e
+                                for e in event_collector.events
+                                if e.get("event") == "design_attempt"
+                            ]
+                            design_attempt_issues = [
+                                code for e in design_attempts for code in e.get("issue_codes", [])
+                            ]
+                            attempt_1_pass = (
+                                len(design_attempts) <= 1
+                                and not code_repair_used
+                                and "repair" not in prompt_version
+                            )
+
+                            node_count = len(spec.nodes)
+                            edge_count = len(spec.edges)
+                            ai_nodes = sum(1 for n in spec.nodes if n.needs_model)
+                            agents = sum(1 for n in spec.nodes if n.ai_role == "agent")
+
+                            lints = check_lints(spec)
+                            w_merge = sum(1 for item in lints if item.code == "W_MERGE_AS_AGENT")
+                            w_no_ai = sum(1 for item in lints if item.code == "W_NO_AI_NODE")
+                            other_warnings = [
+                                item.code
+                                for item in lints
+                                if item.code not in ("W_MERGE_AS_AGENT", "W_NO_AI_NODE")
+                            ]
+
+                            found_kinds = sorted({c.kind for c in spec.constraints})
+                            constraints_ok = all(k in found_kinds for k in must_have_kinds)
+                            within_bounds = min_nodes <= node_count <= max_nodes
+
+                            code_repairs = [
+                                e for e in event_collector.events if e.get("event") == "code_repair"
+                            ]
+                            code_repair_events = [
+                                {
+                                    "attempt": e.get("attempt"),
+                                    "issue_codes": e.get("issue_codes", []),
+                                    "node_ids": e.get("node_ids", []),
+                                    "edges_net_change": e.get("edges_net_change", 0),
+                                }
+                                for e in code_repairs
+                            ]
+
+                            # 4. Explainer generation
+                            expl_res = await get_or_generate_explanation(
+                                db=db,
+                                design_id=design_res.id,
+                                version_no=1,
+                                llm=client,
+                            )
+
+                            explainer_source = expl_res.source
+                            explainer_failed = [
+                                e
+                                for e in event_collector.events
+                                if e.get("event") == "explainer_verify_failed"
+                            ]
+                            att1_failed = [e for e in explainer_failed if e.get("attempt") == 1]
+                            explainer_attempt_1_issues = [
+                                code for e in att1_failed for code in e.get("issue_codes", [])
+                            ]
+                            att2_failed = [e for e in explainer_failed if e.get("attempt") == 2]
+                            explainer_attempt_2_issues = [
+                                code for e in att2_failed for code in e.get("issue_codes", [])
+                            ]
+                            all_explainer_issues = (
+                                explainer_attempt_1_issues + explainer_attempt_2_issues
+                            )
+
+                            expl_success = [
+                                e
+                                for e in event_collector.events
+                                if e.get("event") == "explainer_generate_success"
+                            ]
+                            if expl_success:
+                                explainer_attempt = int(
+                                    expl_success[-1].get("attempt", len(explainer_failed) + 1)
+                                )
+                            elif explainer_failed:
+                                explainer_attempt = max(
+                                    int(e.get("attempt", len(explainer_failed)))
+                                    for e in explainer_failed
+                                )
+                            else:
+                                explainer_attempt = 1
+
                             elapsed = time.perf_counter() - start_time
+                            calls_made = client.call_count - start_calls
+
                             rec = CaseRunRecord(
                                 case_id=case_id,
                                 run_index=run_idx,
-                                success=False,
-                                attempt_1_pass=False,
-                                final_pass=False,
-                                is_422=True,
-                                code_repair_used=False,
-                                prompt_version=ARCHITECT_PROMPT_NAME,
-                                node_count=0,
-                                edge_count=0,
-                                ai_node_count=0,
-                                agent_count=0,
-                                w_merge_as_agent_count=0,
-                                w_no_ai_node_count=0,
-                                error_codes=list(exc.issues),
-                                explainer_source="fallback",
-                                llm_call_count=client.call_count - start_calls,
+                                success=True,
+                                attempt_1_pass=attempt_1_pass,
+                                final_pass=True,
+                                is_422=False,
+                                code_repair_used=code_repair_used,
+                                prompt_version=prompt_version,
+                                node_count=node_count,
+                                edge_count=edge_count,
+                                ai_node_count=ai_nodes,
+                                agent_count=agents,
+                                w_merge_as_agent_count=w_merge,
+                                w_no_ai_node_count=w_no_ai,
+                                other_warnings=other_warnings,
+                                error_codes=[],
+                                constraint_kinds_found=found_kinds,
+                                expected_constraints_satisfied=constraints_ok,
+                                within_node_bounds=within_bounds,
+                                explainer_source=explainer_source,
+                                explainer_attempt=explainer_attempt,
+                                explainer_issues=all_explainer_issues,
+                                explainer_attempt_1_issues=explainer_attempt_1_issues,
+                                explainer_attempt_2_issues=explainer_attempt_2_issues,
+                                code_repair_events=code_repair_events,
+                                design_attempt_issues=design_attempt_issues,
+                                llm_call_count=calls_made,
                                 wall_clock_seconds=round(elapsed, 2),
                             )
                             completed_records.append(rec)
+                            break
+
+                    except LLMRateLimited as exc:
+                        if run_attempt == 1:
+                            delay = parse_retry_delay(str(exc), default_seconds=60.0)
+                            sys.stderr.write(
+                                f"\n[QUOTA WARNING] 429 Rate limited on case '{case_id}' run {run_idx}: {exc}\n"
+                                f"Waiting {delay:.1f}s before retrying once...\n"
+                            )
+                            await asyncio.sleep(delay)
+                            run_attempt += 1
                             continue
-
-                        # 3. Architect metrics extraction
-                        spec = design_res.spec
-                        prompt_version = design_res.prompt_version
-                        code_repair_used = "+code_repair" in prompt_version
-
-                        design_attempts = [
-                            e for e in event_collector.events if e.get("event") == "design_attempt"
-                        ]
-                        design_attempt_issues = [
-                            code for e in design_attempts for code in e.get("issue_codes", [])
-                        ]
-                        attempt_1_pass = (
-                            len(design_attempts) <= 1
-                            and not code_repair_used
-                            and "repair" not in prompt_version
-                        )
-
-                        node_count = len(spec.nodes)
-                        edge_count = len(spec.edges)
-                        ai_nodes = sum(1 for n in spec.nodes if n.needs_model)
-                        agents = sum(1 for n in spec.nodes if n.ai_role == "agent")
-
-                        lints = check_lints(spec)
-                        w_merge = sum(1 for item in lints if item.code == "W_MERGE_AS_AGENT")
-                        w_no_ai = sum(1 for item in lints if item.code == "W_NO_AI_NODE")
-                        other_warnings = [
-                            item.code
-                            for item in lints
-                            if item.code not in ("W_MERGE_AS_AGENT", "W_NO_AI_NODE")
-                        ]
-
-                        found_kinds = sorted({c.kind for c in spec.constraints})
-                        constraints_ok = all(k in found_kinds for k in must_have_kinds)
-                        within_bounds = min_nodes <= node_count <= max_nodes
-
-                        code_repairs = [
-                            e for e in event_collector.events if e.get("event") == "code_repair"
-                        ]
-                        code_repair_events = [
-                            {
-                                "attempt": e.get("attempt"),
-                                "issue_codes": e.get("issue_codes", []),
-                                "node_ids": e.get("node_ids", []),
-                                "edges_net_change": e.get("edges_net_change", 0),
-                            }
-                            for e in code_repairs
-                        ]
-
-                        # 4. Explainer generation
-                        expl_res = await get_or_generate_explanation(
-                            db=db,
-                            design_id=design_res.id,
-                            version_no=1,
-                            llm=client,
-                        )
-
-                        explainer_source = expl_res.source
-                        explainer_failed = [
-                            e
-                            for e in event_collector.events
-                            if e.get("event") == "explainer_verify_failed"
-                        ]
-                        att1_failed = [e for e in explainer_failed if e.get("attempt") == 1]
-                        explainer_attempt_1_issues = [
-                            code for e in att1_failed for code in e.get("issue_codes", [])
-                        ]
-                        att2_failed = [e for e in explainer_failed if e.get("attempt") == 2]
-                        explainer_attempt_2_issues = [
-                            code for e in att2_failed for code in e.get("issue_codes", [])
-                        ]
-                        all_explainer_issues = (
-                            explainer_attempt_1_issues + explainer_attempt_2_issues
-                        )
-
-                        expl_success = [
-                            e
-                            for e in event_collector.events
-                            if e.get("event") == "explainer_generate_success"
-                        ]
-                        if expl_success:
-                            explainer_attempt = int(
-                                expl_success[-1].get("attempt", len(explainer_failed) + 1)
-                            )
-                        elif explainer_failed:
-                            explainer_attempt = max(
-                                int(e.get("attempt", len(explainer_failed)))
-                                for e in explainer_failed
-                            )
                         else:
-                            explainer_attempt = 1
+                            aborted_due_to_quota = True
+                            sys.stderr.write(
+                                f"\n[QUOTA ERROR] Evaluation aborted due to repeated LLMRateLimited on case '{case_id}' run {run_idx}: {exc}\n"
+                                f"Completed {len(completed_records)} runs before aborting.\n"
+                            )
+                            break
 
-                        elapsed = time.perf_counter() - start_time
-                        calls_made = client.call_count - start_calls
-
-                        rec = CaseRunRecord(
-                            case_id=case_id,
-                            run_index=run_idx,
-                            success=True,
-                            attempt_1_pass=attempt_1_pass,
-                            final_pass=True,
-                            is_422=False,
-                            code_repair_used=code_repair_used,
-                            prompt_version=prompt_version,
-                            node_count=node_count,
-                            edge_count=edge_count,
-                            ai_node_count=ai_nodes,
-                            agent_count=agents,
-                            w_merge_as_agent_count=w_merge,
-                            w_no_ai_node_count=w_no_ai,
-                            other_warnings=other_warnings,
-                            error_codes=[],
-                            constraint_kinds_found=found_kinds,
-                            expected_constraints_satisfied=constraints_ok,
-                            within_node_bounds=within_bounds,
-                            explainer_source=explainer_source,
-                            explainer_attempt=explainer_attempt,
-                            explainer_issues=all_explainer_issues,
-                            explainer_attempt_1_issues=explainer_attempt_1_issues,
-                            explainer_attempt_2_issues=explainer_attempt_2_issues,
-                            code_repair_events=code_repair_events,
-                            design_attempt_issues=design_attempt_issues,
-                            llm_call_count=calls_made,
-                            wall_clock_seconds=round(elapsed, 2),
+                    except LLMUnavailable as exc:
+                        aborted_due_to_quota = True
+                        sys.stderr.write(
+                            f"\n[QUOTA ERROR] Evaluation aborted due to {exc.__class__.__name__}: {exc}\n"
+                            f"Completed {len(completed_records)} runs before aborting.\n"
                         )
-                        completed_records.append(rec)
+                        break
 
-                except (LLMRateLimited, LLMUnavailable) as exc:
-                    aborted_due_to_quota = True
-                    sys.stderr.write(
-                        f"\n[QUOTA ERROR] Evaluation aborted due to {exc.__class__.__name__}: {exc}\n"
-                        f"Completed {len(completed_records)} runs before aborting.\n"
-                    )
+                if aborted_due_to_quota:
                     break
+
+                runs_done += 1
+                # Sleep between runs only, not after the last run
+                if runs_done < total_runs and pause_seconds > 0:
+                    await asyncio.sleep(pause_seconds)
 
             if aborted_due_to_quota:
                 break
@@ -501,6 +570,7 @@ async def execute_eval_suite(
         "runs_requested": runs_per_case,
         "total_runs_completed": len(completed_records),
         "aborted_due_to_quota": aborted_due_to_quota,
+        "pause_seconds": pause_seconds,
     }
 
     result_payload = {
@@ -526,6 +596,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--only", type=str, default=None, help="Run only a specific case ID")
     parser.add_argument(
         "--dry", action="store_true", help="Run with FakeLLMClient without spending quota"
+    )
+    parser.add_argument(
+        "--pause-seconds",
+        type=float,
+        default=8.0,
+        help="Pause in seconds between runs to stay under rate limits (default: 8.0)",
     )
     parser.add_argument(
         "--out", type=str, default=None, help="Custom output JSON path in evals/results/"
@@ -585,6 +661,7 @@ def main(argv: list[str] | None = None) -> int:
             event_collector=collector,
             output_path=out_path,
             dry_mode=args.dry,
+            pause_seconds=args.pause_seconds,
         )
     )
 

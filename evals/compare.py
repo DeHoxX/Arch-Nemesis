@@ -230,6 +230,8 @@ def format_comparison_table(
     run_b_meta: dict[str, Any],
     case_diffs: list[MetricDiff],
     overall_diffs: list[MetricDiff],
+    summary_a: dict[str, Any] | None = None,
+    summary_b: dict[str, Any] | None = None,
 ) -> str:
     """Render ASCII side-by-side comparison table."""
     lines: list[str] = []
@@ -262,6 +264,22 @@ def format_comparison_table(
     lines.append(
         f"Summary: {len(improvements)} IMPROVED, {len(regressions)} REGRESSION, {len(case_diffs) + len(overall_diffs) - len(improvements) - len(regressions)} UNCHANGED"
     )
+
+    if summary_a is not None and summary_b is not None:
+        design_issues_a = summary_a.get("design_issue_counts", {})
+        design_issues_b = summary_b.get("design_issue_counts", {})
+        all_design_codes = sorted(set(design_issues_a.keys()) | set(design_issues_b.keys()))
+        if all_design_codes:
+            lines.append("-" * 80)
+            lines.append("DESIGN ISSUE CODES:")
+            for code in all_design_codes:
+                cnt_a = design_issues_a.get(code, 0)
+                cnt_b = design_issues_b.get(code, 0)
+                diff = cnt_b - cnt_a
+                lines.append(
+                    f"  {code:<30}: Run A = {cnt_a:>3}, Run B = {cnt_b:>3} (diff {diff:+d})"
+                )
+
     if regressions:
         lines.append("WARNING: Regressions detected in comparison.")
     else:
@@ -302,6 +320,8 @@ def compare_runs(data_a: dict[str, Any], data_b: dict[str, Any]) -> tuple[str, l
         run_b_meta=data_b.get("meta", data_b),
         case_diffs=case_diffs,
         overall_diffs=overall_diffs,
+        summary_a=summary_a,
+        summary_b=summary_b,
     )
     return table, case_diffs + overall_diffs
 
