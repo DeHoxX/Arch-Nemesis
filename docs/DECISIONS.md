@@ -2205,6 +2205,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-205 — Stage 422b — decision
+What: Introduce architect prompt v6 and architect repair prompt v6 with precise constraint semantics and branch ordering.
+Why: Baseline evaluation revealed a 21% 422 failure rate caused primarily by the LLM choosing must_pass_through for conditional requirements (such as human review on high-risk branches while automated branches bypass it) and placing must_pass_through on exit or audit sinks. Additionally, covers was sometimes populated with plain-text assumption sentences instead of brief constraint IDs. Stage 422b creates architect_v6.md and architect_repair_v6.md leaving previous prompt versions untouched. The new prompts clarify constraint selection (must_precede for branch-specific ordering, must_pass_through strictly for universal bottlenecks, must_exist for presence without ordering, must_not_connect graph verification before edge creation, and covers: [] when brief constraints are absent). In architect_repair_v6.md, models are instructed that when a bypass path is detected for a conditional requirement, they should change the constraint kind to must_precede or must_exist while preserving the rule ID and its covers.
+Alternatives considered:
+1. Editing architect_v5.md in place: Rejected because GEMINI.md and BUILD_PLAN.md require prompt version preservation so prior evaluations remain reproducible.
+2. Relying entirely on automated code repair: Rejected because code cannot invent semantic intent or re-route conditional business branches without LLM guidance.
+If we removed it: Models would continue misclassifying branch-specific checkpoints as universal bottlenecks, causing repeated 422 validation failures on realistic multi-branch workflows.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

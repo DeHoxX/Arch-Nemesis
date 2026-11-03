@@ -153,7 +153,7 @@ async def test_create_design_from_ready_session_success(
     data = res.json()
     assert data["intake_session_id"] == db_session.id
     assert data["current_version"] == 1
-    assert data["prompt_version"] == "architect_v5"
+    assert data["prompt_version"] == "architect_v6"
     assert data["brief"]["summary"] == "Order processing pipeline."
     assert data["brief"]["unverifiable_requirements"] == ["Latency must feel instant"]
     assert "warnings" in data
@@ -462,6 +462,6 @@ async def test_designs_logs_design_created(
     # Check required fields
     assert "design_id" in event_payload
     assert event_payload["node_count"] == 3
-    assert event_payload["prompt_version"] == "architect_v5"
+    assert event_payload["prompt_version"] == "architect_v6"
     assert "models" in event_payload
     assert isinstance(event_payload["models"], list)
