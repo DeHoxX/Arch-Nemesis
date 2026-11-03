@@ -2264,6 +2264,20 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+
+
+### D-210 — Phase 7A — Pure patch logic and refinement schema constraints separation
+What: Adopt refine_G flat `changes` Op model for Patch validation, and enforce patch and field limits in application code rather than LLM schema annotations.
+Why: Live Gemini schema probing in Phase 7 Step 0 established that schema-level constraint annotations (`max_length`, `min_length`, `maxItems`, `pattern`) on nested or optional Op fields triggered 400 INVALID_ARGUMENT errors from the Gemini API. Removing these annotations while preserving the discrete fields (variant refine_G: single flat `changes` model + nested models) was proven accepted by Gemini. Consequently, LLM-facing patch models (`Op`, `Changes`, `Patch`) define unconstrained types, while all operational limits (`P_EMPTY_PATCH`, `P_TOO_MANY_OPS`, field lengths, node ID patterns) are strictly checked in Python code post-parsing and via `validate()` on the mutated specification deep copy.
+Alternatives considered:
+1. Serializing patch arguments into an opaque stringified `payload_json: str`: Rejected because refine_G succeeded, preserving structured validation and autocompletion without client/server JSON string parsing overhead.
+2. Placing field length validations in the LLM-facing Pydantic model: Rejected because Gemini's schema parser rejects OpenAPI schemas with heavy combinations of min/max length and array constraints on optional object fields.
+If we removed it: Schema validation with Gemini for refinement and suggestion calls would fail with 400 INVALID_ARGUMENT, blocking conversational architecture editing.
+Decided by: agent proposed, user approved
+Status: active
+
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

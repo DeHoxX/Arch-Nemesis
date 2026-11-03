@@ -14,17 +14,39 @@ from archnemesis.modules.validation.models import (
     ValidationResult,
 )
 from archnemesis.modules.validation.ordering import order_nodes
+from archnemesis.modules.validation.patch import (
+    Changes,
+    DiffResult,
+    Op,
+    OpKind,
+    Patch,
+    PatchResult,
+    PatchStatus,
+    apply_patch,
+    compute_diff,
+    describe_diff,
+)
 from archnemesis.modules.validation.repair import patch_constraints
 from archnemesis.modules.validation.validate import parse_and_validate, validate
 
 __all__ = [
     "ArchitectureSpec",
+    "Changes",
     "ConstraintSpec",
+    "DiffResult",
     "EdgeSpec",
     "Limits",
     "NodeSpec",
+    "Op",
+    "OpKind",
+    "Patch",
+    "PatchResult",
+    "PatchStatus",
     "ValidationIssue",
     "ValidationResult",
+    "apply_patch",
+    "compute_diff",
+    "describe_diff",
     "order_nodes",
     "parse_and_validate",
     "patch_constraints",
