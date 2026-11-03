@@ -23,8 +23,8 @@ from archnemesis.shared.brief import RequirementBrief
 logger = structlog.get_logger()
 
 MAX_ARCHITECT_CALLS: int = 3
-ARCHITECT_PROMPT_NAME: str = "architect_v6"
-ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v6"
+ARCHITECT_PROMPT_NAME: str = "architect_v7"
+ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v7"
 
 
 def _format_brief_prompt(brief: RequirementBrief) -> str:

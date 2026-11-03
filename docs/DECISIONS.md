@@ -2227,6 +2227,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-207 — Stage 422d — decision
+What: Introduce architect prompt v7 and architect repair prompt v7 with branch-specific precedence and sanitizer constraints.
+Why: Diagnostic inspection of v6 evaluation runs revealed remaining 422 failures caused by: (1) must_precede targeting shared downstream merge/exit nodes reached by alternative branches (e.g. finance 2: auto_release bypassing human review to reach delivery_dispatcher); (2) dual must_precede targeting the same aggregator across parallel branches (legal 5); (3) must_not_connect inappropriately applied to sanitized audit/log sinks where sanitized data legitimately flows (legal 3). Stage 422d introduces architect_v7.md and architect_repair_v7.md leaving v1-v6 untouched. The prompts clarify: must_precede is valid only when every path to node B passes node A; merge/aggregator/exit nodes reached by alternative branches must never be targeted with must_precede; sanitized audit sinks must use must_precede(sanitizer, sink) or must_exist instead of must_not_connect; repair of bypasses representing legitimate workflows must retarget or downgrade to must_exist while preserving rule IDs and covers; true system-wide bottlenecks (e.g. ingress guardrail, scoring) must remain must_pass_through; and a strict coverage guard forbids defaulting to weak must_exist everywhere.
+Alternatives considered:
+1. Editing architect_v6.md in place: Rejected to ensure prompt version immutability and reproducibility of historical benchmarks.
+2. Adding automatic graph rerouting to code repair: Rejected because code cannot infer domain intent or decide whether an alternative branch should legitimately bypass a human checkpoint.
+If we removed it: Architect models would continue producing unprovable precedence constraints on multi-branch workflows and invalid isolation constraints on sanitized audit sinks, keeping the 422 rate elevated.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
