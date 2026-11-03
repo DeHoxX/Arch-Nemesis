@@ -2238,6 +2238,19 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+
+
+### D-208 — Stage 422e — decision
+What: Refine expected_constraints_rate calculation and store final constraint summaries in evaluation results.
+Why: Inspection of evaluation results revealed that runs terminating in 422 design failures defaulted to expected_constraints_satisfied=True because no final specification existed, artificially inflating expected_constraints_rate when 422s occurred and distorting comparisons as 422 rates dropped. Stage 422e updates CaseRunRecord with expected_constraints_applicable (bool, default True for backward compatibility, set to False on 422 runs). In metrics.py, expected_constraints_rate is computed as satisfied / applicable runs (or 0.0 if applicable is 0), ensuring 422 runs do not count as satisfied. Additionally, CaseRunRecord now records final_constraints (a list of compact dictionaries containing id, kind, node_id, a, b, and covers only—strictly excluding user brief text, prompts, and responses). A standalone utility evals/recompute_metrics.py allows evaluating historical result files (v5, v6, v7) under the honest applicable-denominator metric without modifying raw result files on disk.
+Alternatives considered:
+1. Setting expected_constraints_satisfied=False on 422 runs: Rejected because a run that failed to synthesize a valid architecture cannot meaningfully be judged on whether its constraints matched expectations; dividing by applicable runs correctly decouples validity failure from constraint selection.
+2. Storing full constraint text in final_constraints: Rejected to maintain strict data minimization and prevent user brief text or prompt injection text from leaking into benchmark artifacts.
+If we removed it: Evaluation reports would continue overstating constraint coverage on runs with high 422 rates, and engineers would lack structural target visibility into final generated constraints.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

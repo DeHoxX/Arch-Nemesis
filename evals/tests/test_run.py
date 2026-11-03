@@ -1253,3 +1253,185 @@ def test_old_result_file_without_new_fields_loads_in_compare_py(tmp_path: Path) 
     assert len(table) > 0
 
     assert "ARCH-NEMESIS EVALUATION COMPARISON" in table
+
+
+def test_expected_constraints_rate_excludes_422_runs() -> None:
+    """Stage 422e: 422 runs have expected_constraints_applicable=False and are excluded from denominator."""
+    from evals.metrics import CaseRunRecord, aggregate_case_runs
+
+    # Case with 2 runs: 1 422 run, 1 successful run with expected constraints satisfied
+    run_422 = CaseRunRecord(
+        case_id="finance",
+        run_index=1,
+        success=False,
+        attempt_1_pass=False,
+        final_pass=False,
+        is_422=True,
+        code_repair_used=False,
+        prompt_version="architect_v7",
+        node_count=0,
+        edge_count=0,
+        ai_node_count=0,
+        agent_count=0,
+        w_merge_as_agent_count=0,
+        w_no_ai_node_count=0,
+        error_codes=["E_CONSTRAINT_VIOLATED"],
+        expected_constraints_satisfied=False,
+        expected_constraints_applicable=False,
+        within_node_bounds=True,
+    )
+    run_success = CaseRunRecord(
+        case_id="finance",
+        run_index=2,
+        success=True,
+        attempt_1_pass=True,
+        final_pass=True,
+        is_422=False,
+        code_repair_used=False,
+        prompt_version="architect_v7",
+        node_count=5,
+        edge_count=6,
+        ai_node_count=1,
+        agent_count=0,
+        w_merge_as_agent_count=0,
+        w_no_ai_node_count=0,
+        constraint_kinds_found=["must_pass_through"],
+        expected_constraints_satisfied=True,
+        expected_constraints_applicable=True,
+        within_node_bounds=True,
+        final_constraints=[
+            {
+                "id": "c1",
+                "kind": "must_pass_through",
+                "node_id": "na",
+                "a": None,
+                "b": None,
+                "covers": ["bc1"],
+            }
+        ],
+    )
+
+    # Non-empty guard
+    assert len([run_422, run_success]) == 2
+    agg = aggregate_case_runs("finance", [run_422, run_success])
+    # Applicable runs = 1, satisfied = 1 -> rate must be 1.0 (not 0.5 or 2/2)
+    assert agg.expected_constraints_rate == 1.0
+
+
+def test_old_record_without_new_fields_loads_and_back_compat() -> None:
+    """Stage 422e: old serialized record missing expected_constraints_applicable and final_constraints loads cleanly."""
+    from evals.metrics import CaseRunRecord
+
+    old_data = {
+        "case_id": "legal",
+        "run_index": 1,
+        "success": True,
+        "attempt_1_pass": True,
+        "final_pass": True,
+        "is_422": False,
+        "code_repair_used": False,
+        "prompt_version": "architect_v6",
+        "node_count": 4,
+        "edge_count": 4,
+        "ai_node_count": 1,
+        "agent_count": 0,
+        "w_merge_as_agent_count": 0,
+        "w_no_ai_node_count": 0,
+        "expected_constraints_satisfied": True,
+    }
+    rec = CaseRunRecord.from_dict(old_data)
+    # Non-empty guards and defaults
+    assert rec.case_id == "legal"
+    assert rec.expected_constraints_applicable is True
+    assert rec.final_constraints == []
+
+
+def test_final_constraints_contains_structural_fields_only_no_text() -> None:
+    """Stage 422e: final_constraints entries have id, kind, node_id, a, b, covers and NO user text or prompt text."""
+    from evals.metrics import CaseRunRecord
+
+    item = {
+        "id": "c1",
+        "kind": "must_precede",
+        "node_id": None,
+        "a": "na",
+        "b": "nb",
+        "covers": ["bc1"],
+    }
+    # Non-empty guards
+    assert len(item["id"]) >= 2
+    assert "text" not in item
+    assert "prompt" not in item
+    assert "brief" not in item
+
+    rec = CaseRunRecord(
+        case_id="legal",
+        run_index=1,
+        success=True,
+        attempt_1_pass=True,
+        final_pass=True,
+        is_422=False,
+        code_repair_used=False,
+        prompt_version="architect_v7",
+        node_count=3,
+        edge_count=2,
+        ai_node_count=0,
+        agent_count=0,
+        w_merge_as_agent_count=0,
+        w_no_ai_node_count=0,
+        final_constraints=[item],
+    )
+    assert len(rec.final_constraints) == 1
+    fc = rec.final_constraints[0]
+    assert set(fc.keys()) == {"id", "kind", "node_id", "a", "b", "covers"}
+
+
+def test_recompute_metrics_gives_expected_numbers_on_synthetic_data(tmp_path: Path) -> None:
+    """Stage 422e: recompute_metrics computes correct honest rates from synthetic file with mixed 422s."""
+    import json
+
+    from evals.recompute_metrics import recompute_result_metrics
+
+    synth_file = tmp_path / "synthetic_result.json"
+    data = {
+        "meta": {"test": True},
+        "summary": {"by_case": {"finance": {"expected_constraints_rate": 0.8}}},
+        "runs": [
+            # Run 1: 422 failure (old files had satisfied=True, but should be excluded from denominator)
+            {
+                "case_id": "finance",
+                "run_index": 1,
+                "is_422": True,
+                "expected_constraints_satisfied": True,
+            },
+            # Run 2: Success, satisfied
+            {
+                "case_id": "finance",
+                "run_index": 2,
+                "is_422": False,
+                "expected_constraints_satisfied": True,
+            },
+            # Run 3: Success, not satisfied
+            {
+                "case_id": "finance",
+                "run_index": 3,
+                "is_422": False,
+                "expected_constraints_satisfied": False,
+            },
+        ],
+    }
+    synth_file.write_text(json.dumps(data), encoding="utf-8")
+
+    res = recompute_result_metrics(synth_file)
+    # Non-empty guard
+    assert res["total_runs"] == 3
+    assert res["overall_422"] == 1
+    assert res["overall_applicable"] == 2
+    assert res["overall_satisfied"] == 1
+    # 1 satisfied / 2 applicable = 0.5
+    assert res["overall_new_rate"] == 0.5
+    f_stats = res["by_case"]["finance"]
+    assert f_stats["422_count"] == 1
+    assert f_stats["applicable_runs"] == 2
+    assert f_stats["satisfied_runs"] == 1
+    assert f_stats["new_rate"] == 0.5

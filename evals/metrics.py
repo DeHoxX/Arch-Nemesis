@@ -33,6 +33,7 @@ class CaseRunRecord:
     error_codes: list[str] = field(default_factory=list)
     constraint_kinds_found: list[str] = field(default_factory=list)
     expected_constraints_satisfied: bool = True
+    expected_constraints_applicable: bool = True
     within_node_bounds: bool = True
     explainer_source: str = "llm"  # "llm" or "fallback"
     explainer_attempt: int = 1
@@ -42,6 +43,7 @@ class CaseRunRecord:
     code_repair_events: list[dict[str, Any]] = field(default_factory=list)
     design_attempt_issues: list[str] = field(default_factory=list)
     design_attempts: list[dict[str, Any]] = field(default_factory=list)
+    final_constraints: list[dict[str, Any]] = field(default_factory=list)
     llm_call_count: int = 0
     wall_clock_seconds: float = 0.0
 
@@ -138,7 +140,10 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
     repairs = sum(1 for r in runs if r.code_repair_used)
     fallbacks = sum(1 for r in runs if r.explainer_source == "fallback" and not r.is_422)
     within_bounds = sum(1 for r in runs if r.within_node_bounds)
-    constraints_ok = sum(1 for r in runs if r.expected_constraints_satisfied)
+    constraints_ok = sum(
+        1 for r in runs if r.expected_constraints_applicable and r.expected_constraints_satisfied
+    )
+    applicable_runs = sum(1 for r in runs if r.expected_constraints_applicable)
     merge_as_agent_runs = sum(1 for r in runs if r.w_merge_as_agent_count > 0)
 
     # Fallback rate: only among runs where explainer actually ran (not 422)
@@ -184,7 +189,9 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
         avg_agents=round(avg_agent, 2),
         w_merge_as_agent_rate=round(merge_as_agent_runs / total, 4),
         within_bounds_rate=round(within_bounds / total, 4),
-        expected_constraints_rate=round(constraints_ok / total, 4),
+        expected_constraints_rate=round(constraints_ok / applicable_runs, 4)
+        if applicable_runs > 0
+        else 0.0,
         avg_wall_clock_seconds=round(avg_wall, 2),
         avg_llm_calls=round(avg_calls, 2),
         lint_counts=lint_counts,

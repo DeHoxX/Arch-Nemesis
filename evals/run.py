@@ -437,6 +437,8 @@ async def execute_eval_suite(
                                     w_merge_as_agent_count=0,
                                     w_no_ai_node_count=0,
                                     error_codes=list(exc.issues),
+                                    expected_constraints_satisfied=False,
+                                    expected_constraints_applicable=False,
                                     explainer_source="none",
                                     code_repair_events=code_repair_events,
                                     design_attempt_issues=design_attempt_issues,
@@ -492,6 +494,17 @@ async def execute_eval_suite(
                             ]
 
                             found_kinds = sorted({c.kind for c in spec.constraints})
+                            final_constraints = [
+                                {
+                                    "id": c.id,
+                                    "kind": c.kind,
+                                    "node_id": c.node_id,
+                                    "a": c.a,
+                                    "b": c.b,
+                                    "covers": c.covers,
+                                }
+                                for c in spec.constraints
+                            ]
                             constraints_ok = all(k in found_kinds for k in must_have_kinds)
                             within_bounds = min_nodes <= node_count <= max_nodes
 
@@ -573,6 +586,7 @@ async def execute_eval_suite(
                                 error_codes=[],
                                 constraint_kinds_found=found_kinds,
                                 expected_constraints_satisfied=constraints_ok,
+                                expected_constraints_applicable=True,
                                 within_node_bounds=within_bounds,
                                 explainer_source=explainer_source,
                                 explainer_attempt=explainer_attempt,
@@ -582,6 +596,7 @@ async def execute_eval_suite(
                                 code_repair_events=code_repair_events,
                                 design_attempt_issues=design_attempt_issues,
                                 design_attempts=design_attempts,
+                                final_constraints=final_constraints,
                                 llm_call_count=calls_made,
                                 wall_clock_seconds=round(elapsed, 2),
                             )
