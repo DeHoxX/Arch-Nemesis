@@ -2251,6 +2251,19 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+
+
+### D-209 — Stage 422f — decision
+What: Introduce architect prompt v8 and architect repair prompt v8 with universal bottleneck reinforcement and exit sink incoming edge check.
+Why: Inspection of v7 evaluation runs revealed that while overall 422 rates dropped to 6.7%, models almost completely stopped choosing must_pass_through for universal bottlenecks (dropping the honest expected_constraints_rate to 0.20 in finance and 0.00 in legal). This occurred because v7 prominently featured prohibitions against must_pass_through to avoid conditional bypasses. Stage 422f introduces architect_v8.md and architect_repair_v8.md, preserving all previous versions untouched. The v8 prompts introduce an actionable positive plain-words test ('Does EVERY request/transaction entering the system cross this node before reaching ANY final outcome or exit?'), explicit guidance to synthesize a separate must_pass_through constraint for universal preprocessing stages (such as fraud scoring or clause extraction), an explicit check that no exit sink has an incoming edge from a node preceding X, and concrete repair guidance distinguishing graph rerouting for true bottlenecks from constraint downgrades for legitimate conditional bypasses.
+Alternatives considered:
+1. Reverting to v5 prompt text: Rejected because v5 suffered from a 21% 422 failure rate due to models misapplying must_pass_through to conditional checkpoints and exit sinks.
+2. Altering validation semantics in constraints.py to ignore auxiliary exit sinks: Rejected because validation purity rules require verification against all exit nodes defined in the specification.
+If we removed it: Models would continue avoiding must_pass_through for universal processing stages, permanently depressing the expected_constraints_rate on multi-branch workflows.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
