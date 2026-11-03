@@ -101,6 +101,52 @@ def patch_dead_ends(
     return spec, []
 
 
+def sanitize_covers(
+    spec: ArchitectureSpec,
+    brief_constraints: dict[str, str],
+) -> tuple[ArchitectureSpec, list[ValidationIssue]]:
+    """Sanitize ConstraintSpec.covers by dropping entries not in brief_constraints.
+
+    For any constraint listing covers entries not present in brief_constraints:
+    1. Filter out the invalid entries.
+    2. Emit W_CODE_REPAIR_APPLIED detailing the removed entries.
+    3. Return the sanitized spec with updated constraints.
+
+    Pure validation remains untouched. If a real brief constraint is left uncovered,
+    E_BRIEF_CONSTRAINT_UNCOVERED will still fire deterministically in check_coverage.
+    """
+    warnings: list[ValidationIssue] = []
+    sanitized_constraints: list[ConstraintSpec] = []
+    modified = False
+
+    for constraint in spec.constraints:
+        valid_covers = [cid for cid in constraint.covers if cid in brief_constraints]
+        dropped = [cid for cid in constraint.covers if cid not in brief_constraints]
+        if dropped:
+            modified = True
+            dropped_str = ", ".join(f"'{cid}'" for cid in dropped)
+            warnings.append(
+                ValidationIssue(
+                    code="W_CODE_REPAIR_APPLIED",
+                    severity="warning",
+                    message=(
+                        f"Sanitized constraint '{constraint.id}': "
+                        f"removed invalid covers identifier(s) {dropped_str} not in brief."
+                    ),
+                    ids=[constraint.id],
+                )
+            )
+            sanitized_constraints.append(constraint.model_copy(update={"covers": valid_covers}))
+        else:
+            sanitized_constraints.append(constraint)
+
+    if not modified:
+        return spec, []
+
+    sanitized_spec = spec.model_copy(update={"constraints": sanitized_constraints})
+    return sanitized_spec, warnings
+
+
 def patch_constraints(
     spec: ArchitectureSpec,
     brief_constraints: dict[str, str],
@@ -125,7 +171,12 @@ def patch_constraints(
 
     warnings: list[ValidationIssue] = []
 
-    for constraint in spec.constraints:
+    # 1. Sanitize covers first
+    sanitized_spec, covers_warnings = sanitize_covers(spec, brief_constraints)
+    warnings.extend(covers_warnings)
+    current_constraints = list(sanitized_spec.constraints)
+
+    for constraint in current_constraints:
         kind = constraint.kind
         if kind not in ("must_pass_through", "must_precede"):
             continue
@@ -184,7 +235,9 @@ def patch_constraints(
     if not warnings:
         return spec, []
 
-    patched_spec = spec.model_copy(update={"edges": current_edges})
+    patched_spec = spec.model_copy(
+        update={"edges": current_edges, "constraints": current_constraints}
+    )
     return patched_spec, warnings
 
 

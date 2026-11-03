@@ -711,3 +711,35 @@ def test_repair_must_exist_sink_does_not_create_long_bypass_edge() -> None:
     # 4. Final patched spec passes validation
     final_val = validate(patched_spec, brief_constraints, limits)
     assert final_val.ok
+
+
+def test_sanitize_covers_unit_strips_invalid_entries_and_preserves_valid() -> None:
+    """Direct unit test: sanitize_covers drops non-brief IDs and preserves valid ones."""
+    from archnemesis.modules.validation.models import ConstraintSpec, NodeSpec
+    from archnemesis.modules.validation.repair import sanitize_covers
+
+    spec = ArchitectureSpec(
+        nodes=[
+            NodeSpec(id="node_a", name="A", type="svc", role="Role A"),
+            NodeSpec(id="node_b", name="B", type="svc", role="Role B"),
+        ],
+        edges=[EdgeSpec.model_validate({"from": "node_a", "to": "node_b", "flows": "f"})],
+        constraints=[
+            ConstraintSpec(
+                id="c1",
+                text="Test constraint",
+                kind="must_exist",
+                node_id="node_a",
+                covers=["bc1", "Assumption: SSO login"],
+            )
+        ],
+        entry_ids=["node_a"],
+        exit_ids=["node_b"],
+    )
+
+    sanitized, warnings = sanitize_covers(spec, {"bc1": "Auth"})
+    assert sanitized is not None
+    assert len(warnings) == 1
+    assert warnings[0].code == "W_CODE_REPAIR_APPLIED"
+    assert "Sanitized constraint 'c1'" in warnings[0].message
+    assert sanitized.constraints[0].covers == ["bc1"]

@@ -127,7 +127,12 @@ async def generate_and_validate(
         patched_spec, repair_warnings = _apply_code_repair(spec, brief_constraints, limits)
         if repair_warnings:
             patched_result = validate(patched_spec, brief_constraints, limits)
-            repaired_node_ids = [w.ids[0] for w in repair_warnings if w.ids]
+            known_node_ids = {n.id for n in patched_spec.nodes}
+            repaired_node_ids = list(
+                dict.fromkeys(
+                    nid for w in repair_warnings for nid in w.ids if nid in known_node_ids
+                )
+            )
             logger.info(
                 "code_repair",
                 attempt=1,
@@ -195,7 +200,12 @@ async def generate_and_validate(
             patched_spec, repair_warnings = _apply_code_repair(spec, brief_constraints, limits)
             if repair_warnings:
                 patched_result = validate(patched_spec, brief_constraints, limits)
-                repaired_node_ids = [w.ids[0] for w in repair_warnings if w.ids]
+                known_node_ids = {n.id for n in patched_spec.nodes}
+                repaired_node_ids = list(
+                    dict.fromkeys(
+                        nid for w in repair_warnings for nid in w.ids if nid in known_node_ids
+                    )
+                )
                 logger.info(
                     "code_repair",
                     attempt=call_idx,

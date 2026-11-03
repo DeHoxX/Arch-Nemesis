@@ -636,3 +636,231 @@ async def test_architect_logs_edges_net_change_on_code_repair() -> None:
         assert len(repair_calls) == 1
         assert "edges_net_change" in repair_calls[0].kwargs
         assert repair_calls[0].kwargs["edges_net_change"] == 0
+
+
+@pytest.mark.asyncio
+async def test_code_repair_logs_node_ids_not_constraint_ids(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Verify code_repair structured log records actual node IDs, never constraint ID ('c1')."""
+    import json
+    import logging
+
+    caplog.clear()
+    caplog.set_level(logging.INFO)
+
+    spec_with_bypass = {
+        "nodes": [
+            {
+                "id": "gateway",
+                "name": "Gateway",
+                "type": "api_gateway",
+                "role": "Ingress gateway",
+                "inputs": [],
+                "outputs": ["req"],
+                "tech_options": ["FastAPI"],
+                "needs_model": False,
+            },
+            {
+                "id": "fraud_check",
+                "name": "Fraud Check",
+                "type": "service",
+                "role": "Fraud analysis",
+                "inputs": ["req"],
+                "outputs": ["verified_req"],
+                "tech_options": ["Python"],
+                "needs_model": False,
+            },
+            {
+                "id": "delivery",
+                "name": "Delivery",
+                "type": "service",
+                "role": "Output delivery",
+                "inputs": ["verified_req"],
+                "outputs": [],
+                "tech_options": ["Web Framework"],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "gateway", "to": "delivery", "flows": "bypass"},
+            {"from": "gateway", "to": "fraud_check", "flows": "check"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Must pass through fraud check",
+                "kind": "must_pass_through",
+                "node_id": "fraud_check",
+                "covers": ["bc1"],
+            }
+        ],
+        "entry_ids": ["gateway"],
+        "exit_ids": ["delivery"],
+    }
+    fake_llm = FakeLLMClient([spec_with_bypass])
+    spec, prompt_version, calls_used, result = await service.generate_and_validate(
+        SAMPLE_BRIEF, fake_llm
+    )
+
+    assert spec is not None
+    assert result is not None
+    assert result.ok is True
+    assert prompt_version == "architect_v5+code_repair"
+    assert calls_used == 1
+
+    records = []
+    for r in caplog.records:
+        try:
+            records.append(json.loads(r.getMessage()))
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    code_repair_events = [r for r in records if r.get("event") == "code_repair"]
+    assert len(code_repair_events) >= 1, f"Expected code_repair event, found: {records}"
+    event = code_repair_events[0]
+
+    # Non-empty guard
+    assert len(event.get("node_ids", [])) > 0, "node_ids must not be empty"
+    assert "fraud_check" in event["node_ids"]
+    assert "c1" not in event["node_ids"], (
+        f"Constraint id 'c1' found in node_ids: {event['node_ids']}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_code_repair_sanitizes_covers_assumption_text() -> None:
+    """Verify assumption text in covers is stripped by code repair and design succeeds."""
+    spec_with_bad_covers = {
+        "nodes": [
+            {
+                "id": "gateway",
+                "name": "Gateway",
+                "type": "api_gateway",
+                "role": "Ingress gateway",
+                "inputs": [],
+                "outputs": ["req"],
+                "tech_options": ["FastAPI"],
+                "needs_model": False,
+            },
+            {
+                "id": "delivery",
+                "name": "Delivery",
+                "type": "service",
+                "role": "Output delivery",
+                "inputs": ["req"],
+                "outputs": [],
+                "tech_options": ["Web Framework"],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "gateway", "to": "delivery", "flows": "http_response"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Must pass through API gateway",
+                "kind": "must_pass_through",
+                "node_id": "gateway",
+                "covers": [
+                    "bc1",
+                    "Standard web application architecture is sufficient for team task coordination.",
+                ],
+            }
+        ],
+        "entry_ids": ["gateway"],
+        "exit_ids": ["delivery"],
+    }
+    fake_llm = FakeLLMClient([spec_with_bad_covers])
+    spec, prompt_version, calls_used, result = await service.generate_and_validate(
+        SAMPLE_BRIEF, fake_llm
+    )
+
+    assert spec is not None
+    assert result is not None
+    assert result.ok is True
+    assert prompt_version == "architect_v5+code_repair"
+    assert calls_used == 1
+
+    # Non-empty guard
+    assert len(spec.constraints) > 0
+    # Assumption text must be stripped, valid bc1 kept
+    assert spec.constraints[0].covers == ["bc1"]
+    assert any(
+        w.code == "W_CODE_REPAIR_APPLIED" and "Sanitized constraint 'c1'" in w.message
+        for w in result.warnings
+    )
+
+
+@pytest.mark.asyncio
+async def test_code_repair_uncovered_brief_id_still_emits_error_after_sanitization() -> None:
+    """If brief constraint remains uncovered after sanitizing invalid covers, E_BRIEF_CONSTRAINT_UNCOVERED fires."""
+    brief_with_two_reqs = RequirementBrief(
+        summary="Fintech platform with two distinct constraints.",
+        users="Traders",
+        data_involved=["Orders"],
+        domain_hint="Fintech",
+        stated_constraints=[
+            BriefConstraint(id="bc1", text="Must pass through API gateway"),
+            BriefConstraint(id="bc2", text="Must log transactions to audit"),
+        ],
+        unverifiable_requirements=[],
+        numbers_given=[],
+        assumptions=[],
+    )
+
+    # Candidate covers bc1 and hallucinated text, but misses bc2 entirely
+    spec_with_missing_bc2 = {
+        "nodes": [
+            {
+                "id": "gateway",
+                "name": "Gateway",
+                "type": "api_gateway",
+                "role": "Ingress gateway",
+                "inputs": [],
+                "outputs": ["req"],
+                "tech_options": ["FastAPI"],
+                "needs_model": False,
+            },
+            {
+                "id": "delivery",
+                "name": "Delivery",
+                "type": "service",
+                "role": "Output delivery",
+                "inputs": ["req"],
+                "outputs": [],
+                "tech_options": ["Web Framework"],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "gateway", "to": "delivery", "flows": "http_response"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Must pass through API gateway",
+                "kind": "must_pass_through",
+                "node_id": "gateway",
+                "covers": [
+                    "bc1",
+                    "Hallucinated assumption text not matching any brief constraint.",
+                ],
+            }
+        ],
+        "entry_ids": ["gateway"],
+        "exit_ids": ["delivery"],
+    }
+    # Script provides candidate for all 3 attempts without fixing bc2
+    fake_llm = FakeLLMClient([spec_with_missing_bc2, spec_with_missing_bc2, spec_with_missing_bc2])
+    with pytest.raises(DesignFailedError) as exc_info:
+        await service.generate_and_validate(brief_with_two_reqs, fake_llm)
+
+    # Non-empty guard
+    assert len(exc_info.value.issues) > 0
+    # Must still report E_BRIEF_CONSTRAINT_UNCOVERED for bc2
+    assert any(
+        "The requirement 'Must log transactions to audit' is not covered" in issue
+        for issue in exc_info.value.issues
+    ), f"Expected uncovered bc2 error in issues: {exc_info.value.issues}"

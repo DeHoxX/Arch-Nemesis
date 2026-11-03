@@ -2194,6 +2194,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-204 — Stage 422a — decision
+What: Fix code repair node ID logging and sanitize covers references against brief constraints.
+Why: In service.py:130 and service.py:198, the logging of node_ids during code repair mistakenly pulled w.ids[0], which is the constraint ID (e.g. 'c1') rather than the repaired node IDs in w.ids[1:]. Furthermore, baseline evaluation revealed that models occasionally populate ConstraintSpec.covers with assumption sentences or hallucinated IDs when no brief constraints exist, triggering E_CONSTRAINT_BAD_PARAM. Under Extension 2a, repair.py sanitizes covers by stripping entries not present in brief_constraints and reporting each sanitization as W_CODE_REPAIR_APPLIED. Pure validation in validate.py remains untouched. If a real brief constraint is left uncovered, E_BRIEF_CONSTRAINT_UNCOVERED still fires deterministically in check_coverage.
+Alternatives considered:
+1. Mutating covers in validate.py or parse_and_validate: Rejected because validation must remain a pure, read-only verification of the specification.
+2. Introducing a new warning code W_COVERS_SANITIZED: Rejected to avoid altering the closed set of warning codes in docs/contracts.md.
+If we removed it: Code repair logs would continue attributing graph modifications to constraint IDs instead of node IDs, and specs with assumption text in covers would needlessly fail with 422 instead of being cleanly repaired.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
