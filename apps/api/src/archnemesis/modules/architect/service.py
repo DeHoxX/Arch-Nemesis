@@ -117,7 +117,12 @@ async def generate_and_validate(
         raise LLMNotConfiguredError(str(exc)) from exc
 
     spec, result = parse_and_validate(raw_output, brief_constraints, limits)
-    logger.info("design_attempt", attempt=1, issue_codes=[err.code for err in result.errors])
+    logger.info(
+        "design_attempt",
+        attempt=1,
+        issue_codes=[err.code for err in result.errors],
+        constraint_kinds=[c.kind for c in spec.constraints] if spec else [],
+    )
 
     if result.ok and spec is not None:
         return spec, ARCHITECT_PROMPT_NAME, 1, result
@@ -190,6 +195,7 @@ async def generate_and_validate(
             "design_attempt",
             attempt=call_idx,
             issue_codes=[err.code for err in result.errors],
+            constraint_kinds=[c.kind for c in spec.constraints] if spec else [],
         )
 
         if result.ok and spec is not None:

@@ -41,6 +41,7 @@ class CaseRunRecord:
     explainer_attempt_2_issues: list[str] = field(default_factory=list)
     code_repair_events: list[dict[str, Any]] = field(default_factory=list)
     design_attempt_issues: list[str] = field(default_factory=list)
+    design_attempts: list[dict[str, Any]] = field(default_factory=list)
     llm_call_count: int = 0
     wall_clock_seconds: float = 0.0
 
@@ -51,7 +52,9 @@ class CaseRunRecord:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CaseRunRecord:
         """Construct record from dictionary representation."""
-        return cls(**data)
+        known_fields = {f.name for f in cls.__dataclass_fields__.values()}
+        filtered = {k: v for k, v in data.items() if k in known_fields}
+        return cls(**filtered)
 
 
 @dataclass

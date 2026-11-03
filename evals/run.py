@@ -92,6 +92,22 @@ class InstrumentedLLMClient(LLMClient):
         return await self.inner.generate_json(task, system, user, schema)
 
 
+def sanitize_validator_message(msg: str) -> str:
+    """Sanitize validator issue message to strip user/brief text and truncate to 300 chars."""
+    if msg.startswith("Rule not satisfied: "):
+        last_open = msg.rfind(" (")
+        if last_open != -1 and msg.endswith(")."):
+            witness_part = msg[last_open + 1 :]
+            msg = f"Rule not satisfied {witness_part}"
+    elif msg.startswith("The requirement '"):
+        # E_BRIEF_CONSTRAINT_UNCOVERED: "The requirement '{brief_text}' is not covered by any rule. Add a rule that lists '{brief_id}' in covers."
+        # Strip the {brief_text} between the first pair of single quotes
+        match = re.search(r"is not covered by any rule\..*$", msg)
+        if match:
+            msg = f"The requirement {match.group(0)}"
+    return msg[:300]
+
+
 def load_eval_cases(cases_dir: Path, only_case_id: str | None = None) -> list[dict[str, Any]]:
     """Load evaluation cases from JSON files."""
     if not cases_dir.exists():
@@ -352,16 +368,59 @@ async def execute_eval_suite(
                             except DesignFailedError as exc:
                                 # 422 Design failure
                                 elapsed = time.perf_counter() - start_time
-                                design_attempts = [
+                                design_attempts_events = [
                                     e
                                     for e in event_collector.events
                                     if e.get("event") == "design_attempt"
                                 ]
                                 design_attempt_issues = [
                                     code
-                                    for e in design_attempts
+                                    for e in design_attempts_events
                                     for code in e.get("issue_codes", [])
                                 ]
+                                code_repairs = [
+                                    e
+                                    for e in event_collector.events
+                                    if e.get("event") == "code_repair"
+                                ]
+                                code_repair_events = [
+                                    {
+                                        "attempt": e.get("attempt"),
+                                        "issue_codes": e.get("issue_codes", []),
+                                        "node_ids": e.get("node_ids", []),
+                                        "edges_net_change": e.get("edges_net_change", 0),
+                                    }
+                                    for e in code_repairs
+                                ]
+                                code_repair_used = len(code_repairs) > 0
+
+                                sanitized_final_messages = [
+                                    sanitize_validator_message(m) for m in exc.issues[:5]
+                                ]
+                                design_attempts = []
+                                num_events = len(design_attempts_events)
+                                for idx, e in enumerate(design_attempts_events, 1):
+                                    is_last = idx == num_events
+                                    design_attempts.append(
+                                        {
+                                            "attempt": e.get("attempt", idx),
+                                            "issue_codes": e.get("issue_codes", []),
+                                            "constraint_kinds": e.get("constraint_kinds", []),
+                                            "issue_messages": sanitized_final_messages
+                                            if is_last
+                                            else [],
+                                        }
+                                    )
+                                if not design_attempts:
+                                    design_attempts = [
+                                        {
+                                            "attempt": 1,
+                                            "issue_codes": [],
+                                            "constraint_kinds": [],
+                                            "issue_messages": sanitized_final_messages,
+                                        }
+                                    ]
+
                                 rec = CaseRunRecord(
                                     case_id=case_id,
                                     run_index=run_idx,
@@ -369,7 +428,7 @@ async def execute_eval_suite(
                                     attempt_1_pass=False,
                                     final_pass=False,
                                     is_422=True,
-                                    code_repair_used=False,
+                                    code_repair_used=code_repair_used,
                                     prompt_version=ARCHITECT_PROMPT_NAME,
                                     node_count=0,
                                     edge_count=0,
@@ -379,7 +438,9 @@ async def execute_eval_suite(
                                     w_no_ai_node_count=0,
                                     error_codes=list(exc.issues),
                                     explainer_source="none",
+                                    code_repair_events=code_repair_events,
                                     design_attempt_issues=design_attempt_issues,
+                                    design_attempts=design_attempts,
                                     llm_call_count=client.call_count - start_calls,
                                     wall_clock_seconds=round(elapsed, 2),
                                 )
@@ -391,19 +452,30 @@ async def execute_eval_suite(
                             prompt_version = design_res.prompt_version
                             code_repair_used = "+code_repair" in prompt_version
 
-                            design_attempts = [
+                            design_attempts_events = [
                                 e
                                 for e in event_collector.events
                                 if e.get("event") == "design_attempt"
                             ]
                             design_attempt_issues = [
-                                code for e in design_attempts for code in e.get("issue_codes", [])
+                                code
+                                for e in design_attempts_events
+                                for code in e.get("issue_codes", [])
                             ]
                             attempt_1_pass = (
-                                len(design_attempts) <= 1
+                                len(design_attempts_events) <= 1
                                 and not code_repair_used
                                 and "repair" not in prompt_version
                             )
+                            design_attempts = [
+                                {
+                                    "attempt": e.get("attempt", idx),
+                                    "issue_codes": e.get("issue_codes", []),
+                                    "constraint_kinds": e.get("constraint_kinds", []),
+                                    "issue_messages": [],
+                                }
+                                for idx, e in enumerate(design_attempts_events, 1)
+                            ]
 
                             node_count = len(spec.nodes)
                             edge_count = len(spec.edges)
@@ -509,6 +581,7 @@ async def execute_eval_suite(
                                 explainer_attempt_2_issues=explainer_attempt_2_issues,
                                 code_repair_events=code_repair_events,
                                 design_attempt_issues=design_attempt_issues,
+                                design_attempts=design_attempts,
                                 llm_call_count=calls_made,
                                 wall_clock_seconds=round(elapsed, 2),
                             )

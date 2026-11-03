@@ -2216,6 +2216,17 @@ Decided by: agent proposed, user approved
 Status: active
 
 
+### D-206 — Stage 422c — decision
+What: Store per-attempt validator diagnostics and real code repair events in evaluation results.
+Why: Previously, evaluation result records discarded intermediate design attempt details, hardcoded code_repair_used=False on 422 design failures, and stored only a flat list of error codes. Stage 422c enhances evals/run.py and evals/metrics.py to capture per-attempt records (attempt index, issue codes, constraint kinds, and sanitized validator issue messages truncated to 300 characters, max 5) across all runs. In service.py, the design_attempt log event now includes constraint_kinds (a list of kind strings only) while preserving logging redaction rules (no user text, prompts, or LLM responses). On 422 design failures, real code_repair events collected during synthesis are recorded in the run record. Existing fields are preserved with default factories so compare.py maintains complete backward compatibility with earlier evaluation result files.
+Alternatives considered:
+1. Logging full validator issue messages in service.py: Rejected because validator messages for E_CONSTRAINT_VIOLATED embed brief constraint text, which can contain sensitive user input or sentinels, violating production logging redaction rules.
+2. Only recording per-attempt diagnostics on 422 failures: Rejected because multi-attempt successful runs also benefit from visibility into what issues were caught and repaired on attempt 1.
+If we removed it: Evaluation results would lack visibility into multi-attempt failure causes, 422 design failures would falsely appear as never using code repair, and diagnostics would remain limited to the final attempt's error strings.
+Decided by: agent proposed, user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

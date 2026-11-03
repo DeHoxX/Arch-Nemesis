@@ -22,37 +22,49 @@ class FailingFakeLLM(LLMClient):
     """Fake client that succeeds once, then raises LLMRateLimited."""
 
     def __init__(self, first_response: dict[str, Any]) -> None:
+
         self.first_response = first_response
+
         self.call_count = 0
 
     async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
+
         self.call_count += 1
+
         return "OK"
 
     async def generate_json(
         self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
     ) -> dict[str, Any]:
+
         self.call_count += 1
+
         if self.call_count == 1:
             return self.first_response
+
         raise LLMRateLimited("Rate limit exceeded: 429 quota exhausted.")
 
 
 @pytest.fixture
 def repo_root_path() -> Path:
+
     return Path(__file__).resolve().parent.parent.parent
 
 
 def test_dry_run_end_to_end(tmp_path: Path, repo_root_path: Path) -> None:
     """Verify evals/run.py --dry executes cleanly without touching real database or leaking secrets."""
+
     real_db = repo_root_path / "apps" / "api" / "arch_nemesis.db"
+
     initial_db_stat = None
+
     if real_db.exists():
         initial_db_stat = (real_db.stat().st_size, real_db.stat().st_mtime)
 
     out_file = tmp_path / "dry_results.json"
 
     # Run dry evaluation on two cases with 1 run each
+
     exit_code = main(
         [
             "--dry",
@@ -66,39 +78,59 @@ def test_dry_run_end_to_end(tmp_path: Path, repo_root_path: Path) -> None:
     )
 
     assert exit_code == 0, f"Expected dry run exit code 0, got {exit_code}"
+
     assert out_file.exists(), f"Output file missing: {out_file}"
 
     with open(out_file, "r", encoding="utf-8") as f:
         content = f.read()
+
         data = json.loads(content)
 
     # 1. Non-empty structure assertions
+
     assert len(content) > 50
+
     assert "meta" in data
+
     assert "summary" in data
+
     assert "by_case" in data
+
     assert "runs" in data
 
     assert data["meta"]["runs_requested"] == 1
+
     assert data["meta"]["total_runs_completed"] == 1
+
     assert data["meta"]["aborted_due_to_quota"] is False
+
     assert len(data["runs"]) == 1
 
     run_record = data["runs"][0]
+
     assert run_record["case_id"] == "support"
+
     assert run_record["success"] is True
+
     assert run_record["final_pass"] is True
+
     assert run_record["node_count"] == 3
+
     assert run_record["explainer_source"] == "llm"
 
     # 2. Privacy & Sanitation assertions
+
     assert "need_text" not in content, "need_text must not be persisted in results JSON"
+
     assert "AIza" not in content, "No API key prefix allowed in results JSON"
 
     # 3. Real database was not touched
+
     if initial_db_stat is not None:
         current_stat = (real_db.stat().st_size, real_db.stat().st_mtime)
+
         assert current_stat == initial_db_stat, "Real arch_nemesis.db was modified during eval run!"
+
     else:
         assert not real_db.exists(), "Real arch_nemesis.db was created during eval run!"
 
@@ -106,11 +138,15 @@ def test_dry_run_end_to_end(tmp_path: Path, repo_root_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_quota_error_aborts_and_saves_partial(tmp_path: Path, repo_root_path: Path) -> None:
     """Verify an unrecoverable quota error (LLMRateLimited) aborts execution and saves partial results."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
+
     assert len(cases) == 1
 
     out_file = tmp_path / "aborted_quota_results.json"
+
     event_collector = StructlogEventCollector()
 
     valid_intake_output = {
@@ -129,6 +165,7 @@ async def test_quota_error_aborts_and_saves_partial(tmp_path: Path, repo_root_pa
     }
 
     failing_client = FailingFakeLLM(first_response=valid_intake_output)
+
     instrumented = InstrumentedLLMClient(failing_client)
 
     exit_code, _records = await execute_eval_suite(
@@ -141,13 +178,17 @@ async def test_quota_error_aborts_and_saves_partial(tmp_path: Path, repo_root_pa
     )
 
     # Assert quota abort code
+
     assert exit_code == 2, f"Expected quota abort exit code 2, got {exit_code}"
+
     assert out_file.exists(), f"Partial result file must be written on quota abort: {out_file}"
 
     data = json.loads(out_file.read_text(encoding="utf-8"))
 
     assert data["meta"]["aborted_due_to_quota"] is True
+
     assert data["meta"]["runs_requested"] == 3
+
     assert data["meta"]["total_runs_completed"] == 0  # Aborted mid-run before completion
 
 
@@ -156,14 +197,19 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     tmp_path: Path, repo_root_path: Path
 ) -> None:
     """Verify that explainer retry issues (e.g. X_FORBIDDEN_WORD) are captured in record and summary."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
+
     assert len(cases) == 1
 
     out_file = tmp_path / "retry_issue_results.json"
+
     event_collector = StructlogEventCollector()
 
     # Step 1: Valid Intake
+
     valid_intake = {
         "action": "ready",
         "questions": [],
@@ -180,6 +226,7 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     }
 
     # Step 2: Valid Architect DAG
+
     valid_spec = {
         "nodes": [
             {
@@ -234,6 +281,7 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     }
 
     # Step 3: Attempt 1 explainer draft with forbidden word "cost"
+
     invalid_draft_attempt_1 = {
         "overview": "This support assistant minimizes overall cost for operations.",
         "flow_steps": [
@@ -251,6 +299,7 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     }
 
     # Step 4: Attempt 2 explainer draft without forbidden words
+
     valid_draft_attempt_2 = {
         "overview": "This support assistant reviews answers before delivery.",
         "flow_steps": [
@@ -268,7 +317,9 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     }
 
     script = [valid_intake, valid_spec, invalid_draft_attempt_1, valid_draft_attempt_2]
+
     fake_client = FakeLLMClient(script=script)
+
     instrumented = InstrumentedLLMClient(fake_client)
 
     exit_code, records = await execute_eval_suite(
@@ -281,21 +332,31 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     )
 
     assert exit_code == 0
+
     assert len(records) == 1, "Expected 1 completed record"
 
     rec = records[0]
+
     assert rec.success is True
+
     assert rec.explainer_source == "llm"
+
     assert rec.explainer_attempt == 2, f"Expected attempt 2, got {rec.explainer_attempt}"
+
     assert "X_FORBIDDEN_WORD" in rec.explainer_issues, (
         f"Missing X_FORBIDDEN_WORD in issues: {rec.explainer_issues}"
     )
+
     assert "X_FORBIDDEN_WORD" in rec.explainer_attempt_1_issues
+
     assert len(rec.explainer_issues) > 0, "Explainer issues list should not be empty"
 
     # Verify that results JSON aggregates the issue code into by_case.support.issue_counts
+
     data = json.loads(out_file.read_text(encoding="utf-8"))
+
     issue_counts = data["summary"]["by_case"]["support"]["issue_counts"]
+
     assert issue_counts.get("X_FORBIDDEN_WORD") == 1, (
         f"Expected issue_counts['X_FORBIDDEN_WORD'] == 1, got {issue_counts}"
     )
@@ -304,11 +365,15 @@ async def test_run_captures_explainer_retry_and_issue_codes(
 @pytest.mark.asyncio
 async def test_run_explainer_attempt_1_clean_pass(tmp_path: Path, repo_root_path: Path) -> None:
     """Verify that a clean attempt 1 explanation records explainer_attempt == 1 and no issues."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
+
     assert len(cases) == 1
 
     out_file = tmp_path / "clean_attempt1_results.json"
+
     event_collector = StructlogEventCollector()
 
     valid_intake = {
@@ -396,7 +461,9 @@ async def test_run_explainer_attempt_1_clean_pass(tmp_path: Path, repo_root_path
     }
 
     script = [valid_intake, valid_spec, valid_draft_attempt_1]
+
     fake_client = FakeLLMClient(script=script)
+
     instrumented = InstrumentedLLMClient(fake_client)
 
     exit_code, records = await execute_eval_suite(
@@ -409,32 +476,47 @@ async def test_run_explainer_attempt_1_clean_pass(tmp_path: Path, repo_root_path
     )
 
     assert exit_code == 0
+
     assert len(records) == 1, "Expected 1 completed record"
 
     rec = records[0]
+
     assert rec.success is True
+
     assert rec.explainer_source == "llm"
+
     assert rec.explainer_attempt == 1, f"Expected attempt 1, got {rec.explainer_attempt}"
+
     assert len(rec.explainer_issues) == 0, (
         f"Expected 0 issues on clean pass, got {rec.explainer_issues}"
     )
+
     assert len(rec.explainer_attempt_1_issues) == 0
+
     assert len(rec.explainer_attempt_2_issues) == 0
 
     # Non-empty guards on output JSON
+
     data = json.loads(out_file.read_text(encoding="utf-8"))
+
     assert data["summary"]["by_case"]["support"]["total_runs"] == 1
+
     assert data["summary"]["by_case"]["support"]["fallback_rate"] == 0.0
+
     assert len(data["runs"]) == 1
 
 
 def test_cli_pause_seconds_default() -> None:
     """Verify --pause-seconds CLI flag defaults to 8.0."""
+
     import argparse
 
     parser = argparse.ArgumentParser()
+
     parser.add_argument("--pause-seconds", type=float, default=8.0)
+
     args = parser.parse_args([])
+
     assert args.pause_seconds == 8.0
 
 
@@ -443,10 +525,13 @@ async def test_pause_seconds_sleeps_between_runs_only(
     tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Verify pause_seconds sleeps between runs and strictly not after the last run."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
 
     out_file = tmp_path / "pause_test_results.json"
+
     event_collector = StructlogEventCollector()
 
     valid_intake = {
@@ -463,6 +548,7 @@ async def test_pause_seconds_sleeps_between_runs_only(
             "assumptions": [],
         },
     }
+
     valid_spec = {
         "nodes": [
             {
@@ -493,6 +579,7 @@ async def test_pause_seconds_sleeps_between_runs_only(
         "entry_ids": ["gw"],
         "exit_ids": ["cl"],
     }
+
     valid_draft = {
         "overview": "Overview text.",
         "flow_steps": [
@@ -508,11 +595,13 @@ async def test_pause_seconds_sleeps_between_runs_only(
     }
 
     script = [valid_intake, valid_spec, valid_draft, valid_intake, valid_spec, valid_draft]
+
     client = InstrumentedLLMClient(FakeLLMClient(script=script))
 
     sleep_calls: list[float] = []
 
     async def mock_sleep(seconds: float) -> None:
+
         sleep_calls.append(seconds)
 
     import asyncio
@@ -530,10 +619,13 @@ async def test_pause_seconds_sleeps_between_runs_only(
     )
 
     assert exit_code == 0
+
     assert len(records) == 2
+
     assert sleep_calls == [8.0], f"Expected exactly [8.0], got {sleep_calls}"
 
     data = json.loads(out_file.read_text(encoding="utf-8"))
+
     assert data["meta"]["pause_seconds"] == 8.0
 
 
@@ -542,10 +634,13 @@ async def test_429_retry_once_then_success(
     tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Verify a 429 on first attempt parses retry delay, sleeps once, retries, and succeeds."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
 
     out_file = tmp_path / "retry_429_success.json"
+
     event_collector = StructlogEventCollector()
 
     valid_intake = {
@@ -562,6 +657,7 @@ async def test_429_retry_once_then_success(
             "assumptions": [],
         },
     }
+
     valid_spec = {
         "nodes": [
             {
@@ -592,6 +688,7 @@ async def test_429_retry_once_then_success(
         "entry_ids": ["gw"],
         "exit_ids": ["cl"],
     }
+
     valid_draft = {
         "overview": "Overview text.",
         "flow_steps": [
@@ -608,19 +705,26 @@ async def test_429_retry_once_then_success(
 
     class OnceRateLimitedClient(LLMClient):
         def __init__(self) -> None:
+
             self.call_count = 0
+
             self.inner = FakeLLMClient(script=[valid_intake, valid_spec, valid_draft])
 
         async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
+
             self.call_count += 1
+
             return await self.inner.generate_text(task, system, user)
 
         async def generate_json(
             self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
         ) -> dict[str, Any]:
+
             self.call_count += 1
+
             if self.call_count == 1:
                 raise LLMRateLimited("Resource exhausted: retry in ~14 s")
+
             return await self.inner.generate_json(task, system, user, schema)
 
     client = InstrumentedLLMClient(OnceRateLimitedClient())
@@ -628,6 +732,7 @@ async def test_429_retry_once_then_success(
     sleep_calls: list[float] = []
 
     async def mock_sleep(seconds: float) -> None:
+
         sleep_calls.append(seconds)
 
     import asyncio
@@ -645,8 +750,11 @@ async def test_429_retry_once_then_success(
     )
 
     assert exit_code == 0
+
     assert len(records) == 1
+
     assert records[0].success is True
+
     assert 15.0 in sleep_calls, f"Expected 15.0s sleep, got {sleep_calls}"
 
 
@@ -655,29 +763,38 @@ async def test_429_twice_aborts_with_partial_results(
     tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Verify that two consecutive 429 errors in the same run triggers quota abort with exit code 2."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
 
     out_file = tmp_path / "twice_429_abort.json"
+
     event_collector = StructlogEventCollector()
 
     class PersistentRateLimitedClient(LLMClient):
         def __init__(self) -> None:
+
             self.call_count = 0
 
         async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
+
             self.call_count += 1
+
             raise LLMRateLimited("Rate limit exceeded")
 
         async def generate_json(
             self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
         ) -> dict[str, Any]:
+
             self.call_count += 1
+
             raise LLMRateLimited("Rate limit exceeded")
 
     client = InstrumentedLLMClient(PersistentRateLimitedClient())
 
     async def mock_sleep(_seconds: float) -> None:
+
         pass
 
     import asyncio
@@ -694,9 +811,13 @@ async def test_429_twice_aborts_with_partial_results(
     )
 
     assert exit_code == 2
+
     assert len(records) == 0
+
     assert out_file.exists()
+
     data = json.loads(out_file.read_text(encoding="utf-8"))
+
     assert data["meta"]["aborted_due_to_quota"] is True
 
 
@@ -705,10 +826,13 @@ async def test_422_design_failure_captures_none_and_design_issues(
     tmp_path: Path, repo_root_path: Path
 ) -> None:
     """Verify that a 422 design failure records explainer_source='none' and captures design issues."""
+
     cases_dir = repo_root_path / "evals" / "cases"
+
     cases = load_eval_cases(cases_dir, only_case_id="support")
 
     out_file = tmp_path / "design_422_results.json"
+
     event_collector = StructlogEventCollector()
 
     valid_intake = {
@@ -761,6 +885,7 @@ async def test_422_design_failure_captures_none_and_design_issues(
     }
 
     script = [valid_intake, cyclic_spec, cyclic_spec, cyclic_spec]
+
     client = InstrumentedLLMClient(FakeLLMClient(script=script))
 
     exit_code, records = await execute_eval_suite(
@@ -773,41 +898,58 @@ async def test_422_design_failure_captures_none_and_design_issues(
     )
 
     assert exit_code == 0
+
     assert len(records) == 1
+
     rec = records[0]
 
     assert rec.is_422 is True
+
     assert rec.success is False
+
     assert rec.final_pass is False
+
     assert rec.explainer_source == "none", (
         f"Expected explainer_source 'none', got {rec.explainer_source}"
     )
+
     assert "E_CYCLE" in rec.design_attempt_issues, (
         f"Expected E_CYCLE in design issues, got {rec.design_attempt_issues}"
     )
 
     data = json.loads(out_file.read_text(encoding="utf-8"))
+
     assert data["summary"]["failure_422_rate"] == 1.0
+
     assert data["summary"]["fallback_rate"] == 0.0, (
         f"Expected fallback_rate 0.0 when 422 occurred, got {data['summary']['fallback_rate']}"
     )
+
     assert data["summary"]["design_issue_counts"].get("E_CYCLE", 0) >= 1
 
 
 def test_all_spec_fixtures_pass_parse_and_validate() -> None:
     """Every spec fixture used in test_run.py must pass parse_and_validate (non-empty guard).
 
+
+
     This catches 1-char node IDs and other schema violations before they silently
+
     produce E_SCHEMA instead of the intended error (e.g., E_CYCLE) in runner tests.
+
     """
+
     from archnemesis.modules.validation import Limits, parse_and_validate
     from archnemesis.settings import get_settings
 
     settings = get_settings()
+
     limits = Limits(max_nodes=settings.max_nodes, max_edges=settings.max_edges)
 
     # Valid spec used in test_pause_seconds_sleeps_between_runs_only and
+
     # test_429_retry_once_then_success (gateway "gw" -> client "cl").
+
     valid_spec = {
         "nodes": [
             {
@@ -840,6 +982,7 @@ def test_all_spec_fixtures_pass_parse_and_validate() -> None:
     }
 
     # Cyclic spec used in test_422_design_failure_captures_none_and_design_issues.
+
     cyclic_spec = {
         "nodes": [
             {
@@ -875,15 +1018,238 @@ def test_all_spec_fixtures_pass_parse_and_validate() -> None:
     }
 
     # valid_spec: must parse without schema errors (structural errors like E_CYCLE are OK).
+
     spec, result = parse_and_validate(valid_spec, brief_constraints={}, limits=limits)
+
     assert spec is not None, f"valid_spec failed to parse: {result.errors}"
+
     schema_errors = [e for e in result.errors if e.code == "E_SCHEMA"]
+
     assert schema_errors == [], f"valid_spec produced unexpected E_SCHEMA: {schema_errors}"
 
     # cyclic_spec: must parse but is expected to have E_CYCLE (not E_SCHEMA).
+
     spec2, result2 = parse_and_validate(cyclic_spec, brief_constraints={}, limits=limits)
+
     assert spec2 is not None, f"cyclic_spec failed to parse (schema error): {result2.errors}"
+
     schema_errors2 = [e for e in result2.errors if e.code == "E_SCHEMA"]
+
     assert schema_errors2 == [], f"cyclic_spec produced unexpected E_SCHEMA: {schema_errors2}"
+
     cycle_errors = [e for e in result2.errors if e.code == "E_CYCLE"]
+
     assert cycle_errors, f"cyclic_spec expected E_CYCLE but got: {[e.code for e in result2.errors]}"
+
+
+@pytest.mark.asyncio
+async def test_per_attempt_diagnostics_stored_on_422(tmp_path: Path) -> None:
+    """Stage 422c: per-attempt records and code repair events are stored on 422 failure."""
+
+    out_file = tmp_path / "eval_out.json"
+
+    event_collector = StructlogEventCollector()
+
+    case = {
+        "id": "diag_test",
+        "need_text": "Customer support pipeline",
+        "followup_answers": [],
+        "expect": {
+            "min_nodes": 2,
+            "max_nodes": 20,
+            "must_have_constraint_kinds": [],
+        },
+    }
+
+    from archnemesis.modules.intake.schemas import IntakeLLMOutput
+    from archnemesis.modules.intake.service import _validate_llm_output
+
+    brief_sentinel = "BRIEF_USER_SENTINEL_ALPHA_999"
+
+    valid_intake = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Support chatbot with reviewer step",
+            "users": "Customers",
+            "data_involved": ["chats"],
+            "domain_hint": "support",
+            "stated_constraints": [f"Must pass through reviewer {brief_sentinel}"],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+
+    # Guard: assert valid_intake validates through IntakeLLMOutput and _validate_llm_output
+    validated_intake = IntakeLLMOutput.model_validate(valid_intake)
+    is_valid_intake, reason_intake = _validate_llm_output(validated_intake, must_be_ready=False)
+    assert is_valid_intake, f"valid_intake failed validation: {reason_intake}"
+
+    # Cyclic spec fails with E_CYCLE across all 3 architect calls
+    cyclic_spec = {
+        "nodes": [
+            {
+                "id": "na",
+                "name": "Node A",
+                "type": "service",
+                "role": "Worker A",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "nb",
+                "name": "Node B",
+                "type": "service",
+                "role": "Worker B",
+                "inputs": [],
+                "outputs": [],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "na", "to": "nb", "flows": "f1"},
+            {"from": "nb", "to": "na", "flows": "f2"},
+        ],
+        "constraints": [],
+        "entry_ids": ["na"],
+        "exit_ids": ["nb"],
+    }
+
+    script = [valid_intake, cyclic_spec, cyclic_spec, cyclic_spec]
+    client = InstrumentedLLMClient(FakeLLMClient(script=script))
+
+    exit_code, records = await execute_eval_suite(
+        cases=[case],
+        runs_per_case=1,
+        client=client,
+        event_collector=event_collector,
+        output_path=out_file,
+        dry_mode=True,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    rec = records[0]
+
+    # Non-empty guards
+    assert rec.is_422 is True
+    assert len(rec.design_attempts) >= 1
+    for att in rec.design_attempts:
+        assert "attempt" in att
+        assert "issue_codes" in att
+        assert "constraint_kinds" in att
+        assert "issue_messages" in att
+        # Sentinel must never appear in any stored issue message (no user brief text leakage)
+        for msg in att["issue_messages"]:
+            assert brief_sentinel not in msg
+
+    # Final attempt on 422 must have sanitized issue messages matching real template wording
+    final_att = rec.design_attempts[-1]
+    assert len(final_att["issue_messages"]) >= 1
+    # checks.py:176 message: "The flow loops back on itself through: ..."
+    assert any("loops back" in m.lower() for m in final_att["issue_messages"])
+
+
+def test_sanitize_validator_message_truncation_and_sentinel_stripping() -> None:
+    """Stage 422c: validator messages are truncated to 300 chars and user-text sentinels stripped."""
+
+    from evals.run import sanitize_validator_message
+
+    sentinel = "SECRET_USER_TEXT_SENTINEL_987654321"
+
+    raw_message = (
+        f"Rule not satisfied: {sentinel} "
+        + "x" * 400
+        + " (a path reaches 'delivery_endpoint' without passing through 'reviewer': gateway > reviewer_node > delivery_endpoint)."
+    )
+
+    sanitized = sanitize_validator_message(raw_message)
+
+    # Non-empty guard
+
+    assert len(sanitized) > 0
+
+    # Sentinel must be stripped
+
+    assert sentinel not in sanitized
+
+    # Must be truncated to at most 300 chars
+
+    assert len(sanitized) <= 300
+
+    # Must preserve the fixed prefix and witness path
+
+    assert sanitized.startswith("Rule not satisfied (")
+
+
+def test_old_result_file_without_new_fields_loads_in_compare_py(tmp_path: Path) -> None:
+    """Stage 422c: old result JSON files lacking design_attempts load cleanly in compare.py."""
+
+    from evals.compare import compare_runs, load_result_file
+    from evals.metrics import CaseRunRecord
+
+    # Minimal old run record without design_attempts
+
+    old_record_dict = {
+        "case_id": "test_case",
+        "run_index": 1,
+        "success": True,
+        "attempt_1_pass": True,
+        "final_pass": True,
+        "is_422": False,
+        "code_repair_used": False,
+        "prompt_version": "architect_v5",
+        "node_count": 5,
+        "edge_count": 4,
+        "ai_node_count": 1,
+        "agent_count": 0,
+        "w_merge_as_agent_count": 0,
+        "w_no_ai_node_count": 0,
+    }
+
+    rec = CaseRunRecord.from_dict(old_record_dict)
+
+    assert rec.case_id == "test_case"
+
+    assert rec.design_attempts == []  # default factory works
+
+    old_file_content = {
+        "meta": {"timestamp": "20261101-1200", "runner_version": "1.0"},
+        "summary": {
+            "total_runs": 1,
+            "failure_422_rate": 0.0,
+            "fallback_rate": 0.0,
+            "by_case": {
+                "test_case": {
+                    "total_runs": 1,
+                    "failure_422_rate": 0.0,
+                    "fallback_rate": 0.0,
+                }
+            },
+        },
+        "runs": [old_record_dict],
+    }
+
+    file_a = tmp_path / "old_a.json"
+
+    file_b = tmp_path / "old_b.json"
+
+    file_a.write_text(json.dumps(old_file_content), encoding="utf-8")
+
+    file_b.write_text(json.dumps(old_file_content), encoding="utf-8")
+
+    data_a = load_result_file(file_a)
+
+    data_b = load_result_file(file_b)
+
+    table, _diffs = compare_runs(data_a, data_b)
+
+    assert len(table) > 0
+
+    assert "ARCH-NEMESIS EVALUATION COMPARISON" in table
