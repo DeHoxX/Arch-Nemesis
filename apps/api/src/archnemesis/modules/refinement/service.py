@@ -36,6 +36,8 @@ from archnemesis.modules.refinement.schemas import (
     SuggestionItemResponse,
     SuggestionsLLMOutput,
     SuggestionsResponse,
+    VersionsResponse,
+    VersionSummaryItem,
 )
 from archnemesis.modules.validation import (
     ArchitectureSpec,
@@ -202,12 +204,16 @@ async def handle_chat(
             reason=None,
             created_at=now_iso,
         )
+        preview_spec = (
+            patch_res.spec if patch_res.status in ("proposed", "needs_confirmation") else None
+        )
         patch_summary = PatchSummary(
             id=patch_id,
             status=patch_res.status,
             diff=patch_res.diff,
             issues=patch_res.issues,
             ops_count=len(output.patch.ops),
+            preview_spec=preview_spec,
         )
 
         logger.info(
@@ -659,3 +665,24 @@ async def get_version_detail(
         current_version=design.current_version,
         version_record=version_record,
     )
+
+
+async def get_versions_list(
+    db: AsyncSession,
+    design_id: str,
+) -> VersionsResponse:
+    """Retrieve all versions of a design, newest first."""
+    design = await repo.get_design(db, design_id)
+    if design is None:
+        raise NotFoundError(f"Design '{design_id}' not found.")
+
+    version_records = await repo.get_all_design_versions(db, design_id)
+    items = [
+        VersionSummaryItem(
+            version_no=r.version_no,
+            created_at=r.created_at,
+            change_note=r.change_note,
+        )
+        for r in version_records
+    ]
+    return VersionsResponse(versions=items)

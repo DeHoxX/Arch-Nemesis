@@ -158,6 +158,9 @@ A round represents a discrete interaction cycle in the discovery dialogue:
   - `diff`: `DiffResult | None` (structural diff against base version)
   - `issues`: `list[ValidationIssue]` (validation issues discovered)
   - `ops_count`: `Integer` (number of operations in the proposed patch)
+  - `preview_spec`: `ArchitectureSpec | None` (candidate architecture spec; populated ONLY when status is `"proposed"` or `"needs_confirmation"`, strictly `None` when `"blocked"`)
+- **`VersionsResponse`**:
+  - `versions`: `list[VersionSummaryItem]` (newest first, where each item has `version_no: Integer`, `created_at: String(30)` ISO 8601, `change_note: String | None`)
 
 ### Database Tables (Phase 7)
 

@@ -183,3 +183,14 @@ async def insert_version_and_update_design(
     db.add(new_version_record)
     design.current_version = new_version_record.version_no
     await db.flush()
+
+
+async def get_all_design_versions(db: AsyncSession, design_id: str) -> list[DesignVersionTable]:
+    """Retrieve all design versions for a design, ordered by version_no desc (newest first)."""
+    stmt = (
+        select(DesignVersionTable)
+        .where(DesignVersionTable.design_id == design_id)
+        .order_by(DesignVersionTable.version_no.desc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

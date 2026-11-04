@@ -27,6 +27,7 @@ class PatchSummary(BaseModel):
     diff: DiffResult | None = None
     issues: list[ValidationIssue] = Field(default_factory=list)
     ops_count: int = 0
+    preview_spec: ArchitectureSpec | None = None
 
 
 class ChatResponse(BaseModel):
@@ -147,3 +148,21 @@ class RefinedDesignResponse(BaseModel):
     flow_order: list[str]
     prompt_version: str
     explanation: dict[str, Any] | None = None
+
+
+class VersionSummaryItem(BaseModel):
+    """Summary item for a design version in the version list."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    version_no: int
+    created_at: str
+    change_note: str | None = None
+
+
+class VersionsResponse(BaseModel):
+    """List of all design versions for a design, newest first."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    versions: list[VersionSummaryItem]

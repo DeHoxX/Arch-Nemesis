@@ -1308,3 +1308,173 @@ async def test_refinement_chat_diagnostic_logging(
     assert d2["has_patch_object"] is True
     assert d2["raw_ops_count"] == 0
     assert d2["reply_char_count"] == len(assistant_secret_reply)
+
+
+@pytest.mark.asyncio
+async def test_refinement_chat_preview_spec_present_for_proposed_none_for_blocked(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Test preview_spec is populated for proposed patches and strictly None for blocked patches."""
+    design_id_prop = "des-preview-prop"
+    design_id_block = "des-preview-block"
+
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id_prop)
+        await _seed_test_design(session, design_id=design_id_block)
+
+    valid_patch = {
+        "ops": [
+            {
+                "op": "add_node",
+                "node": {
+                    "id": "node_audit",
+                    "name": "Audit Logger",
+                    "type": "logging",
+                    "role": "Logs processed events",
+                    "inputs": ["result"],
+                    "outputs": ["audited_res"],
+                    "tech_options": [],
+                    "needs_model": False,
+                },
+            },
+            {
+                "op": "remove_edge",
+                "from_id": "node_proc",
+                "to_id": "node_out",
+            },
+            {
+                "op": "add_edge",
+                "edge": {"from": "node_proc", "to": "node_audit", "flows": "res"},
+            },
+            {
+                "op": "add_edge",
+                "edge": {"from": "node_audit", "to": "node_out", "flows": "audited_res"},
+            },
+        ]
+    }
+    invalid_patch = {
+        "ops": [
+            {
+                "op": "add_edge",
+                "edge": {"from": "node_in", "to": "node_nonexistent", "flows": "orphan_flow"},
+            }
+        ]
+    }
+
+    fake_llm = FakeLLMClient(
+        script=[
+            {"reply": "Proposed valid change with audit logger.", "patch": valid_patch},
+            {"reply": "Blocked invalid change.", "patch": invalid_patch},
+        ]
+    )
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Case 1: Proposed patch carries preview_spec
+        resp_prop = await client.post(
+            f"/api/designs/{design_id_prop}/chat",
+            json={"message": "Add an audit logger connected between ingress and egress."},
+        )
+        assert resp_prop.status_code == 200
+        data_prop = resp_prop.json()
+
+        # Strict response envelope check
+        assert set(data_prop.keys()) == {"message_id", "reply", "patch"}
+        assert len(data_prop["message_id"]) > 0
+        assert len(data_prop["reply"]) > 0
+        assert data_prop["patch"] is not None
+
+        patch_prop = data_prop["patch"]
+        assert set(patch_prop.keys()) == {
+            "id",
+            "status",
+            "diff",
+            "issues",
+            "ops_count",
+            "preview_spec",
+        }
+        assert patch_prop["status"] == "proposed", (
+            f"Expected proposed but got {patch_prop['status']}, issues: {patch_prop.get('issues')}"
+        )
+        assert patch_prop["preview_spec"] is not None
+        nodes_prop = patch_prop["preview_spec"]["nodes"]
+        assert isinstance(nodes_prop, list)
+        base_nodes = BASE_SPEC_DICT["nodes"]
+        assert isinstance(base_nodes, list)
+        assert len(nodes_prop) == len(base_nodes) + 1
+        node_ids = [n["id"] for n in nodes_prop if isinstance(n, dict)]
+        assert "node_audit" in node_ids
+
+        # Case 2: Blocked patch has preview_spec strictly None (Rule 2)
+        resp_block = await client.post(
+            f"/api/designs/{design_id_block}/chat",
+            json={"message": "Wire edge to a nonexistent component."},
+        )
+        assert resp_block.status_code == 200
+        data_block = resp_block.json()
+        assert data_block["patch"] is not None
+        patch_block = data_block["patch"]
+        assert patch_block["status"] == "blocked"
+        assert patch_block["preview_spec"] is None
+        assert len(patch_block["issues"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_versions_list_order_and_404(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Test GET /api/designs/{id}/versions returns versions newest first, and 404 on unknown design."""
+    design_id = "des-ver-test-1"
+
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id)
+        # Seed version 2 with a change note
+        v2 = DesignVersionTable(
+            id=f"ver-{design_id}-2",
+            design_id=design_id,
+            version_no=2,
+            brief_json=BASE_BRIEF.model_dump_json(),
+            spec_json=json.dumps(BASE_SPEC_DICT),
+            explanation_json=None,
+            prompt_version="refine_v3",
+            models_json=json.dumps({"architect": "test-model"}),
+            warnings_json="[]",
+            change_note="Added audit logging node.",
+            created_at="2026-11-04T01:00:00Z",
+        )
+        session.add(v2)
+        design = await refinement_repo.get_design(session, design_id)
+        assert design is not None
+        design.current_version = 2
+        await session.commit()
+
+    fake_llm = FakeLLMClient(script=[])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Success test: 2+ versions, newest first
+        resp = await client.get(f"/api/designs/{design_id}/versions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "versions" in data
+        assert isinstance(data["versions"], list)
+        assert len(data["versions"]) >= 2
+
+        v_newest = data["versions"][0]
+        v_older = data["versions"][1]
+        assert v_newest["version_no"] == 2
+        assert v_newest["change_note"] == "Added audit logging node."
+        assert len(v_newest["created_at"]) > 0
+
+        assert v_older["version_no"] == 1
+        assert v_older["change_note"] is None
+        assert len(v_older["created_at"]) > 0
+
+        # Assert descending order
+        assert v_newest["version_no"] > v_older["version_no"]
+
+        # 404 test for unknown design
+        resp_404 = await client.get("/api/designs/unknown-nonexistent-design/versions")
+        assert resp_404.status_code == 404
+        err_data = resp_404.json()
+        assert err_data["error"]["code"] == "NOT_FOUND"

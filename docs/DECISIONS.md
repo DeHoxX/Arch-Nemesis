@@ -2410,6 +2410,27 @@ If we removed it: Chat failures producing empty patches would remain opaque.
 Decided by: user approved
 Status: active
 
+### D-225 — Phase 7C0 — preview_spec in PatchSummary
+What: Add `preview_spec: ArchitectureSpec | None = None` to `PatchSummary` in `archnemesis.modules.refinement.schemas`, populated from `apply_patch`'s result spec only when patch status is `"proposed"` or `"needs_confirmation"`, and set to `None` when `"blocked"`.
+Why: When rendering the union diff graph in the frontend (BUILD_PLAN.md:548), the client requires full `NodeSpec` details (name, type, role, inputs, outputs, etc.) for added nodes, but `DiffResult.added_nodes` contains only node IDs (`list[str]`). Populating `preview_spec` from `apply_patch`'s already-computed `res.spec` enables the client to display new nodes with rich attributes without re-implementing patch application in TypeScript. In accordance with Rule 2 ("A spec that fails validation is never shown as a finished design"), `preview_spec` is strictly `None` when status is `"blocked"`. This deviates from BUILD_PLAN.md:544 which originally omitted `preview_spec` from `PatchSummary`.
+Alternatives considered:
+1. Returning only node ID strings and having the frontend invent placeholder names: Rejected because it breaks diagram visual fidelity and creates unreadable node cards.
+2. Re-implementing `apply_patch` in TypeScript on the frontend: Rejected to maintain code validation purity on the backend and avoid logic duplication.
+If we removed it: The frontend would not be able to render full node details for newly added nodes in the union diff view.
+Decided by: user approved
+Status: active
+
+### D-226 — Phase 7C0 — Versions list endpoint GET /api/designs/{id}/versions
+What: Add `GET /api/designs/{id}/versions` returning `{"versions": [{"version_no": int, "created_at": str, "change_note": str | null}]}` ordered by `version_no desc` (newest first).
+Why: BUILD_PLAN.md:549 requires the Versions panel on the design page to display version history newest first with version number, timestamp, and change note. BUILD_PLAN.md:544 originally defined only `GET /api/designs/{id}/versions/{n}` (fetching a single version detail), which would require N individual round trips to list past versions and would omit `change_note` (not present in `RefinedDesignResponse`). This lightweight read-only endpoint queries `design_versions` by `design_id` without LLM involvement, returning 404 for unknown designs.
+Alternatives considered:
+1. Having the client fetch `GET /api/designs/{id}/versions/{n}` in a loop from 1 to `current_version`: Rejected due to N+1 HTTP overhead and missing `change_note` in `RefinedDesignResponse`.
+2. Including full version histories inside `DesignResponse`: Rejected to keep design generation and detail payloads bounded and lightweight.
+If we removed it: The Versions panel could not render a complete history list with change notes.
+Decided by: user approved
+Status: active
+
+
 
 ## Phase 3 Summary
 

@@ -13,6 +13,7 @@ from archnemesis.modules.refinement.schemas import (
     RejectPatchResponse,
     RestoreRequest,
     SuggestionsResponse,
+    VersionsResponse,
 )
 
 router = APIRouter(prefix="/api/designs", tags=["refinement"])
@@ -77,6 +78,15 @@ async def get_design_messages(
 ) -> MessagesResponse:
     """Retrieve full chat history for a design."""
     return await service.get_messages(db=db, design_id=id)
+
+
+@router.get("/{id}/versions", response_model=VersionsResponse)
+async def get_design_versions(
+    id: str,
+    db: DBSession,
+) -> VersionsResponse:
+    """Retrieve all versions of a design, newest first."""
+    return await service.get_versions_list(db=db, design_id=id)
 
 
 @router.get("/{id}/versions/{n}", response_model=RefinedDesignResponse)
