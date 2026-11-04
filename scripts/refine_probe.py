@@ -79,6 +79,7 @@ def run_probe(design_id: str, base_url: str) -> int:
             sug_data: dict[str, Any] = sug_resp.json()
             suggestions = sug_data.get("suggestions", [])
             discarded_count = sug_data.get("discarded_count", 0)
+            discarded_issue_codes = sug_data.get("discarded_issue_codes", [])
 
             print("\n=== Refinement Probe: Suggestions ===")
             print(f"HTTP Status: {sug_status}")
@@ -88,6 +89,8 @@ def run_probe(design_id: str, base_url: str) -> int:
             for idx, item in enumerate(suggestions, start=1):
                 item_status = item.get("status", "unknown")
                 print(f"  - Suggestion {idx} Status: {item_status}")
+            for idx, codes in enumerate(discarded_issue_codes, start=1):
+                print(f"  - Discarded Suggestion {idx} Status: blocked, Issue Codes: {codes}")
         else:
             err_code = "UNKNOWN"
             with contextlib.suppress(ValueError):

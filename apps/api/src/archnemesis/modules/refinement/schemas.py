@@ -86,6 +86,7 @@ class SuggestionsResponse(BaseModel):
 
     suggestions: list[SuggestionItemResponse]
     discarded_count: int
+    discarded_issue_codes: list[list[str]] = Field(default_factory=list)
 
 
 class AcceptPatchRequest(BaseModel):

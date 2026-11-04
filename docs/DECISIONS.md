@@ -2372,6 +2372,26 @@ Decided by: user approved (Option B)
 Status: active
 
 
+### D-221 — Phase 7B — Refinement and suggestions prompt v2
+What: Introduce `refine_v2.md` and `suggest_v2.md` system prompts, switching refinement service to use v2 prompts and record `prompt_version="refine_v2"` on accepted versions.
+Why: Live Gemini probes on v1 produced `W_MERGE_AS_AGENT` warnings and discarded candidate suggestions due to missing guidelines on merge nodes (in-degree >= 2 requiring `ai_role: "none"`), flat `changes` schema fields, node ID regex formatting (2+ characters lowercase), checkpoint preservation (`must_pass_through`), and dead-end exit sink registration. The v2 prompts provide explicit rules for structural patch validity and DAG integrity while preserving untrusted quarantine instructions.
+Alternatives considered:
+1. Modifying `refine_v1.md` and `suggest_v1.md` in place: Rejected because project protocol forbids mutating established prompt versions.
+If we removed it: Live LLM refinement and suggestions would frequently produce invalid patches and warning issues.
+Decided by: user approved
+Status: active
+
+### D-222 — Phase 7B — Discarded suggestion diagnostic logging and response schema
+What: Add structured logging (`logger.info("suggestion_discarded", ...)`) capturing status and issue codes when a suggestion is discarded, and add optional `discarded_issue_codes: list[list[str]] = Field(default_factory=list)` to `SuggestionsResponse`.
+Why: When architectural suggestions fail validation and are discarded, neither clients nor server logs previously captured the underlying validation failure codes. Emitting safe code-only issue lists in server logs and in the response schema enables external diagnostics and verification probes without leaking user text, titles, reasons, or raw patch JSON.
+Alternatives considered:
+1. Logging only: Rejected because external HTTP verification probes cannot inspect server logs.
+2. Full validation error objects in response: Rejected to avoid leaking internal error strings or unverified LLM text.
+If we removed it: Discarded suggestions would remain opaque failures with no root-cause visibility.
+Decided by: user approved (Option A + Option B)
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

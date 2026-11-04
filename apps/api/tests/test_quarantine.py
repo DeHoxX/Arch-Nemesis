@@ -94,6 +94,8 @@ def test_all_system_prompts_contain_untrusted_user_text_quarantine() -> None:
         "writer_v1.md",
         "writer_v2.md",
         "refine_v1.md",
+        "refine_v2.md",
+        "suggest_v2.md",
     ]
     for prompt_name in system_prompts:
         content = load_prompt(prompt_name)

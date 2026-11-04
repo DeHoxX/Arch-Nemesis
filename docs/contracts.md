@@ -148,6 +148,10 @@ A round represents a discrete interaction cycle in the discovery dialogue:
 
 ### Refinement Response Schemas (Phase 7)
 
+- **`SuggestionsResponse`**:
+  - `suggestions`: `list[SuggestionItemResponse]`
+  - `discarded_count`: `Integer`
+  - `discarded_issue_codes`: `list[list[str]]` (optional list of validation failure codes for each discarded suggestion)
 - **`PatchSummary`**:
   - `id`: `String(36)` (UUID of the candidate patch)
   - `status`: `PatchStatus` (`"proposed"`, `"blocked"`, `"needs_confirmation"`)

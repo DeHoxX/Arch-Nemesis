@@ -117,7 +117,7 @@ async def handle_chat(
     recent_messages = await repo.get_recent_messages(db, design_id, limit=6)
 
     # Prepare LLM input
-    system_prompt = load_prompt("refine_v1.md")
+    system_prompt = load_prompt("refine_v2.md")
     brief_data = json.loads(current_ver.brief_json)
     spec_data = json.loads(current_ver.spec_json)
 
@@ -269,7 +269,7 @@ async def handle_suggestions(
     if current_ver is None:
         raise NotFoundError(f"Current version for design '{design_id}' not found.")
 
-    system_prompt = load_prompt("suggest_v1.md")
+    system_prompt = load_prompt("suggest_v2.md")
     brief_data = json.loads(current_ver.brief_json)
     spec_data = json.loads(current_ver.spec_json)
 
@@ -308,6 +308,7 @@ async def handle_suggestions(
 
     kept_suggestions: list[SuggestionItemResponse] = []
     discarded_count = 0
+    discarded_issue_codes: list[list[str]] = []
     now_iso = datetime.now(UTC).isoformat()
 
     for item in output.suggestions[:5]:
@@ -352,6 +353,14 @@ async def handle_suggestions(
             )
         else:
             discarded_count += 1
+            issue_codes = [i.code for i in res.issues]
+            discarded_issue_codes.append(issue_codes)
+            logger.info(
+                "suggestion_discarded",
+                design_id=design_id,
+                status=res.status,
+                issue_codes=issue_codes,
+            )
 
     await db.commit()
 
@@ -365,6 +374,7 @@ async def handle_suggestions(
     return SuggestionsResponse(
         suggestions=kept_suggestions,
         discarded_count=discarded_count,
+        discarded_issue_codes=discarded_issue_codes,
     )
 
 
@@ -482,7 +492,7 @@ async def accept_patch(
         brief_json=brief_obj.model_dump_json(),
         spec_json=res.spec.model_dump_json(by_alias=True),
         explanation_json=None,
-        prompt_version="refine_v1",
+        prompt_version="refine_v2",
         models_json=json.dumps({"architect": settings.llm_model_architect}),
         warnings_json=json.dumps(warnings_payload),
         change_note=change_note,
