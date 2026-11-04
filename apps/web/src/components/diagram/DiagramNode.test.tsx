@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReactFlowProvider } from "@xyflow/react";
 import { describe, expect, it, vi } from "vitest";
+import { normalizeColorToHex } from "@/test/helpers";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
 import { computeNodeDimensions, DIAMOND_INNER_WIDTH } from "./layout";
 
@@ -108,7 +109,7 @@ describe("DiagramNode component", () => {
     // For hexagon shapes, the amber border is carried by the SVG polygon stroke
     const polygon = container.querySelector("polygon");
     expect(polygon).not.toBeNull();
-    expect(polygon?.getAttribute("stroke")).toBe("#f59e0b");
+    expect(normalizeColorToHex(polygon?.getAttribute("stroke"))).toBe("#f59e0b");
   });
 
   it("renders lock icon when node is referenced in constraints", () => {
@@ -290,6 +291,152 @@ describe("DiagramNode component", () => {
       expect(screen.getByText(unbrokenName)).toBeDefined();
       expect(screen.getByText(hostileRole)).toBeDefined();
       expect(document.querySelector("script")).toBeNull();
+    });
+  });
+
+  describe("DiagramNode diff styling (Phase 7C3a)", () => {
+    it("renders added node with emerald ring, New badge, and preserves structural border", () => {
+      const { container } = renderNode({
+        id: "new_exit",
+        name: "New Audit Sink",
+        type: "sink",
+        exit_ids: ["new_exit"],
+        diffStatus: "added",
+      });
+
+      // Non-empty guard
+      expect(screen.getByText("New Audit Sink")).toBeDefined();
+
+      // Ring class and badge
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.className).toContain("ring-emerald-500");
+      expect(screen.getByText("New")).toBeDefined();
+
+      // Structural border class preserved (violet for exit)
+      expect(rootEl.className).toContain("border-violet-500");
+
+      // Aria-label gets status word
+      expect(rootEl.getAttribute("aria-label")).toBe("Node: New Audit Sink, sink, added");
+    });
+
+    it("renders removed node with dashed rose ring/border, opacity-70, Removed badge, and preserved model border", () => {
+      const { container } = renderNode({
+        id: "removed_model",
+        name: "Legacy LLM Parser",
+        type: "model_service",
+        needs_model: true,
+        diffStatus: "removed",
+      });
+
+      // Non-empty guard
+      expect(screen.getByText("Legacy LLM Parser")).toBeDefined();
+
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.className).toContain("ring-rose-500");
+      expect(rootEl.className).toContain("border-dashed");
+      expect(rootEl.className).toContain("opacity-70");
+      expect(screen.getByText("Removed")).toBeDefined();
+
+      // Structural border preserved (amber stroke on SVG polygon for needs_model)
+      const polygon = container.querySelector("polygon");
+      expect(polygon).not.toBeNull();
+      expect(normalizeColorToHex(polygon?.getAttribute("stroke"))).toBe("#f59e0b");
+
+      // Aria-label gets status word
+      expect(rootEl.getAttribute("aria-label")).toBe("Node: Legacy LLM Parser, model_service, removed");
+    });
+
+    it("renders edited node with sky ring, Edited badge, and status in aria-label", () => {
+      const { container } = renderNode({
+        id: "edited_node",
+        name: "Enhanced Cache",
+        type: "cache",
+        diffStatus: "edited",
+      });
+
+      // Non-empty guard
+      expect(screen.getByText("Enhanced Cache")).toBeDefined();
+
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.className).toContain("ring-sky-500");
+      expect(screen.getByText("Edited")).toBeDefined();
+      expect(rootEl.getAttribute("aria-label")).toBe("Node: Enhanced Cache, cache, edited");
+    });
+
+    it("renders unchanged node with standard aria-label and without diff badges or rings", () => {
+      const { container } = renderNode({
+        id: "unchanged_node",
+        name: "Standard Ingress",
+        type: "gateway",
+        diffStatus: "unchanged",
+      });
+
+      // Non-empty guard
+      expect(screen.getByText("Standard Ingress")).toBeDefined();
+
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.className).not.toContain("ring-emerald-500");
+      expect(rootEl.className).not.toContain("ring-rose-500");
+      expect(rootEl.className).not.toContain("ring-sky-500");
+      expect(screen.queryByText("New")).toBeNull();
+      expect(screen.queryByText("Removed")).toBeNull();
+      expect(screen.queryByText("Edited")).toBeNull();
+
+      // Existing aria-label unchanged (no status word)
+      expect(rootEl.getAttribute("aria-label")).toBe("Node: Standard Ingress, gateway");
+    });
+
+    describe("Class tests: structural border preserved across diffStatus x taxonomy (D-231)", () => {
+      const diffStatuses = ["added", "removed", "edited", "unchanged"] as const;
+
+      describe.each(diffStatuses)("when diffStatus is %s", (status) => {
+        it("preserves entry border (emerald)", () => {
+          const { container } = renderNode({
+            id: "entry_node",
+            name: "Entry Service",
+            entry_ids: ["entry_node"],
+            diffStatus: status,
+          });
+          const rootEl = container.firstElementChild as HTMLElement;
+          expect(rootEl.className).toContain("border-emerald-500");
+        });
+
+        it("preserves exit border (violet)", () => {
+          const { container } = renderNode({
+            id: "exit_node",
+            name: "Exit Service",
+            exit_ids: ["exit_node"],
+            diffStatus: status,
+          });
+          const rootEl = container.firstElementChild as HTMLElement;
+          expect(rootEl.className).toContain("border-violet-500");
+        });
+
+        it("preserves model border (amber polygon stroke)", () => {
+          const { container } = renderNode({
+            id: "model_node",
+            name: "Model Service",
+            needs_model: true,
+            diffStatus: status,
+          });
+          const polygon = container.querySelector("polygon");
+          expect(polygon).not.toBeNull();
+          expect(normalizeColorToHex(polygon?.getAttribute("stroke"))).toBe("#f59e0b");
+        });
+
+        it("preserves plain border (slate)", () => {
+          const { container } = renderNode({
+            id: "plain_node",
+            name: "Plain Service",
+            needs_model: false,
+            entry_ids: [],
+            exit_ids: [],
+            diffStatus: status,
+          });
+          const rootEl = container.firstElementChild as HTMLElement;
+          expect(rootEl.className).toContain("border-slate-500");
+        });
+      });
     });
   });
 });

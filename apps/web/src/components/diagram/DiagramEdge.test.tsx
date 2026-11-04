@@ -2,12 +2,13 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { ArchitectureSpec } from "@/lib/types";
+import type { UnionArchitectureSpec } from "@/lib/types";
+import { normalizeColorToHex } from "@/test/helpers";
 import { type DiagramEdgeData } from "./DiagramEdge";
 import { DiagramView } from "./DiagramView";
 
 function renderEdge(data: DiagramEdgeData) {
-  const spec: ArchitectureSpec = {
+  const spec: UnionArchitectureSpec = {
     nodes: [
       {
         id: "source_node",
@@ -18,6 +19,7 @@ function renderEdge(data: DiagramEdgeData) {
         outputs: ["payload"],
         tech_options: [],
         needs_model: false,
+        diffStatus: "unchanged",
       },
       {
         id: "target_node",
@@ -28,6 +30,7 @@ function renderEdge(data: DiagramEdgeData) {
         outputs: [],
         tech_options: [],
         needs_model: false,
+        diffStatus: "unchanged",
       },
     ],
     edges: [
@@ -36,6 +39,7 @@ function renderEdge(data: DiagramEdgeData) {
         to: "target_node",
         flows: data.flows,
         condition: data.condition,
+        diffStatus: data.diffStatus || "unchanged",
       },
     ],
     constraints: [],
@@ -94,5 +98,65 @@ describe("DiagramEdge component", () => {
     expect(conditionNote.getAttribute("aria-label")).toBe(
       `Condition: ${longCondition}`,
     );
+  });
+
+  describe("DiagramEdge diff styling (Phase 7C3a)", () => {
+    it("renders removed edge with dashed rose stroke and lower opacity", () => {
+      const { container } = renderEdge({
+        flows: "deprecated sync",
+        diffStatus: "removed",
+      });
+
+      expect(screen.getByText("deprecated sync")).toBeDefined();
+
+      const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+      expect(edgePath).not.toBeNull();
+      expect(normalizeColorToHex(edgePath.style.stroke)).toBe("#f43f5e");
+      expect(edgePath.style.strokeDasharray).toBe("6 6");
+      expect(edgePath.style.opacity).toBe("0.6");
+    });
+
+    it("renders unchanged edge with standard solid border styling", () => {
+      const { container } = renderEdge({
+        flows: "active stream",
+        diffStatus: "unchanged",
+      });
+
+      expect(screen.getByText("active stream")).toBeDefined();
+
+      const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+      expect(edgePath).not.toBeNull();
+      expect(edgePath.style.strokeDasharray).toBe("");
+      expect(edgePath.style.opacity).toBe("1");
+    });
+
+    describe("Class tests: edge styling arriving through real DiagramView path", () => {
+      const statuses = ["added", "edited", "unchanged"] as const;
+
+      it.each(statuses)("renders %s edge with standard stroke and full opacity", (status) => {
+        const { container } = renderEdge({
+          flows: `${status} flow`,
+          diffStatus: status,
+        });
+
+        const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+        expect(edgePath).not.toBeNull();
+        expect(edgePath.style.strokeDasharray).toBe("");
+        expect(edgePath.style.opacity).toBe("1");
+      });
+
+      it("renders removed edge with dashed rose stroke and 0.6 opacity through DiagramView", () => {
+        const { container } = renderEdge({
+          flows: "retired flow",
+          diffStatus: "removed",
+        });
+
+        const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+        expect(edgePath).not.toBeNull();
+        expect(normalizeColorToHex(edgePath.style.stroke)).toBe("#f43f5e");
+        expect(edgePath.style.strokeDasharray).toBe("6 6");
+        expect(edgePath.style.opacity).toBe("0.6");
+      });
+    });
   });
 });

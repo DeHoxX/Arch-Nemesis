@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ArchitectureSpec } from "@/lib/types";
+import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { DiagramView } from "./DiagramView";
 
 const mockLegalSpec: ArchitectureSpec = {
@@ -156,5 +156,61 @@ describe("DiagramView component", () => {
     expect(document.activeElement).toBe(edgeNote);
     expect(edgeNote.getAttribute("aria-label")).toBe(`Flow: ${fullText}`);
     expect(tooltip.textContent).toBe(fullText);
+  });
+
+  it("renders union architecture spec with added and removed diff badges", () => {
+    const unionSpec: UnionArchitectureSpec = {
+      nodes: [
+        {
+          id: "portal",
+          name: "Portal",
+          type: "ingress",
+          role: "Main ingress",
+          inputs: [],
+          outputs: ["stream"],
+          tech_options: [],
+          needs_model: false,
+          diffStatus: "unchanged",
+        },
+        {
+          id: "new_audit",
+          name: "Audit Engine",
+          type: "service",
+          role: "Audits calls",
+          inputs: ["stream"],
+          outputs: ["audit_log"],
+          tech_options: [],
+          needs_model: false,
+          diffStatus: "added",
+        },
+        {
+          id: "legacy_sink",
+          name: "Legacy Sink",
+          type: "sink",
+          role: "Old sink",
+          inputs: ["stream"],
+          outputs: [],
+          tech_options: [],
+          needs_model: false,
+          diffStatus: "removed",
+        },
+      ],
+      edges: [
+        { from: "portal", to: "new_audit", flows: "audit stream", diffStatus: "added" },
+        { from: "portal", to: "legacy_sink", flows: "old stream", diffStatus: "removed" },
+      ],
+      constraints: [],
+      entry_ids: ["portal"],
+      exit_ids: ["new_audit", "legacy_sink"],
+    };
+
+    render(<DiagramView spec={unionSpec} />);
+
+    expect(screen.getByText("Portal")).toBeDefined();
+    expect(screen.getByText("Audit Engine")).toBeDefined();
+    expect(screen.getByText("Legacy Sink")).toBeDefined();
+
+    expect(screen.getByText("New")).toBeDefined();
+    expect(screen.getByText("Removed")).toBeDefined();
   });
 });

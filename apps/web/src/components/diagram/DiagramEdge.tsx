@@ -16,6 +16,7 @@ export type DiagramEdgeData = {
   labelY?: number;
   labelWidth?: number;
   labelHeight?: number;
+  diffStatus?: "added" | "removed" | "edited" | "unchanged";
   [key: string]: unknown;
 };
 
@@ -81,6 +82,7 @@ export function DiagramEdge({
   const displayCondition = isCondTruncated ? `${condition.slice(0, 40)}…` : condition;
 
   const hasLabel = Boolean(flows || condition);
+  const isRemoved = data?.diffStatus === "removed";
 
   return (
     <>
@@ -90,7 +92,9 @@ export function DiagramEdge({
         markerEnd={markerEnd}
         style={{
           strokeWidth: 1.5,
-          stroke: "var(--border, #64748b)",
+          stroke: isRemoved ? "#f43f5e" : "var(--border, #64748b)",
+          strokeDasharray: isRemoved ? "6 6" : undefined,
+          opacity: isRemoved ? 0.6 : 1,
           ...style,
         }}
       />

@@ -184,4 +184,129 @@ describe("BlockNode component", () => {
       expect(document.querySelector("img[src='x']")).toBeNull();
     });
   });
+
+  describe("BlockNode diff styling (Phase 7C3a)", () => {
+    it("renders added block node with emerald ring, New badge, and updated aria-label", () => {
+      renderBlockNode({
+        name: "New Data Pipeline",
+        isEntry: false,
+        isExit: false,
+        diffStatus: "added",
+      });
+
+      expect(screen.getByText("New Data Pipeline")).toBeDefined();
+      expect(screen.getByText("New")).toBeDefined();
+
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("ring-emerald-500");
+      expect(el.getAttribute("aria-label")).toBe("Block: New Data Pipeline, added");
+    });
+
+    it("renders removed block node with dashed rose ring, opacity-70, Removed badge, and updated aria-label", () => {
+      renderBlockNode({
+        name: "Legacy Queue",
+        isEntry: true,
+        isExit: false,
+        diffStatus: "removed",
+      });
+
+      expect(screen.getByText("Legacy Queue")).toBeDefined();
+      expect(screen.getByText("Removed")).toBeDefined();
+
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("ring-rose-500");
+      expect(el.className).toContain("border-dashed");
+      expect(el.className).toContain("opacity-70");
+      expect(el.getAttribute("aria-label")).toBe("Block: Legacy Queue, entry, removed");
+    });
+
+    it("renders edited block node with sky ring, Edited badge, and updated aria-label", () => {
+      renderBlockNode({
+        name: "Updated Worker",
+        isEntry: false,
+        isExit: false,
+        diffStatus: "edited",
+      });
+
+      expect(screen.getByText("Updated Worker")).toBeDefined();
+      expect(screen.getByText("Edited")).toBeDefined();
+
+      const el = screen.getByRole("img");
+      expect(el.className).toContain("ring-sky-500");
+      expect(el.getAttribute("aria-label")).toBe("Block: Updated Worker, edited");
+    });
+
+    it("renders unchanged block node with standard styling and aria-label", () => {
+      renderBlockNode({
+        name: "Stable Worker",
+        isEntry: false,
+        isExit: false,
+        diffStatus: "unchanged",
+      });
+
+      expect(screen.getByText("Stable Worker")).toBeDefined();
+      expect(screen.queryByText("New")).toBeNull();
+      expect(screen.queryByText("Removed")).toBeNull();
+      expect(screen.queryByText("Edited")).toBeNull();
+
+      const el = screen.getByRole("img");
+      expect(el.className).not.toContain("ring-emerald-500");
+      expect(el.className).not.toContain("ring-rose-500");
+      expect(el.className).not.toContain("ring-sky-500");
+      expect(el.getAttribute("aria-label")).toBe("Block: Stable Worker");
+    });
+
+    describe("Class tests: structural indicators preserved across diffStatus x taxonomy (D-231)", () => {
+      const diffStatuses = ["added", "removed", "edited", "unchanged"] as const;
+
+      describe.each(diffStatuses)("when diffStatus is %s", (status) => {
+        it("preserves entry marker [Entry] and neutral border", () => {
+          renderBlockNode({
+            name: "Ingress Block",
+            isEntry: true,
+            isExit: false,
+            diffStatus: status,
+          });
+          expect(screen.getByText("[Entry]")).toBeDefined();
+          const el = screen.getByRole("img");
+          expect(el.className).toContain("border-border/80");
+        });
+
+        it("preserves exit marker [Exit] and neutral border", () => {
+          renderBlockNode({
+            name: "Egress Block",
+            isEntry: false,
+            isExit: true,
+            diffStatus: status,
+          });
+          expect(screen.getByText("[Exit]")).toBeDefined();
+          const el = screen.getByRole("img");
+          expect(el.className).toContain("border-border/80");
+        });
+
+        it("preserves model hexagon SVG stroke stroke-border/80", () => {
+          const { container } = renderBlockNode({
+            name: "Model Block",
+            needs_model: true,
+            diffStatus: status,
+          });
+          const polygon = container.querySelector("polygon");
+          expect(polygon).not.toBeNull();
+          expect(polygon?.getAttribute("class")).toContain("stroke-border/80");
+        });
+
+        it("preserves plain neutral border border-border/80", () => {
+          renderBlockNode({
+            name: "Plain Block",
+            isEntry: false,
+            isExit: false,
+            needs_model: false,
+            diffStatus: status,
+          });
+          const el = screen.getByRole("img");
+          expect(el.className).toContain("border-border/80");
+        });
+      });
+    });
+  });
 });

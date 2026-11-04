@@ -11,14 +11,14 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import type { ArchitectureSpec } from "@/lib/types";
+import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DiagramEdge } from "./DiagramEdge";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
 import { computeLayout } from "./layout";
 
 export interface DiagramViewProps {
-  spec: ArchitectureSpec;
+  spec: ArchitectureSpec | UnionArchitectureSpec;
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string | null) => void;
   className?: string;
@@ -87,6 +87,7 @@ export function DiagramView({
       selected: pn.id === selectedNodeId,
       data: {
         ...pn.data,
+        diffStatus: (pn.data as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
         width: pn.width,
         height: pn.height,
         entry_ids: spec.entry_ids,
@@ -100,21 +101,26 @@ export function DiagramView({
 
   // Transform layout edges to React Flow Edge structure
   const edges: Edge[] = useMemo(() => {
-    return layout.edges.map((pe) => ({
-      id: pe.id,
-      source: pe.source,
-      target: pe.target,
-      type: "customEdge",
-      data: {
-        flows: pe.data.flows,
-        condition: pe.data.condition,
-        pathD: pe.pathD,
-        labelX: pe.labelX,
-        labelY: pe.labelY,
-        labelWidth: pe.labelWidth,
-        labelHeight: pe.labelHeight,
-      },
-    }));
+    return layout.edges.map((pe) => {
+      const isRemoved = (pe.data as { diffStatus?: string })?.diffStatus === "removed";
+      return {
+        id: pe.id,
+        source: pe.source,
+        target: pe.target,
+        type: "customEdge",
+        zIndex: isRemoved ? 0 : 1,
+        data: {
+          flows: pe.data.flows,
+          condition: pe.data.condition,
+          pathD: pe.pathD,
+          labelX: pe.labelX,
+          labelY: pe.labelY,
+          labelWidth: pe.labelWidth,
+          labelHeight: pe.labelHeight,
+          diffStatus: (pe.data as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
+        },
+      };
+    });
   }, [layout.edges]);
 
   // Keyboard navigation: Escape key clears selection

@@ -2464,6 +2464,28 @@ If we removed it: Cap text in the UI would diverge from backend 409 CAP_TURNS an
 Decided by: plan
 Status: active
 
+### D-230 — Phase 7C3a — Phase 7C3a: diagram diff styling (deviation from BUILD_PLAN.md:452 and D-100)
+What: Render ephemeral diff status on diagram nodes using outer rings and text badges (ring-2 emerald-500 + "New", ring-2 dashed rose-500 + opacity-70 + "Removed", ring-2 sky-500 + "Edited") and dashed rose-500 on removed edges with lower z-index, while leaving architectural structural border colors unchanged.
+Why: BUILD_PLAN.md line 452 states "Do not: add ... other colours" and D-100 preserves the four structural taxonomy colors (emerald for entry, violet for exit, amber for needs_model, slate for plain). Phase 7 diff review requires visual distinction for candidate mutations (BUILD_PLAN.md:548: "green border and badge New. Removed: red dashed border, red dashed edges, badge Removed. Edited: blue border and badge Edited"). Implementing diff visual indicators via distinct outer rings, opacity, and explicit badges allows users to identify candidate changes without overriding or destroying the underlying node taxonomy semantics.
+Alternatives considered:
+1. Directly overriding the node's border class: Rejected because replacing structural border colors would hide whether an added or edited node is an entry, exit, or AI model node.
+2. Inverting color tokens: Rejected to maintain consistency with industry-standard diff semantics (green add, red remove, blue edit).
+If we removed it: The interactive diff view could not visually convey added, removed, or changed nodes and edges in the architecture and block diagrams during refinement review.
+Decided by: plan
+Status: superseded by D-231
+
+### D-231 — Phase 7C3a — Phase 7C3a: diagram diff styling (supersedes D-230)
+What: Render ephemeral diff status on diagram nodes using outer rings and text badges (ring-2 emerald-500 + "New", dashed border + solid rose ring ring-2 ring-rose-500 + opacity-70 + "Removed", ring-2 sky-500 + "Edited") and dashed rose-500 on removed edges with lower z-index, while leaving architectural structural border colors unchanged.
+Why: Supersedes D-230 (marking D-230 superseded). Corrects the removed-node visual appearance from invalid `ring-dashed` to `border-dashed ring-2 ring-rose-500 ring-offset-2 ring-offset-background opacity-70` (dashed border with solid rose ring and opacity reduction). Maintains the deviation from BUILD_PLAN.md:452 and D-100 to provide essential diff visualization during Phase 7 refinement review without altering structural node taxonomy colors.
+Alternatives considered:
+1. Retaining `ring-dashed`: Rejected because `ring-dashed` is not a standard Tailwind CSS utility.
+2. Directly overriding the node's border class: Rejected because replacing structural border colors would hide whether an added or edited node is an entry, exit, or AI model node.
+If we removed it: Diagram diff views would attempt to apply invalid CSS utility classes or lack visual cues for removed nodes.
+Decided by: agent proposed, user approved
+Status: active
+
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

@@ -12,13 +12,13 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import type { ArchitectureSpec } from "@/lib/types";
+import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
 import { computeLayout } from "./layout";
 
 export interface BlockDiagramViewProps {
-  spec: ArchitectureSpec;
+  spec: ArchitectureSpec | UnionArchitectureSpec;
   className?: string;
 }
 
@@ -88,6 +88,7 @@ export function BlockDiagramView({
         isEntry: entryIds.has(pn.id),
         isExit: exitIds.has(pn.id),
         edges: spec.edges,
+        diffStatus: (pn.data as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
         width: pn.width,
         height: pn.height,
       },
@@ -96,17 +97,29 @@ export function BlockDiagramView({
 
   // Transform layout edges to React Flow Edge structure without flow labels
   const edges: Edge[] = useMemo(() => {
-    return layout.edges.map((pe) => ({
-      id: pe.id,
-      source: pe.source,
-      target: pe.target,
-      type: "default",
-      markerEnd: {
-        type: MarkerType.ArrowClosed,
-        width: 16,
-        height: 16,
-      },
-    }));
+    return layout.edges.map((pe) => {
+      const isRemoved = (pe.data as { diffStatus?: string })?.diffStatus === "removed";
+      return {
+        id: pe.id,
+        source: pe.source,
+        target: pe.target,
+        type: "default",
+        zIndex: isRemoved ? 0 : 1,
+        style: isRemoved
+          ? {
+              stroke: "#f43f5e",
+              strokeDasharray: "6 6",
+              opacity: 0.6,
+            }
+          : undefined,
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 16,
+          height: 16,
+          color: isRemoved ? "#f43f5e" : undefined,
+        },
+      };
+    });
   }, [layout.edges]);
 
   return (

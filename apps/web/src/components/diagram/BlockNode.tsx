@@ -15,6 +15,7 @@ export interface BlockNodeData {
   edges?: EdgeSpec[];
   width?: number;
   height?: number;
+  diffStatus?: "added" | "removed" | "edited" | "unchanged";
   [key: string]: unknown;
 }
 
@@ -57,9 +58,23 @@ export function BlockNode({
     .filter(Boolean)
     .join(", ");
 
-  const accessibleLabel = markerLabel
+  const baseLabel = markerLabel
     ? `Block: ${data.name}, ${markerLabel}`
     : `Block: ${data.name}`;
+
+  const accessibleLabel =
+    data.diffStatus && data.diffStatus !== "unchanged"
+      ? `${baseLabel}, ${data.diffStatus}`
+      : baseLabel;
+
+  const diffBadge =
+    data.diffStatus === "added"
+      ? "New"
+      : data.diffStatus === "removed"
+        ? "Removed"
+        : data.diffStatus === "edited"
+          ? "Edited"
+          : null;
 
   const isHexagon = shape === "hexagon";
   const isDiamond = shape === "diamond";
@@ -79,6 +94,10 @@ export function BlockNode({
         !isHexagon && !isDiamond && "border border-border/80 bg-card",
         !isHexagon && !isDiamond && (isPill ? "rounded-full px-8 py-2" : "rounded-lg px-3 py-2"),
         isHexagon && "px-7 py-2.5",
+        data.diffStatus === "added" && "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
+        data.diffStatus === "removed" && "border-dashed ring-2 ring-rose-500 ring-offset-2 ring-offset-background opacity-70",
+        data.diffStatus === "edited" && "ring-2 ring-sky-500 ring-offset-2 ring-offset-background",
+        (isHexagon || isDiamond) && (data.diffStatus && data.diffStatus !== "unchanged") && "rounded-lg",
       )}
     >
       {/* Hexagon SVG background & neutral border outline */}
@@ -130,6 +149,18 @@ export function BlockNode({
         >
           {/* Top marker */}
           <div className="flex items-center justify-center gap-1 h-3">
+            {diffBadge && (
+              <span
+                className={cn(
+                  "font-mono text-[9px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
+                  data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                  data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                  data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                )}
+              >
+                {diffBadge}
+              </span>
+            )}
             {data.isEntry && (
               <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                 [Entry]
@@ -155,6 +186,18 @@ export function BlockNode({
         <>
           {/* Top row: [Entry] / [Exit] text marker (or empty spacer) */}
           <div className="flex items-center gap-1.5 h-3.5">
+            {diffBadge && (
+              <span
+                className={cn(
+                  "font-mono text-[10px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
+                  data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                  data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                  data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                )}
+              >
+                {diffBadge}
+              </span>
+            )}
             {data.isEntry && (
               <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
                 [Entry]

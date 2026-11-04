@@ -15,6 +15,7 @@ export type DiagramNodeData = NodeSpec & {
   width?: number;
   height?: number;
   onSelect?: (id: string) => void;
+  diffStatus?: "added" | "removed" | "edited" | "unchanged";
   [key: string]: unknown;
 };
 
@@ -69,11 +70,25 @@ export function DiagramNode({
   const width = typeof data.width === "number" ? data.width : 240;
   const height = typeof data.height === "number" ? data.height : (isDiamond ? 140 : 80);
 
+  const diffBadge =
+    data.diffStatus === "added"
+      ? "New"
+      : data.diffStatus === "removed"
+        ? "Removed"
+        : data.diffStatus === "edited"
+          ? "Edited"
+          : null;
+
+  const accessibleLabel =
+    data.diffStatus && data.diffStatus !== "unchanged"
+      ? `Node: ${data.name}, ${data.type}, ${data.diffStatus}`
+      : `Node: ${data.name}, ${data.type}`;
+
   return (
     <div
       tabIndex={0}
       role="button"
-      aria-label={`Node: ${data.name}, ${data.type}`}
+      aria-label={accessibleLabel}
       aria-pressed={Boolean(selected)}
       onClick={() => data.onSelect?.(data.id)}
       onKeyDown={(e) => {
@@ -90,10 +105,13 @@ export function DiagramNode({
         !isHexagon && !isDiamond && (isPill ? "rounded-full px-8 py-2 border" : "rounded-xl border px-3 py-2"),
         !isHexagon && !isDiamond && borderClassMap[borderColor],
         isHexagon && "px-7 py-2.5",
+        data.diffStatus === "added" && "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
+        data.diffStatus === "removed" && "border-dashed ring-2 ring-rose-500 ring-offset-2 ring-offset-background opacity-70",
+        data.diffStatus === "edited" && "ring-2 ring-sky-500 ring-offset-2 ring-offset-background",
         selected
           ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
           : "hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        (isHexagon || isDiamond) && selected && "rounded-xl",
+        (isHexagon || isDiamond) && (selected || (data.diffStatus && data.diffStatus !== "unchanged")) && "rounded-xl",
       )}
     >
       {/* Hexagon SVG background & border outline */}
@@ -176,6 +194,19 @@ export function DiagramNode({
             </p>
           )}
           <div className="flex flex-wrap items-center justify-center gap-1 overflow-hidden pt-0.5">
+            {diffBadge && (
+              <Badge
+                variant="outline"
+                className={cn(
+                  "px-1 py-0 text-[8px] font-mono leading-tight tracking-tight uppercase",
+                  data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                  data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                  data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                )}
+              >
+                {diffBadge}
+              </Badge>
+            )}
             {locked && (
               <span title="Named in a constraint" className="shrink-0 text-muted-foreground">
                 <Lock className="size-2.5 text-amber-500" aria-label="Locked by constraint" />
@@ -233,6 +264,19 @@ export function DiagramNode({
             </p>
 
             <div className="flex shrink-0 items-center gap-1 overflow-hidden">
+              {diffBadge && (
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    "px-1 py-0 text-[9px] font-mono leading-tight tracking-tight uppercase",
+                    data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                    data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                    data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                  )}
+                >
+                  {diffBadge}
+                </Badge>
+              )}
               {badges.map((b) => (
                 <Badge
                   key={b}
