@@ -146,6 +146,69 @@ class InternalError(AppError):
         )
 
 
+class StalePatchError(AppError):
+    def __init__(
+        self,
+        message: str = "This change was based on an earlier version. Please review the updated design.",
+    ) -> None:
+        super().__init__(
+            code="STALE_PATCH",
+            message=message,
+            status_code=409,
+        )
+
+
+class PatchBlockedError(AppError):
+    def __init__(
+        self,
+        message: str = "This change cannot be applied because it violates architectural rules.",
+    ) -> None:
+        super().__init__(
+            code="PATCH_BLOCKED",
+            message=message,
+            status_code=409,
+        )
+
+
+class ConfirmationRequiredError(AppError):
+    def __init__(
+        self,
+        message: str = "This change leaves requirements uncovered and requires confirmation to proceed.",
+    ) -> None:
+        super().__init__(
+            code="CONFIRMATION_REQUIRED",
+            message=message,
+            status_code=409,
+        )
+
+
+class CapTurnsError(AppError):
+    def __init__(self, max_turns: int) -> None:
+        super().__init__(
+            code="CAP_TURNS",
+            message=f"This design has reached the limit of {max_turns} change requests. Please contact our team to continue.",
+            status_code=409,
+        )
+
+
+class CapVersionsError(AppError):
+    def __init__(self, max_versions: int) -> None:
+        super().__init__(
+            code="CAP_VERSIONS",
+            message=f"This design has reached the limit of {max_versions} versions. Please contact our team to continue.",
+            status_code=409,
+        )
+
+
+class RestoreCurrentVersionError(AppError):
+    def __init__(self, message: str = "Cannot restore the current version.") -> None:
+        super().__init__(
+            code="RESTORE_CURRENT_VERSION",
+            message=message,
+            status_code=409,
+        )
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     """Return uniform error envelope: {"error": {"code": "...", "message": "..."}}."""
     data: dict[str, object] = {"code": exc.code, "message": exc.message}

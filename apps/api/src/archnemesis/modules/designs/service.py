@@ -130,9 +130,11 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
     if design is None:
         raise NotFoundError(f"Design '{design_id}' not found.")
 
-    version = await repo.get_design_version(db, design.id, 1)
+    version = await repo.get_design_version(db, design.id, design.current_version)
     if version is None:
-        raise NotFoundError(f"Design version 1 for design '{design_id}' not found.")
+        raise NotFoundError(
+            f"Design version {design.current_version} for design '{design_id}' not found."
+        )
 
     brief_dict = json.loads(version.brief_json)
     brief_obj = RequirementBrief.model_validate(brief_dict)

@@ -2278,6 +2278,90 @@ Status: active
 
 
 
+### D-211 — Phase 7B — Migration 0004 chat_messages and patches schema
+What: Create migration 0004 adding `chat_messages` and `patches` tables.
+Why: Refinement chat requires persisting conversational history and candidate graph patches across turns. `chat_messages` stores message history (`id`, `design_id`, `role`, `text`, `created_at`) scoped to designs. `patches` records patches (`id`, `design_id`, `kind`, `base_version`, `status`, `patch_json`, `diff_json`, `issues_json`, `reason`, `created_at`, `decided_at`) enabling review, acceptance, rejection, and deterministic diff tracking.
+Alternatives considered:
+1. Embedding chat messages and patches directly in `design_versions.spec_json`: Rejected because patches and messages exist prior to and independent of design version promotion; embedding would mutate immutable version snapshots.
+If we removed it: Refinement dialogue history and pending patch proposals would be lost across HTTP requests.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-212 — Phase 7B — Refinement patch status lifecycle
+What: Enforce explicit patch statuses (`proposed`, `blocked`, `needs_confirmation`, `accepted`, `rejected`, `superseded`).
+Why: Separating validity and user intent states prevents applying invalid designs or unverified requirement drops. `proposed` represents valid patches; `blocked` denotes structural/rule violations; `needs_confirmation` indicates brief constraints were dropped; `accepted` and `rejected` track explicit user decisions; `superseded` invalidates rival proposals once a version is promoted.
+Alternatives considered:
+1. Boolean `is_valid` flag: Rejected because `needs_confirmation` requires explicit user acknowledgment, which a boolean cannot express.
+If we removed it: Patches removing brief requirements could be accepted without explicit user acknowledgment, or stale rival proposals could be accepted concurrently.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-213 — Phase 7B — Atomic accept transaction with UNIQUE(design_id, version_no) protection
+What: Execute patch accept and version n+1 promotion in a single short database transaction relying on `UNIQUE(design_id, version_no)`.
+Why: LLM generation is never held within an open database transaction. When accepting a patch, the server verifies `base_version == design.current_version`, re-validates the patch against current spec, inserts version `n+1`, updates `design.current_version = n+1`, marks competing proposals superseded, and commits. The composite unique constraint prevents concurrent duplicate version creation.
+Alternatives considered:
+1. Pessimistic table locking during patch evaluation: Rejected because re-validation is CPU-bound pure code; short optimistic atomic transactions avoid lock contention.
+If we removed it: Concurrent accept requests could create duplicate versions or corrupt version progression.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-214 — Phase 7B — Server-derived dropped_brief_ids from stored patch
+What: Server derives `dropped_brief_ids` directly by evaluating the stored patch and `confirm_drop` boolean, never accepting client-supplied ID lists.
+Why: Client-supplied lists of dropped requirement IDs could be spoofed to silently suppress arbitrary brief requirements. By re-running `apply_patch` on the stored patch, the server verifies which brief constraints are actually uncovered by rule removals and only drops those when `confirm_drop=True`.
+Alternatives considered:
+1. Trusting client-sent `dropped_brief_ids`: Rejected as an untrusted input security and contract violation.
+If we removed it: Malicious or buggy clients could strip brief requirements from designs without corresponding patch rule changes.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-215 — Phase 7B — Byte-for-byte spec preservation on version restore
+What: Copy `spec_json` byte-for-byte when creating a restored version, creating a new version with change note `Restored from v{k}`.
+Why: Restoring a historical architecture version must produce an exact replica of the target version's JSON structure without deserialization/re-serialization drift or re-ordering. It increments `current_version` to `n+1`, preserves version immutability, and forbids restoring the current version (409).
+Alternatives considered:
+1. Re-pointing `current_version` back to the old version number: Rejected because design versions are strictly immutable and historical version logs must remain append-only.
+If we removed it: Version history would be rewritten and restored specs could suffer JSON normalization drift.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-216 — Phase 7B — Refinement turn and version caps enforcement
+What: Enforce `MAX_REFINEMENT_TURNS` (409 CAP_TURNS) and `MAX_VERSIONS` (409 CAP_VERSIONS) with strict error envelopes and contract messages.
+Why: Pre-sales qualification requires bounding compute and API expenditure per design. Once `MAX_REFINEMENT_TURNS` user messages/suggestions or `MAX_VERSIONS` versions are reached, the API returns HTTP 409 with user-guiding contact messages.
+Alternatives considered:
+1. Silently truncating history or returning empty patches: Rejected because users must be clearly informed when qualification limits are reached.
+If we removed it: Unbounded refinement loops would consume excessive LLM quota.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-217 — Phase 7B — Import-linter contract update for refinement module
+What: Add `archnemesis.modules.refinement` to the independent sibling modules contract in `pyproject.toml`.
+Why: The refinement module handles refinement HTTP endpoints, persistence, and service logic. Adding it to the sibling contract ensures that `designs` may import it, but sibling modules (`intake`, `architect`, `explainer`, `leads`, `refinement`) cannot import each other, keeping domain boundaries strictly decoupled.
+Alternatives considered:
+1. Merging refinement into `designs`: Rejected because refinement represents a distinct conversational sub-domain with its own messages, patches, and suggestions.
+If we removed it: Architecture layer boundaries would not be enforced by `lint-imports`.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-218 — Phase 7B — Refinement turn and version cap HTTP status codes (409)
+What: Affirm HTTP 409 status code for both `CapTurnsError` (`CAP_TURNS`) and `CapVersionsError` (`CAP_VERSIONS`).
+Why: `docs/BUILD_PLAN.md:545` specifies HTTP 409 for both CAP_TURNS and CAP_VERSIONS. Exceeding qualification turn or version caps represents an unresolvable state conflict on the immutable design resource, requiring user contact rather than client request retry. This entry supersedes any conversational reference to HTTP 429 and confirms HTTP 409 in `errors.py`, `docs/contracts.md`, and test suites.
+Alternatives considered:
+1. HTTP 429 Too Many Requests: Rejected because 429 indicates transient time-window rate limiting (retry after delay), whereas turn and version caps are terminal per-design lifecycle limits.
+If we removed it: API clients could confuse design lifecycle exhaustion with transient network/rate throttling.
+Decided by: user instructed (BUILD_PLAN.md:545)
+Status: active
+
+### D-219 — Phase 7B — Serializing warnings_json in DesignVersionTable as list[str]
+What: In rchnemesis.modules.refinement.service, serialize warnings_payload as list[str] (extracting i.message from warning issues) rather than list[dict] before storing in DesignVersionTable.warnings_json.
+Why: docs/contracts.md:88, designs/schemas.py:27, and 
+efinement/schemas.py:142 define warnings on design responses as list[str]. When ccept_patch serialized dictionaries into warnings_json, deserialization inside _format_design_response passed list[dict] to RefinedDesignResponse(warnings=...), raising a Pydantic ValidationError that surfaced as HTTP 500 INTERNAL_ERROR. Aligning warnings_payload with [w.message for w in val_res.warnings] from designs/service.py:80 ensures type safety and contract compliance.
+Alternatives considered:
+1. Expanding warnings schema to list[Issue | str]: Rejected because docs/contracts.md:88 freezes warnings: list[str] across all design responses.
+If we removed it: Pydantic validation failure would block POST /api/designs/{id}/patches/{id}/accept from returning new design versions when non-fatal validation warnings exist.
+Decided by: agent proposed, bug fix
+Status: active
+
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

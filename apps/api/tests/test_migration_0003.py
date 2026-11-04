@@ -51,7 +51,7 @@ def test_migration_0003_leads_table(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         conn.close()
 
         # Check downgrade
-        command.downgrade(alembic_cfg, "-1")
+        command.downgrade(alembic_cfg, "0002_intake_and_designs")
         conn = sqlite3.connect(str(db_file))
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='leads'")

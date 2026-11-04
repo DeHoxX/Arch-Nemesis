@@ -86,3 +86,33 @@ class LeadTable(Base):
             name="fk_leads_design_versions",
         ),
     )
+
+
+class ChatMessageTable(Base):
+    """Database record for refinement chat messages."""
+
+    __tablename__ = "chat_messages"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("designs.id"), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class PatchTable(Base):
+    """Database record for candidate graph patches."""
+
+    __tablename__ = "patches"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    design_id: Mapped[str] = mapped_column(String(36), ForeignKey("designs.id"), nullable=False)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    base_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False)
+    patch_json: Mapped[str] = mapped_column(Text, nullable=False)
+    diff_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    issues_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    decided_at: Mapped[str | None] = mapped_column(String(30), nullable=True)

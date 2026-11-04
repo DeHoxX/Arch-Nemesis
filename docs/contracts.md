@@ -135,4 +135,37 @@ A round represents a discrete interaction cycle in the discovery dialogue:
   - `change_note`: `Text` (nullable)
   - `created_at`: `String(30)` (ISO 8601 UTC timestamp)
 
+### Error Envelopes for Phase 7 (Refinement Chat)
+
+| Error Code | HTTP Status | Trigger Condition | Response Payload |
+| --- | --- | --- | --- |
+| `STALE_PATCH` | 409 | Patch base_version does not match design's current_version | `{"error": {"code": "STALE_PATCH", "message": "..."}}` |
+| `PATCH_BLOCKED` | 409 | Patch fails re-validation upon accept | `{"error": {"code": "PATCH_BLOCKED", "message": "..."}}` |
+| `CONFIRMATION_REQUIRED` | 409 | Patch uncovers brief requirements and confirm_drop is false | `{"error": {"code": "CONFIRMATION_REQUIRED", "message": "..."}}` |
+| `CAP_TURNS` | 409 | User turn count reaches `MAX_REFINEMENT_TURNS` | `{"error": {"code": "CAP_TURNS", "message": "..."}}` |
+| `CAP_VERSIONS` | 409 | Design version count reaches `MAX_VERSIONS` | `{"error": {"code": "CAP_VERSIONS", "message": "..."}}` |
+| `RESTORE_CURRENT_VERSION` | 409 | Attempting to restore the current latest version | `{"error": {"code": "RESTORE_CURRENT_VERSION", "message": "..."}}` |
+
+### Database Tables (Phase 7)
+
+- **`chat_messages`**:
+  - `id`: `String(36)` (UUID, primary key)
+  - `design_id`: `String(36)` (UUID, foreign key to `designs.id`)
+  - `role`: `String(20)` (`"user"` or `"assistant"`)
+  - `text`: `Text` (message text, user up to 1000 chars, assistant up to 500 chars)
+  - `created_at`: `String(30)` (ISO 8601 UTC timestamp)
+- **`patches`**:
+  - `id`: `String(36)` (UUID, primary key)
+  - `design_id`: `String(36)` (UUID, foreign key to `designs.id`)
+  - `kind`: `String(20)` (`"change"` or `"suggestion"`)
+  - `base_version`: `Integer`
+  - `status`: `String(30)` (`"proposed"`, `"blocked"`, `"needs_confirmation"`, `"accepted"`, `"rejected"`, `"superseded"`)
+  - `patch_json`: `Text` (serialized `Patch`)
+  - `diff_json`: `Text` (nullable, serialized `DiffResult`)
+  - `issues_json`: `Text` (serialized list of `ValidationIssue`)
+  - `reason`: `Text` (nullable, suggestion rationale)
+  - `created_at`: `String(30)` (ISO 8601 UTC timestamp)
+  - `decided_at`: `String(30)` (nullable, ISO 8601 UTC timestamp)
+
+
 

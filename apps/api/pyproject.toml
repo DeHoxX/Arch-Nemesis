@@ -111,4 +111,5 @@ modules = [
     "archnemesis.modules.architect",
     "archnemesis.modules.explainer",
     "archnemesis.modules.leads",
+    "archnemesis.modules.refinement",
 ]
