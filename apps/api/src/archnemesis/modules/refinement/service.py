@@ -117,7 +117,7 @@ async def handle_chat(
     recent_messages = await repo.get_recent_messages(db, design_id, limit=6)
 
     # Prepare LLM input
-    system_prompt = load_prompt("refine_v2.md")
+    system_prompt = load_prompt("refine_v3.md")
     brief_data = json.loads(current_ver.brief_json)
     spec_data = json.loads(current_ver.spec_json)
 
@@ -157,6 +157,17 @@ async def handle_chat(
 
     reply_text = output.reply[:500]
     now_iso = datetime.now(UTC).isoformat()
+
+    has_patch_object = output.patch is not None
+    raw_ops_count = len(output.patch.ops) if output.patch and output.patch.ops else 0
+
+    logger.info(
+        "refinement_chat_llm_output_structure",
+        design_id=design_id,
+        has_patch_object=has_patch_object,
+        raw_ops_count=raw_ops_count,
+        reply_char_count=len(reply_text),
+    )
 
     # If a patch was generated, validate it
     patch_summary: PatchSummary | None = None
@@ -269,7 +280,7 @@ async def handle_suggestions(
     if current_ver is None:
         raise NotFoundError(f"Current version for design '{design_id}' not found.")
 
-    system_prompt = load_prompt("suggest_v2.md")
+    system_prompt = load_prompt("suggest_v3.md")
     brief_data = json.loads(current_ver.brief_json)
     spec_data = json.loads(current_ver.spec_json)
 
@@ -492,7 +503,7 @@ async def accept_patch(
         brief_json=brief_obj.model_dump_json(),
         spec_json=res.spec.model_dump_json(by_alias=True),
         explanation_json=None,
-        prompt_version="refine_v2",
+        prompt_version="refine_v3",
         models_json=json.dumps({"architect": settings.llm_model_architect}),
         warnings_json=json.dumps(warnings_payload),
         change_note=change_note,

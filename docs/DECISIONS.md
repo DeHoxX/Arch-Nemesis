@@ -2392,6 +2392,25 @@ Decided by: user approved (Option A + Option B)
 Status: active
 
 
+### D-223 — Phase 7B — Refinement and suggestions prompt v3
+What: Introduce `refine_v3.md` and `suggest_v3.md` system prompts, switching refinement service to use v3 prompts and record `prompt_version="refine_v3"` on accepted versions.
+Why: Live Gemini probes on v2 revealed two issues: (1) `suggest_v2.md`'s few-shot output format example showed `add_node` without edge wiring, causing Gemini to output orphan nodes rejected with `E_ORPHAN`; (2) `refine_v2.md`'s example used `human_approval`, leading the model to treat requests as conversational queries with `patch: null`. The v3 prompts require mandatory incoming/outgoing edge wiring for every added node, explain `set_entry_exit` for dead-end sinks, state that any imperative request must produce a non-empty patch (with assumptions stated in reply if placement is unclear), and provide domain-neutral few-shot examples with full edge wiring using real `Op` field names (`from_id`, `to_id`, `exit_ids`).
+Alternatives considered:
+1. Modifying `refine_v2.md` and `suggest_v2.md` in place: Rejected to adhere to immutability of prompt versions.
+If we removed it: Refinement suggestions would continue to produce orphan nodes and chat would return null patches for valid requests.
+Decided by: user approved
+Status: active
+
+### D-224 — Phase 7B — Refinement chat output structure diagnostic logging
+What: Add structured logging (`logger.info("refinement_chat_llm_output_structure", ...)`) capturing `has_patch_object`, `raw_ops_count`, and `reply_char_count` immediately after LLM output deserialization in `handle_chat`.
+Why: When chat returns `patch: null`, observing whether the model generated `patch: null` versus `patch: {"ops": []}` was previously unobservable from logs. Logging counts and booleans provides instant root-cause clarity in server logs without leaking user text, assistant replies, or raw prompt content.
+Alternatives considered:
+1. Logging the assistant reply or raw patch JSON: Rejected because Rule 6 and project privacy policies forbid logging full prompts or LLM text.
+If we removed it: Chat failures producing empty patches would remain opaque.
+Decided by: user approved
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
