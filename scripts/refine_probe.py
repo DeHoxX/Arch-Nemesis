@@ -15,10 +15,10 @@ from typing import Any
 
 import httpx
 
-FIXED_CHAT_MESSAGE = "Add a human approval step before the final result"
+DEFAULT_CHAT_MESSAGE = "Add a human approval step before the final result"
 
 
-def run_probe(design_id: str, base_url: str) -> int:
+def run_probe(design_id: str, base_url: str, message: str = DEFAULT_CHAT_MESSAGE) -> int:
     """Execute live refinement chat and suggestions probes against running backend."""
     base = base_url.rstrip("/")
     client = httpx.Client(base_url=base, timeout=90.0)
@@ -26,7 +26,7 @@ def run_probe(design_id: str, base_url: str) -> int:
     # 1. Chat probe
     chat_url = f"/api/designs/{design_id}/chat"
     try:
-        chat_resp = client.post(chat_url, json={"message": FIXED_CHAT_MESSAGE})
+        chat_resp = client.post(chat_url, json={"message": message})
         chat_status = chat_resp.status_code
         if chat_status == 200:
             chat_data: dict[str, Any] = chat_resp.json()
@@ -125,9 +125,18 @@ def main() -> int:
         default="http://127.0.0.1:8000",
         help="Backend base URL (default: http://127.0.0.1:8000)",
     )
+    parser.add_argument(
+        "--message",
+        default=DEFAULT_CHAT_MESSAGE,
+        help=f"Chat message to send (default: '{DEFAULT_CHAT_MESSAGE}')",
+    )
     args = parser.parse_args()
 
-    return run_probe(design_id=args.design_id, base_url=args.base_url)
+    return run_probe(
+        design_id=args.design_id,
+        base_url=args.base_url,
+        message=args.message,
+    )
 
 
 if __name__ == "__main__":
