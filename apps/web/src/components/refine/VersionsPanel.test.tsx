@@ -146,11 +146,11 @@ describe("VersionsPanel", () => {
     const cappedRestoreButtons = screen.getAllByRole("button", { name: /Restore version/ });
     expect(cappedRestoreButtons.every((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
 
-    // Exact cap text verification
+    // Cap warning banner is omitted from VersionsPanel (rendered exclusively in RefinePanel)
     expect(
-      screen.getByText(
+      screen.queryByText(
         "This design has reached the limit of 15 versions. Please contact our team to continue.",
       ),
-    ).toBeDefined();
+    ).toBeNull();
   });
 });

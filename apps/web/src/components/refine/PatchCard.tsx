@@ -15,6 +15,7 @@ export interface PatchCardProps {
   onDismiss: () => void;
   isAccepting?: boolean;
   isRejecting?: boolean;
+  note?: string;
 }
 
 /**
@@ -95,6 +96,7 @@ export function PatchCard({
   onDismiss,
   isAccepting = false,
   isRejecting = false,
+  note,
 }: PatchCardProps): React.ReactElement {
   const isBlocked = patch.status === "blocked";
   const isNeedsConfirmation = patch.status === "needs_confirmation";
@@ -134,6 +136,15 @@ export function PatchCard({
       </CardHeader>
 
       <CardContent className="space-y-3 pt-0">
+        {/* Contextual navigation note (e.g. Explanation tab guidance) */}
+        {note && (
+          <div
+            className="rounded-md border border-sky-500/30 bg-sky-950/20 p-2.5 text-xs text-sky-200"
+            role="note"
+          >
+            <p className="font-mono text-[11px] leading-relaxed">{note}</p>
+          </div>
+        )}
         {/* Blocked Errors List */}
         {isBlocked && errors.length > 0 && (
           <div

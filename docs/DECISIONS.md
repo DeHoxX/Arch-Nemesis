@@ -2484,6 +2484,16 @@ If we removed it: Diagram diff views would attempt to apply invalid CSS utility 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-232 — Phase 7C3b — Phase 7C3b: refinement UI wiring and version state management
+What: Wire interactive refinement mutations and version navigation into apps/web/src/app/design/[id]/page.tsx. Manages viewingVersion (historical read-only inspection) and pendingPatch (locks chat, docks PatchCard inside RefinePanel above chat input, feeds buildUnionGraph to diagrams). Uses TanStack Query keys ["design", id], ["design-version", id, n], ["design-versions", id], ["design-messages", id], and ["design-explanation", id, version]. On patch accept: updates cache via setQueryData(["design", id], ...) with RefinedDesignResponse, invalidates versions and messages. Handles 409 codes (STALE_PATCH, PATCH_BLOCKED, CONFIRMATION_REQUIRED, CAP_TURNS, CAP_VERSIONS) with banners exclusively in RefinePanel, removes duplicate banner in VersionsPanel, guards current-version restore, and arranges two-column layout on lg (7-col RefinePanel, 5-col VersionsPanel).
+Why: Fulfills Phase 7 refinement UX requirements (BUILD_PLAN.md:536, 545, 547-549) and Rule 12 (no change applied without explicit user Accept). Provides seamless conversational mutation workflow without tab jumping, enables clear diff inspection on both canvas types, and protects immutable version history.
+Alternatives considered:
+1. Modal-based patch review dialog: Rejected because docking PatchCard inline within RefinePanel keeps conversational context visible alongside proposed changes.
+2. Automatic tab switching to Architecture on patch arrival: Rejected per user plan correction to keep user in their chosen view.
+3. Duplicating cap banners in both RefinePanel and VersionsPanel: Rejected to avoid visual redundancy.
+If we removed it: Users would have no interface on the design page to interactively refine architectures, review candidate patches, acknowledge dropped constraints, inspect historical versions, or restore past designs.
+Decided by: plan
+Status: active
 
 
 ## Phase 3 Summary

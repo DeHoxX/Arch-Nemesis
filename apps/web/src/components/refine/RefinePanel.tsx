@@ -22,6 +22,8 @@ export interface RefinePanelProps {
   maxVersions?: number;
   isSending?: boolean;
   isViewingHistorical?: boolean;
+  hasPendingPatch?: boolean;
+  patchCard?: React.ReactNode;
   onSendMessage: (message: string) => void;
 }
 
@@ -52,6 +54,8 @@ export function RefinePanel({
   maxVersions = MAX_VERSIONS,
   isSending = false,
   isViewingHistorical = false,
+  hasPendingPatch = false,
+  patchCard,
   onSendMessage,
 }: RefinePanelProps): React.ReactElement {
   const [inputText, setInputText] = useState("");
@@ -59,7 +63,8 @@ export function RefinePanel({
 
   const isTurnsCapped = turnsUsed >= maxTurns;
   const isVersionsCapped = versionsCount >= maxVersions;
-  const isInputDisabled = isSending || isViewingHistorical || isTurnsCapped || isVersionsCapped;
+  const isInputDisabled =
+    isSending || isViewingHistorical || isTurnsCapped || isVersionsCapped || Boolean(hasPendingPatch);
 
   const handleSend = () => {
     const trimmed = inputText.trim();
@@ -137,6 +142,9 @@ export function RefinePanel({
       </CardContent>
 
       <CardFooter className="flex flex-col gap-2 p-3 border-t border-border/40 bg-card/40">
+        {/* Docked PatchCard above input */}
+        {patchCard}
+
         {/* Cap & Mode Warning Banners */}
         {isViewingHistorical && (
           <Alert className="py-2 px-3 border-amber-500/30 bg-amber-950/20 text-amber-200">

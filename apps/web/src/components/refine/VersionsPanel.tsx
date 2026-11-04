@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { AlertCircle, Check, Eye, History, RotateCcw } from "lucide-react";
+import { Check, Eye, History, RotateCcw } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,16 +98,6 @@ export function VersionsPanel({
             </span>
           </div>
         </CardHeader>
-
-        {/* Versions Cap Warning Banner (BUILD_PLAN.md:545) */}
-        {isVersionsCapped && (
-          <div className="p-3 border-b border-amber-500/30 bg-amber-950/20 text-amber-200 text-xs flex items-center gap-2">
-            <AlertCircle className="size-3.5 text-amber-400 shrink-0" aria-hidden="true" />
-            <span>
-              {`This design has reached the limit of ${maxVersions} versions. Please contact our team to continue.`}
-            </span>
-          </div>
-        )}
 
         <CardContent className="p-0 overflow-y-auto max-h-[380px]">
           {sortedVersions.length === 0 ? (

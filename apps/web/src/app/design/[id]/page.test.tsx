@@ -545,4 +545,733 @@ describe("DesignPage Component (/design/[id])", () => {
     expect(newDesignLink).toBeDefined();
     expect(newDesignLink.getAttribute("href")).toBe("/?new=1");
   });
+
+  describe("Phase 7C3b Refinement UI Integration", () => {
+    const mockPatchSummary = {
+      id: "patch_001",
+      status: "proposed" as const,
+      ops_count: 2,
+      diff: {
+        added_nodes: ["cache_node"],
+        removed_nodes: [],
+        changed_nodes: [],
+        added_edges: [{ from: "node_a", to: "cache_node", flows: "cached payload" }],
+        removed_edges: [],
+        changed_edges: [],
+        added_constraints: [],
+        removed_constraints: [],
+        changed_constraints: [],
+        entry_changed: false,
+        exit_changed: false,
+      },
+      issues: [],
+      preview_spec: {
+        ...mockValidDesign.spec,
+        nodes: [
+          ...mockValidDesign.spec.nodes,
+          {
+            id: "cache_node",
+            name: "Cache Service",
+            type: "cache",
+            role: "Caches telemetry",
+            inputs: ["metrics_raw"],
+            outputs: ["cached payload"],
+            tech_options: ["Redis"],
+            needs_model: false,
+          },
+        ],
+      },
+    };
+
+    const mockRefinedDesign = {
+      ...mockValidDesign,
+      current_version: 2,
+      explanation: null,
+    };
+
+    const mockHistoricalDesign = {
+      ...mockValidDesign,
+      current_version: 1,
+      explanation: null,
+    };
+
+    it("renders PatchCard and locks input when chat turn returns a patch", async () => {
+      const user = userEvent.setup();
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_turn_1",
+              reply: "I added a cache service between ingest and buffer.",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              versions: [{ version_no: 1, created_at: "2026-11-01T00:00:00Z", change_note: "Initial version" }],
+            }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const input = screen.getByLabelText("Refinement instruction input") as HTMLTextAreaElement;
+      expect(input.disabled).toBe(false);
+
+      await user.type(input, "Add a cache node");
+      const sendButton = screen.getByLabelText("Send refinement request");
+      await user.click(sendButton);
+
+      // PatchCard is rendered
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+        expect(screen.getByText(/Added 1 node: cache_node/)).toBeDefined();
+      });
+
+      // Chat input is locked while patch is pending
+      expect(input.disabled).toBe(true);
+    });
+
+    it("clears PatchCard and re-enables input when Reject is clicked", async () => {
+      const user = userEvent.setup();
+      let hasRejected = false;
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/patches/patch_001/reject") && opts?.method === "POST") {
+          hasRejected = true;
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ id: "patch_001", status: "rejected" }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_turn_1",
+              reply: "Proposed cache addition.",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              versions: [{ version_no: 1, created_at: "2026-11-01T00:00:00Z", change_note: "Initial version" }],
+            }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const input = screen.getByLabelText("Refinement instruction input") as HTMLTextAreaElement;
+      await user.type(input, "Add cache");
+      await user.click(screen.getByLabelText("Send refinement request"));
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: "Reject proposed patch" })).toBeDefined();
+      });
+
+      await user.click(screen.getByRole("button", { name: "Reject proposed patch" }));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Proposed Change")).toBeNull();
+      });
+      expect(hasRejected).toBe(true);
+      expect(input.disabled).toBe(false);
+    });
+
+    it("opens ConfirmDropModal on needs_confirmation patch and sends confirm_drop: true on Accept", async () => {
+      const user = userEvent.setup();
+      let acceptPayload: { confirm_drop?: boolean } | null = null;
+
+      const needsConfirmationPatch = {
+        ...mockPatchSummary,
+        status: "needs_confirmation" as const,
+        issues: [
+          {
+            code: "E_BRIEF_CONSTRAINT_UNCOVERED",
+            message: "Must process within cluster is no longer verified.",
+            severity: "error" as const,
+            ids: ["c1"],
+          },
+        ],
+      };
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/accept") && opts?.method === "POST") {
+          acceptPayload = JSON.parse(opts.body as string);
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => mockRefinedDesign,
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_turn_drop",
+              reply: "This drops an existing requirement check.",
+              patch: needsConfirmationPatch,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              versions: [
+                { version_no: 1, created_at: "2026-11-01T00:00:00Z", change_note: "Initial version" },
+              ],
+            }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const input = screen.getByLabelText("Refinement instruction input");
+      await user.type(input, "Remove cluster constraint");
+      await user.click(screen.getByLabelText("Send refinement request"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Requires Confirmation")).toBeDefined();
+      });
+
+      // Click Accept on patch card -> triggers confirmation modal
+      await user.click(screen.getByRole("button", { name: "Accept proposed patch" }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Requirement Check Removal")).toBeDefined();
+        expect(screen.getByText("Must process within cluster is no longer verified.")).toBeDefined();
+      });
+
+      const confirmButton = screen.getByRole("button", { name: "Confirm & Accept" }) as HTMLButtonElement;
+      expect(confirmButton.disabled).toBe(true);
+
+      // Check acknowledgment checkbox
+      const checkbox = screen.getByLabelText("I understand this requirement will no longer be checked.");
+      await user.click(checkbox);
+      expect(confirmButton.disabled).toBe(false);
+
+      // Confirm drop
+      await user.click(confirmButton);
+
+      await waitFor(() => {
+        expect(screen.queryByText("Requirement Check Removal")).toBeNull();
+      });
+      expect(acceptPayload).toEqual({ confirm_drop: true });
+    });
+
+    it("handles 409 STALE_PATCH by clearing pending patch and refetching design", async () => {
+      const user = userEvent.setup();
+      let designFetchCount = 0;
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/accept") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: async () => ({
+              error: {
+                code: "STALE_PATCH",
+                message: "Patch was computed against an earlier version.",
+              },
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_stale",
+              reply: "Candidate patch.",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: [] }),
+          } as unknown as Response);
+        }
+        designFetchCount++;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const initialFetchCount = designFetchCount;
+
+      const input = screen.getByLabelText("Refinement instruction input");
+      await user.type(input, "Change architecture");
+      await user.click(screen.getByLabelText("Send refinement request"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+      });
+
+      await user.click(screen.getByRole("button", { name: "Accept proposed patch" }));
+
+      // PatchCard is cleared on STALE_PATCH and design is invalidated
+      await waitFor(() => {
+        expect(screen.queryByText("Proposed Change")).toBeNull();
+        expect(designFetchCount).toBeGreaterThan(initialFetchCount);
+      });
+    });
+
+    it("handles 409 PATCH_BLOCKED by transitioning PatchCard to blocked state with issues", async () => {
+      const user = userEvent.setup();
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/accept") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: async () => ({
+              error: {
+                code: "PATCH_BLOCKED",
+                message: "Patch violates validation rules.",
+                issues: ["Cycle detected between node_a and node_b"],
+              },
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_blocked_turn",
+              reply: "Candidate patch.",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: [] }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const input = screen.getByLabelText("Refinement instruction input");
+      await user.type(input, "Add cycle");
+      await user.click(screen.getByLabelText("Send refinement request"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+      });
+
+      await user.click(screen.getByRole("button", { name: "Accept proposed patch" }));
+
+      // Transitions to Blocked by Rules with issues and Dismiss button only
+      await waitFor(() => {
+        expect(screen.getByText("Blocked by Rules")).toBeDefined();
+        expect(screen.getByText("Cycle detected between node_a and node_b")).toBeDefined();
+        expect(screen.getByRole("button", { name: "Dismiss blocked patch" })).toBeDefined();
+      });
+      expect(screen.queryByRole("button", { name: "Accept proposed patch" })).toBeNull();
+    });
+
+    it("handles 409 CONFIRMATION_REQUIRED by reopening ConfirmDropModal", async () => {
+      const user = userEvent.setup();
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.includes("/accept") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: false,
+            status: 409,
+            json: async () => ({
+              error: {
+                code: "CONFIRMATION_REQUIRED",
+                message: "Dropping coverage requires explicit user confirmation.",
+              },
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_conf_req",
+              reply: "Candidate proposal.",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: [] }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const input = screen.getByLabelText("Refinement instruction input");
+      await user.type(input, "Drop constraint");
+      await user.click(screen.getByLabelText("Send refinement request"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+      });
+
+      await user.click(screen.getByRole("button", { name: "Accept proposed patch" }));
+
+      // Modal reopens on 409 CONFIRMATION_REQUIRED
+      await waitFor(() => {
+        expect(screen.getByText("Requirement Check Removal")).toBeDefined();
+      });
+    });
+
+    it("renders CAP_TURNS and CAP_VERSIONS banners exclusively in RefinePanel", async () => {
+      // 20 messages used (cap reached)
+      const mockCappedMessages = Array.from({ length: 20 }, (_, i) => ({
+        id: `m_${i}`,
+        role: "user" as const,
+        text: `Request ${i + 1}`,
+        created_at: "2026-11-01T00:00:00Z",
+      }));
+
+      // 15 versions (cap reached)
+      const mockCappedVersions = Array.from({ length: 15 }, (_, i) => ({
+        version_no: i + 1,
+        created_at: "2026-11-01T00:00:00Z",
+        change_note: `Version ${i + 1}`,
+      }));
+
+      const fetchMock = vi.fn().mockImplementation((url) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: mockCappedMessages }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: mockCappedVersions }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ ...mockValidDesign, current_version: 15 }),
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      // Assert CAP_TURNS banner appears exactly once on page (in RefinePanel)
+      await waitFor(() => {
+        const turnsBanners = screen.getAllByText(
+          "This design has reached the limit of 20 change requests. Please contact our team to continue."
+        );
+        expect(turnsBanners.length).toBe(1);
+      });
+
+      // Restore buttons in VersionsPanel are disabled at cap 15
+      await waitFor(() => {
+        const restoreButtons = screen.queryAllByRole("button", { name: /Restore version/ });
+        expect(restoreButtons.length).toBeGreaterThan(0);
+        expect(restoreButtons.every((btn) => (btn as HTMLButtonElement).disabled)).toBe(true);
+      });
+    });
+
+    it("disables chat in historical version view and restores past version via dialog", async () => {
+      const user = userEvent.setup();
+      let restorePayload: { version_no?: number } | null = null;
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/restore") && opts?.method === "POST") {
+          restorePayload = JSON.parse(opts.body as string);
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ ...mockValidDesign, current_version: 3 }),
+          } as unknown as Response);
+        }
+        if (urlStr.includes("/versions/1")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => mockHistoricalDesign,
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              versions: [
+                { version_no: 2, created_at: "2026-11-02T00:00:00Z", change_note: "v2 update" },
+                { version_no: 1, created_at: "2026-11-01T00:00:00Z", change_note: "v1 baseline" },
+              ],
+            }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => ({ ...mockValidDesign, current_version: 2 }),
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      // Click "View" on historical version 1
+      const viewV1Btn = await screen.findByRole("button", { name: "View version 1" });
+      await user.click(viewV1Btn);
+
+      // Header indicates historical view
+      await waitFor(() => {
+        expect(screen.getByText(/historical view/)).toBeDefined();
+      });
+
+      // RefinePanel alerts historical view and disables chat
+      expect(screen.getByText("Refinement is only available on the latest version.")).toBeDefined();
+      const input = screen.getByLabelText("Refinement instruction input") as HTMLTextAreaElement;
+      expect(input.disabled).toBe(true);
+
+      // Click "Restore" on version 1
+      const restoreV1Btn = await screen.findByRole("button", { name: "Restore version 1" });
+      await user.click(restoreV1Btn);
+
+      // Restore confirmation dialog opens
+      await waitFor(() => {
+        expect(screen.getByText("Restore Design Version")).toBeDefined();
+        expect(
+          screen.getByText(
+            "Are you sure you want to restore v1? This counts as a new version toward the maximum of 15."
+          )
+        ).toBeDefined();
+      });
+
+      // Confirm restore
+      await user.click(screen.getByRole("button", { name: "Confirm Restore v1" }));
+
+      await waitFor(() => {
+        expect(screen.queryByText("Restore Design Version")).toBeNull();
+      });
+      expect(restorePayload).toEqual({ version_no: 1 });
+    });
+
+    it("displays contextual note on PatchCard when Explanation tab is active", async () => {
+      const user = userEvent.setup();
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        const urlStr = String(url);
+        if (urlStr.endsWith("/chat") && opts?.method === "POST") {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "msg_note_test",
+              reply: "Candidate patch.",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (urlStr.endsWith("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: [] }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      const input = screen.getByLabelText("Refinement instruction input");
+      await user.type(input, "Propose change");
+      await user.click(screen.getByLabelText("Send refinement request"));
+
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+      });
+
+      // Switch to Explanation tab
+      const explanationTab = screen.getByRole("tab", { name: /Explanation/i });
+      await user.click(explanationTab);
+
+      // Note appears on PatchCard
+      await waitFor(() => {
+        expect(
+          screen.getByText("Switch to Block diagram or Architecture tab to review the visual diff.")
+        ).toBeDefined();
+      });
+    });
+  });
 });

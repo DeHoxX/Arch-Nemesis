@@ -1,9 +1,9 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
@@ -13,6 +13,10 @@ import { DetailPanel } from "@/components/diagram/DetailPanel";
 import { DiagramView } from "@/components/diagram/DiagramView";
 import { FallbackList } from "@/components/diagram/FallbackList";
 import { NotesPanel } from "@/components/diagram/NotesPanel";
+import { ConfirmDropModal } from "@/components/refine/ConfirmDropModal";
+import { PatchCard } from "@/components/refine/PatchCard";
+import { RefinePanel } from "@/components/refine/RefinePanel";
+import { VersionsPanel } from "@/components/refine/VersionsPanel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -20,7 +24,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContactDialog } from "@/components/contact/ContactDialog";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
 import { ExportButtons } from "@/components/export/ExportButtons";
-import { ApiError, getDesign, postExplanation } from "@/lib/api";
+import {
+  acceptPatch,
+  ApiError,
+  getDesign,
+  getDesignVersion,
+  getMessages,
+  getVersions,
+  postChat,
+  postExplanation,
+  rejectPatch,
+  restoreVersion,
+} from "@/lib/api";
+import { buildUnionGraph } from "@/lib/diff";
+import type { ArchitectureSpec, PatchSummary, UnionArchitectureSpec } from "@/lib/types";
 
 /**
  * SSR-safe and hydration-safe media query hook.
@@ -81,15 +98,25 @@ function DesignContent(): React.ReactElement {
         ? rawId[0]
         : "";
 
+  const queryClient = useQueryClient();
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("block-diagram");
   const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
+  const [viewingVersion, setViewingVersion] = useState<number | null>(null);
+  const [pendingPatch, setPendingPatch] = useState<PatchSummary | null>(null);
+  const [isConfirmDropOpen, setIsConfirmDropOpen] = useState<boolean>(false);
+  const [droppedRequirements, setDroppedRequirements] = useState<string[]>([]);
+  const [isAccepting, setIsAccepting] = useState<boolean>(false);
+  const [isRejecting, setIsRejecting] = useState<boolean>(false);
+  const [isRestoring, setIsRestoring] = useState<boolean>(false);
+  const [isSendingChat, setIsSendingChat] = useState<boolean>(false);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
   const isDesktop = useMediaQuery("(min-width: 768px)", true);
 
-  // Fetch design specification via TanStack Query and Zod-validated api.ts
+  // Fetch current design specification via TanStack Query
   const {
     data: design,
     isLoading,
@@ -102,9 +129,42 @@ function DesignContent(): React.ReactElement {
     enabled: Boolean(id),
   });
 
+  const currentVersion = design?.current_version ?? 1;
+  const isViewingHistorical =
+    viewingVersion !== null &&
+    design !== undefined &&
+    viewingVersion !== currentVersion;
+
+  // Fetch historical version if viewing a past version
+  const { data: historicalDesign } = useQuery({
+    queryKey: ["design-version", id, viewingVersion],
+    queryFn: () => getDesignVersion(id, viewingVersion!),
+    enabled: Boolean(id) && isViewingHistorical,
+    staleTime: Infinity,
+  });
+
+  // Fetch version history list
+  const { data: versionsData } = useQuery({
+    queryKey: ["design-versions", id],
+    queryFn: () => getVersions(id),
+    enabled: Boolean(id) && Boolean(design),
+  });
+  const versionsList = versionsData?.versions ?? [];
+
+  // Fetch refinement conversation message history
+  const { data: messagesData } = useQuery({
+    queryKey: ["design-messages", id],
+    queryFn: () => getMessages(id),
+    enabled: Boolean(id) && Boolean(design),
+  });
+  const messagesList = messagesData?.messages ?? [];
+
+  // Active design resolved between current and historical
+  const activeDesign = isViewingHistorical && historicalDesign ? historicalDesign : design;
+  const activeVersion = activeDesign?.current_version ?? currentVersion;
+
   // Lazy explanation fetch: only if not already present on design and tab is active
-  const version = design?.current_version ?? 1;
-  const hasExistingExplanation = Boolean(design?.explanation);
+  const hasExistingExplanation = Boolean(activeDesign?.explanation);
 
   const {
     data: generatedExplanation,
@@ -113,18 +173,18 @@ function DesignContent(): React.ReactElement {
     error: explanationError,
     refetch: refetchExplanation,
   } = useQuery({
-    queryKey: ["design-explanation", id, version],
-    queryFn: () => postExplanation(id, version),
+    queryKey: ["design-explanation", id, activeVersion],
+    queryFn: () => postExplanation(id, activeVersion),
     enabled:
       Boolean(id) &&
-      Boolean(design) &&
+      Boolean(activeDesign) &&
       activeTab === "explanation" &&
       !hasExistingExplanation,
     staleTime: Infinity,
     retry: false,
   });
 
-  const activeExplanation = design?.explanation ?? generatedExplanation;
+  const activeExplanation = activeDesign?.explanation ?? generatedExplanation;
 
   // Keyboard accessibility: Escape clears selected node
   useEffect(() => {
@@ -139,9 +199,161 @@ function DesignContent(): React.ReactElement {
 
   // Derive selected node from spec
   const selectedNode =
-    selectedNodeId && design?.spec?.nodes
-      ? design.spec.nodes.find((n) => n.id === selectedNodeId) ?? null
+    selectedNodeId && activeDesign?.spec?.nodes
+      ? activeDesign.spec.nodes.find((n) => n.id === selectedNodeId) ?? null
       : null;
+
+  // Union graph feeding diagrams during pending patch review
+  const displaySpec: ArchitectureSpec | UnionArchitectureSpec = useMemo(() => {
+    if (!activeDesign) {
+      return { nodes: [], edges: [], constraints: [], entry_ids: [], exit_ids: [] };
+    }
+    if (
+      pendingPatch &&
+      (pendingPatch.status === "proposed" || pendingPatch.status === "needs_confirmation") &&
+      !isViewingHistorical
+    ) {
+      return buildUnionGraph(activeDesign.spec, pendingPatch);
+    }
+    return activeDesign.spec;
+  }, [activeDesign, pendingPatch, isViewingHistorical]);
+
+  // Refinement Handlers
+  const handleSendMessage = async (text: string) => {
+    if (!id || isSendingChat || isViewingHistorical) return;
+    setIsSendingChat(true);
+
+    try {
+      const res = await postChat(id, text);
+      await queryClient.invalidateQueries({ queryKey: ["design-messages", id] });
+
+      if (res.patch) {
+        setPendingPatch(res.patch);
+        if (res.patch.status === "needs_confirmation") {
+          const dropped = res.patch.issues
+            .filter((i) => i.code === "E_BRIEF_CONSTRAINT_UNCOVERED")
+            .map((i) => i.message);
+          setDroppedRequirements(
+            dropped.length > 0
+              ? dropped
+              : ["One or more stated brief requirements will stop being checked."]
+          );
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.code === "STALE_PATCH") {
+          setPendingPatch(null);
+          await queryClient.invalidateQueries({ queryKey: ["design", id] });
+        }
+      }
+    } finally {
+      setIsSendingChat(false);
+    }
+  };
+
+  const handleAcceptPatch = async (confirmDrop = false) => {
+    if (!id || !pendingPatch || isAccepting) return;
+
+    if (pendingPatch.status === "needs_confirmation" && !confirmDrop) {
+      setIsConfirmDropOpen(true);
+      return;
+    }
+
+    setIsAccepting(true);
+
+    try {
+      const updatedDesign = await acceptPatch(id, pendingPatch.id, confirmDrop);
+      queryClient.setQueryData(["design", id], updatedDesign);
+      setPendingPatch(null);
+      setIsConfirmDropOpen(false);
+      setViewingVersion(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["design-versions", id] }),
+        queryClient.invalidateQueries({ queryKey: ["design-messages", id] }),
+      ]);
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.code === "CONFIRMATION_REQUIRED") {
+          setIsConfirmDropOpen(true);
+        } else if (err.code === "STALE_PATCH") {
+          setPendingPatch(null);
+          setIsConfirmDropOpen(false);
+          await queryClient.invalidateQueries({ queryKey: ["design", id] });
+        } else if (err.code === "PATCH_BLOCKED") {
+          setPendingPatch((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: "blocked",
+                  issues: (err.issues ?? []).map((msg) => ({
+                    code: "E_PATCH_BLOCKED",
+                    message: msg,
+                    severity: "error",
+                    ids: [],
+                  })),
+                }
+              : null
+          );
+          setIsConfirmDropOpen(false);
+        }
+      }
+    } finally {
+      setIsAccepting(false);
+    }
+  };
+
+  const handleRejectPatch = async () => {
+    if (!id || !pendingPatch || isRejecting) return;
+    setIsRejecting(true);
+
+    try {
+      await rejectPatch(id, pendingPatch.id);
+      setPendingPatch(null);
+      setIsConfirmDropOpen(false);
+      await queryClient.invalidateQueries({ queryKey: ["design-messages", id] });
+    } catch {
+      // Graceful reject fallback
+      setPendingPatch(null);
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
+  const handleDismissBlockedPatch = () => {
+    setPendingPatch(null);
+  };
+
+  const handleViewVersion = (versionNo: number) => {
+    if (versionNo === currentVersion) {
+      setViewingVersion(null);
+    } else {
+      setViewingVersion(versionNo);
+    }
+    setSelectedNodeId(null);
+  };
+
+  const handleRestoreVersion = async (versionNo: number) => {
+    if (!id || versionNo === currentVersion || isRestoring) return;
+    setIsRestoring(true);
+
+    try {
+      const restoredDesign = await restoreVersion(id, versionNo);
+      queryClient.setQueryData(["design", id], restoredDesign);
+      setPendingPatch(null);
+      setViewingVersion(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["design-versions", id] }),
+        queryClient.invalidateQueries({ queryKey: ["design-messages", id] }),
+      ]);
+    } catch (err: unknown) {
+      if (err instanceof ApiError && err.code === "STALE_PATCH") {
+        await queryClient.invalidateQueries({ queryKey: ["design", id] });
+      }
+    } finally {
+      setIsRestoring(false);
+    }
+  };
 
   // Loading State
   if (isLoading || !design) {
@@ -236,8 +448,8 @@ function DesignContent(): React.ReactElement {
           <div className="flex flex-wrap items-center gap-3">
             <ExportButtons
               designId={design.id || id}
-              versionNo={design.current_version}
-              explanation={design.explanation || null}
+              versionNo={activeDesign?.current_version ?? currentVersion}
+              explanation={activeDesign?.explanation || null}
               diagramContainerRef={diagramContainerRef}
             />
             <Button asChild variant="outline" size="sm" className="text-xs font-mono">
@@ -254,7 +466,8 @@ function DesignContent(): React.ReactElement {
             </Button>
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
               <span className="size-2 rounded-full bg-[#ccff00]" />
-              v{design.current_version} ({design.prompt_version})
+              v{activeDesign?.current_version ?? currentVersion}
+              {isViewingHistorical ? " (historical view)" : ` (${design.prompt_version})`}
             </div>
           </div>
         </header>
@@ -263,7 +476,15 @@ function DesignContent(): React.ReactElement {
           open={isContactOpen}
           onOpenChange={setIsContactOpen}
           designId={design.id}
-          versionNo={design.current_version}
+          versionNo={activeDesign?.current_version ?? currentVersion}
+        />
+
+        <ConfirmDropModal
+          open={isConfirmDropOpen}
+          onOpenChange={setIsConfirmDropOpen}
+          droppedRequirements={droppedRequirements}
+          onConfirm={() => handleAcceptPatch(true)}
+          isLoading={isAccepting}
         />
 
         {/* Compliance Banner: Always visible above the tabs */}
@@ -294,14 +515,14 @@ function DesignContent(): React.ReactElement {
                   className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative"
                 >
                   <BlockDiagramView
-                    spec={design.spec}
+                    spec={displaySpec}
                     className="h-full w-full"
                   />
                 </div>
               ) : (
                 <FallbackList
-                  spec={design.spec}
-                  flowOrder={design.flow_order}
+                  spec={displaySpec}
+                  flowOrder={activeDesign?.flow_order ?? []}
                 />
               )}
             </div>
@@ -309,10 +530,10 @@ function DesignContent(): React.ReactElement {
             {/* Notes and Constraints below the block diagram */}
             <div className="space-y-6 pt-2">
               <NotesPanel
-                warnings={design.warnings}
-                unverifiableRequirements={design.brief.unverifiable_requirements}
+                warnings={activeDesign?.warnings ?? []}
+                unverifiableRequirements={activeDesign?.brief?.unverifiable_requirements ?? []}
               />
-              <ConstraintsPanel constraints={design.spec.constraints} />
+              <ConstraintsPanel constraints={activeDesign?.spec?.constraints ?? []} />
             </div>
           </TabsContent>
 
@@ -326,7 +547,7 @@ function DesignContent(): React.ReactElement {
                     className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative"
                   >
                     <DiagramView
-                      spec={design.spec}
+                      spec={displaySpec}
                       selectedNodeId={selectedNodeId}
                       onSelectNode={setSelectedNodeId}
                       className="h-full w-full"
@@ -334,8 +555,8 @@ function DesignContent(): React.ReactElement {
                   </div>
                 ) : (
                   <FallbackList
-                    spec={design.spec}
-                    flowOrder={design.flow_order}
+                    spec={displaySpec}
+                    flowOrder={activeDesign?.flow_order ?? []}
                     selectedNodeId={selectedNodeId}
                     onSelectNode={(nodeId) => setSelectedNodeId(nodeId)}
                   />
@@ -346,7 +567,7 @@ function DesignContent(): React.ReactElement {
                 <div className="lg:col-span-4 w-full">
                   <DetailPanel
                     node={selectedNode}
-                    spec={design.spec}
+                    spec={activeDesign?.spec ?? displaySpec}
                     onClose={() => setSelectedNodeId(null)}
                   />
                 </div>
@@ -356,10 +577,10 @@ function DesignContent(): React.ReactElement {
             {/* Notes and Constraints below the architecture diagram */}
             <div className="space-y-6 pt-2">
               <NotesPanel
-                warnings={design.warnings}
-                unverifiableRequirements={design.brief.unverifiable_requirements}
+                warnings={activeDesign?.warnings ?? []}
+                unverifiableRequirements={activeDesign?.brief?.unverifiable_requirements ?? []}
               />
-              <ConstraintsPanel constraints={design.spec.constraints} />
+              <ConstraintsPanel constraints={activeDesign?.spec?.constraints ?? []} />
             </div>
           </TabsContent>
 
@@ -372,6 +593,50 @@ function DesignContent(): React.ReactElement {
             />
           </TabsContent>
         </Tabs>
+
+        {/* Refinement & Version History: 2 columns on lg (7 cols RefinePanel, 5 cols VersionsPanel), 1 column below 1024px */}
+        <section className="pt-6" aria-label="Design Refinement and History">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            <div className="lg:col-span-7 w-full">
+              <RefinePanel
+                messages={messagesList}
+                turnsUsed={messagesList.filter((m) => m.role === "user").length}
+                versionsCount={versionsList.length > 0 ? versionsList.length : currentVersion}
+                isSending={isSendingChat}
+                isViewingHistorical={isViewingHistorical}
+                hasPendingPatch={Boolean(pendingPatch)}
+                patchCard={
+                  pendingPatch ? (
+                    <PatchCard
+                      patch={pendingPatch}
+                      onAccept={() => handleAcceptPatch(false)}
+                      onReject={handleRejectPatch}
+                      onDismiss={handleDismissBlockedPatch}
+                      isAccepting={isAccepting}
+                      isRejecting={isRejecting}
+                      note={
+                        activeTab === "explanation"
+                          ? "Switch to Block diagram or Architecture tab to review the visual diff."
+                          : undefined
+                      }
+                    />
+                  ) : null
+                }
+                onSendMessage={handleSendMessage}
+              />
+            </div>
+            <div className="lg:col-span-5 w-full">
+              <VersionsPanel
+                versions={versionsList}
+                currentVersion={currentVersion}
+                viewingVersion={viewingVersion}
+                onViewVersion={handleViewVersion}
+                onRestoreVersion={handleRestoreVersion}
+                isRestoring={isRestoring}
+              />
+            </div>
+          </div>
+        </section>
       </div>
     </main>
   );

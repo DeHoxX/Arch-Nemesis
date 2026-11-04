@@ -72,6 +72,57 @@ if (typeof window !== "undefined") {
     } as unknown as typeof window.DOMRect;
   }
 
+  if (!window.DOMMatrixReadOnly) {
+    class DOMMatrixReadOnly {
+      m11 = 1;
+      m12 = 0;
+      m13 = 0;
+      m14 = 0;
+      m21 = 0;
+      m22 = 1;
+      m23 = 0;
+      m24 = 0;
+      m31 = 0;
+      m32 = 0;
+      m33 = 1;
+      m34 = 0;
+      m41 = 0;
+      m42 = 0;
+      m43 = 0;
+      m44 = 1;
+      a = 1;
+      b = 0;
+      c = 0;
+      d = 1;
+      e = 0;
+      f = 0;
+      is2D = true;
+      isIdentity = true;
+
+      constructor(init?: string | number[]) {
+        if (typeof init === "string") {
+          const match = init.match(/matrix\(([^)]+)\)/);
+          if (match && match[1]) {
+            const parts = match[1].split(",").map((s) => parseFloat(s.trim()));
+            if (parts.length >= 6) {
+              const [a = 1, b = 0, c = 0, d = 1, e = 0, f = 0] = parts;
+              this.a = this.m11 = a;
+              this.b = this.m12 = b;
+              this.c = this.m21 = c;
+              this.d = this.m22 = d;
+              this.e = this.m41 = e;
+              this.f = this.m42 = f;
+            }
+          }
+        }
+      }
+    }
+    window.DOMMatrixReadOnly = DOMMatrixReadOnly as unknown as typeof window.DOMMatrixReadOnly;
+    if (!window.DOMMatrix) {
+      window.DOMMatrix = DOMMatrixReadOnly as unknown as typeof window.DOMMatrix;
+    }
+  }
+
   // Provide default element layout dimensions in JSDOM so React Flow can compute viewport bounds
   if (!Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "offsetWidth")) {
     Object.defineProperties(window.HTMLElement.prototype, {
