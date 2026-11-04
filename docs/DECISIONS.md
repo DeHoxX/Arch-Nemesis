@@ -2440,8 +2440,29 @@ If we removed it: The refinement UI components could not communicate with backen
 Decided by: user approved
 Status: active
 
+### D-228 — Phase 7C2 — Phase 7C2: refinement UI components
+What: Implement presentation-only refinement UI components in `apps/web/src/components/refine/` (`ConfirmDropModal`, `PatchCard`, `RefinePanel`, `VersionsPanel`) driven strictly by props and callbacks without embedded fetch side-effects.
+Why: Isolating visual presentation and user interactions from network and diagram mutation state ensures modular, testable UI elements adhering strictly to Rule 5 (plain text only, no dangerouslySetInnerHTML) and Rule 12 (no change applied without explicit user confirmation). In accordance with Phase 7 boundaries, the "What can we add or remove?" suggestions trigger is deliberately deferred to Phase 7D (suggestions drawer and shortcuts).
+Alternatives considered:
+1. Embedding TanStack Query hooks directly inside the UI components: Rejected in favor of container/presentational separation so the components remain pure, predictable, and unit-testable.
+2. Implementing the suggestions button now: Rejected to strictly honor Phase 7C scope (Phase 7D handles suggestions drawer).
+If we removed it: The design page could not provide conversational refinement chat, patch diff review, or version history control.
+Decided by: user approved
+Status: active
 
 
+
+
+
+### D-229 — Phase 7C2 — Phase 7C2: refinement cap text alignment
+What: Explicitly align refinement cap alert banners in `RefinePanel` and `VersionsPanel` with BUILD_PLAN.md:545 using mirrored constants (`MAX_REFINEMENT_TURNS` = 20 and `MAX_VERSIONS` = 15).
+Why: Clarifies and supersedes the informal summary phrasing in the previous Phase 7C2 report by guaranteeing the exact required message strings: "This design has reached the limit of {n} change requests. Please contact our team to continue." (with n=20) and "This design has reached the limit of {n} versions. Please contact our team to continue." (with n=15) are rendered in both RefinePanel and VersionsPanel.
+Alternatives considered:
+1. Short informal banner text ("Limit reached"): Rejected because BUILD_PLAN.md:545 requires the exact copy directing the user to contact the team.
+2. Hardcoding limits into string literals: Rejected to ensure limits strictly reference the mirrored constants from `lib/types.ts`.
+If we removed it: Cap text in the UI would diverge from backend 409 CAP_TURNS and CAP_VERSIONS contracts.
+Decided by: plan
+Status: active
 
 ## Phase 3 Summary
 
