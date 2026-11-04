@@ -2362,6 +2362,16 @@ Status: active
 
 
 
+### D-220 — Phase 7B — Expose ops_count in PatchSummary
+What: Add `ops_count: int = 0` to `PatchSummary` in `archnemesis.modules.refinement.schemas`, populated from `len(output.patch.ops)` in `refinement.service.handle_chat`.
+Why: Refinement chat evaluations generate a candidate `Patch` whose mutations are condensed into a structural `DiffResult` and validation issues in `PatchSummary`. To enable automated diagnostic probes and clients to observe how many discrete operations Gemini proposed without inspecting raw patch internals or directly reading database tables, `ops_count` provides a lightweight, non-invasive metric directly on the summary contract.
+Alternatives considered:
+1. Reading `patches.patch_json` from the database directly in external tooling: Rejected because it bypasses the API contract and couples external verification tools to storage implementation details.
+If we removed it: Clients and verification probes would be unable to verify how many operations the LLM generated without deserializing internal database blobs.
+Decided by: user approved (Option B)
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

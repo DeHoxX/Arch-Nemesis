@@ -26,6 +26,7 @@ class PatchSummary(BaseModel):
     status: PatchStatus
     diff: DiffResult | None = None
     issues: list[ValidationIssue] = Field(default_factory=list)
+    ops_count: int = 0
 
 
 class ChatResponse(BaseModel):

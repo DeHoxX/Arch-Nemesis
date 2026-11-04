@@ -206,6 +206,8 @@ async def test_chat_returns_patch_proposed(
         assert data["patch"] is not None
         assert data["patch"]["status"] == "proposed"
         assert data["patch"]["id"] is not None
+        assert data["patch"]["ops_count"] == len(valid_patch.ops)
+        assert data["patch"]["ops_count"] > 0
 
     # Assert DB spec is UNCHANGED after chat
     async with temp_db_session_factory() as session:

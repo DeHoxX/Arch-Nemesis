@@ -196,6 +196,7 @@ async def handle_chat(
             status=patch_res.status,
             diff=patch_res.diff,
             issues=patch_res.issues,
+            ops_count=len(output.patch.ops),
         )
 
         logger.info(

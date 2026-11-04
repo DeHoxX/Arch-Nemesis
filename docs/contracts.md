@@ -146,6 +146,15 @@ A round represents a discrete interaction cycle in the discovery dialogue:
 | `CAP_VERSIONS` | 409 | Design version count reaches `MAX_VERSIONS` | `{"error": {"code": "CAP_VERSIONS", "message": "..."}}` |
 | `RESTORE_CURRENT_VERSION` | 409 | Attempting to restore the current latest version | `{"error": {"code": "RESTORE_CURRENT_VERSION", "message": "..."}}` |
 
+### Refinement Response Schemas (Phase 7)
+
+- **`PatchSummary`**:
+  - `id`: `String(36)` (UUID of the candidate patch)
+  - `status`: `PatchStatus` (`"proposed"`, `"blocked"`, `"needs_confirmation"`)
+  - `diff`: `DiffResult | None` (structural diff against base version)
+  - `issues`: `list[ValidationIssue]` (validation issues discovered)
+  - `ops_count`: `Integer` (number of operations in the proposed patch)
+
 ### Database Tables (Phase 7)
 
 - **`chat_messages`**:
