@@ -201,5 +201,204 @@ export interface HistoryEntry {
   created_at: string;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 7 Refinement & Patch Types
+// ---------------------------------------------------------------------------
+
+// Mirrored from apps/api/src/archnemesis/modules/refinement/schemas.py:17
+export const MAX_REFINEMENT_INPUT_CHARS = 1000;
+
+// Mirrored from apps/api/src/archnemesis/settings.py:38
+export const MAX_PATCH_OPS = 20;
+
+// Mirrored from apps/api/src/archnemesis/settings.py:40
+export const MAX_REFINEMENT_TURNS = 20;
+
+// Mirrored from apps/api/src/archnemesis/settings.py:41
+export const MAX_VERSIONS = 15;
+
+/**
+ * Diagnostic issue discovered during validation.
+ * Backend source: apps/api/src/archnemesis/modules/validation/models.py:88-94
+ */
+export interface ValidationIssue {
+  code: string;
+  severity: "error" | "warning";
+  message: string;
+  ids: string[];
+}
+
+/**
+ * Field-level change descriptor for a modified node.
+ * Backend source: apps/api/src/archnemesis/modules/validation/patch.py:137-144
+ */
+export interface NodeChange {
+  id: string;
+  changed_fields: string[];
+}
+
+/**
+ * Added or removed edge descriptor.
+ * Backend source: apps/api/src/archnemesis/modules/validation/patch.py:146-155
+ */
+export interface EdgeDiff {
+  from_node?: string;
+  from?: string;
+  to: string;
+  flows: string;
+  condition?: string | null;
+}
+
+/**
+ * Field-level change descriptor for a modified edge.
+ * Backend source: apps/api/src/archnemesis/modules/validation/patch.py:157-165
+ */
+export interface EdgeChange {
+  from_node?: string;
+  from?: string;
+  to: string;
+  changed_fields: string[];
+}
+
+/**
+ * Field-level change descriptor for a modified constraint.
+ * Backend source: apps/api/src/archnemesis/modules/validation/patch.py:167-174
+ */
+export interface ConstraintChange {
+  id: string;
+  changed_fields: string[];
+}
+
+/**
+ * Deterministic structural diff between two ArchitectureSpecs.
+ * Backend source: apps/api/src/archnemesis/modules/validation/patch.py:176-192
+ */
+export interface DiffResult {
+  added_nodes: string[];
+  removed_nodes: string[];
+  changed_nodes: NodeChange[];
+  added_edges: EdgeDiff[];
+  removed_edges: EdgeDiff[];
+  changed_edges: EdgeChange[];
+  added_constraints: string[];
+  removed_constraints: string[];
+  changed_constraints: ConstraintChange[];
+  entry_changed: boolean;
+  exit_changed: boolean;
+}
+
+export type PatchStatus =
+  | "proposed"
+  | "blocked"
+  | "needs_confirmation"
+  | "accepted"
+  | "rejected"
+  | "superseded";
+
+/**
+ * Candidate patch evaluation summary.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:20-30
+ */
+export interface PatchSummary {
+  id: string;
+  status: PatchStatus;
+  diff: DiffResult | null;
+  issues: ValidationIssue[];
+  ops_count: number;
+  preview_spec: ArchitectureSpec | null;
+}
+
+/**
+ * Refinement conversational chat response.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:32-40
+ */
+export interface ChatResponse {
+  message_id: string;
+  reply: string;
+  patch: PatchSummary | null;
+}
+
+/**
+ * Refined architecture design returned by refinement mutations and version endpoints.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:136-149
+ */
+export interface RefinedDesignResponse {
+  id: string;
+  intake_session_id: string;
+  current_version: number;
+  brief: RequirementBrief;
+  spec: ArchitectureSpec;
+  warnings: string[];
+  flow_order: string[];
+  prompt_version: string;
+  explanation: Explanation | null;
+}
+
+/**
+ * Reject patch response.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:100-107
+ */
+export interface RejectPatchResponse {
+  id: string;
+  status: string;
+}
+
+/**
+ * Chat conversation message history item.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:118-126
+ */
+export interface ChatMessageItem {
+  id: string;
+  role: string;
+  text: string;
+  created_at: string;
+}
+
+/**
+ * Chat conversation history list response.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:128-134
+ */
+export interface MessagesResponse {
+  messages: ChatMessageItem[];
+}
+
+/**
+ * Version summary item for version history list.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:151-158
+ */
+export interface VersionSummaryItem {
+  version_no: number;
+  created_at: string;
+  change_note: string | null;
+}
+
+/**
+ * Versions list response (newest first).
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:160-167
+ */
+export interface VersionsResponse {
+  versions: VersionSummaryItem[];
+}
+
+// ---------------------------------------------------------------------------
+// Union Graph Types (Pure Client Diff)
+// ---------------------------------------------------------------------------
+
+export type DiffStatus = "unchanged" | "added" | "removed" | "edited";
+
+export interface UnionNodeSpec extends NodeSpec {
+  diffStatus: DiffStatus;
+}
+
+export interface UnionEdgeSpec extends EdgeSpec {
+  diffStatus: DiffStatus;
+}
+
+export interface UnionArchitectureSpec extends ArchitectureSpec {
+  nodes: UnionNodeSpec[];
+  edges: UnionEdgeSpec[];
+}
+
+
 
 

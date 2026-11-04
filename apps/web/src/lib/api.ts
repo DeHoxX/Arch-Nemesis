@@ -2,14 +2,22 @@ import { z } from "zod";
 import type {
   AdminDesignVersionResponse,
   AdminLeadItem,
+  ChatResponse,
   CreateDesignRequest,
   CreateLeadRequest,
   CreateLeadResponse,
   DesignResponse,
+  DiffResult,
   Explanation,
   HealthData,
   IntakeTurnRequest,
   IntakeTurnResponse,
+  MessagesResponse,
+  PatchSummary,
+  RefinedDesignResponse,
+  RejectPatchResponse,
+  ValidationIssue,
+  VersionsResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -190,6 +198,127 @@ export const historyEntrySchema = z.object({
   created_at: z.string(),
 });
 
+// ---------------------------------------------------------------------------
+// Phase 7 Refinement & Patch Schemas
+// ---------------------------------------------------------------------------
+
+/**
+ * Diagnostic issue discovered during validation.
+ * Backend source: apps/api/src/archnemesis/modules/validation/models.py:88-94
+ */
+export const validationIssueSchema: z.ZodType<ValidationIssue> = z.object({
+  code: z.string(),
+  severity: z.enum(["error", "warning"]),
+  message: z.string(),
+  ids: z.array(z.string()).default([]),
+});
+
+export const nodeChangeSchema = z.object({
+  id: z.string(),
+  changed_fields: z.array(z.string()),
+});
+
+/**
+ * Added or removed edge descriptor.
+ * Backend source: apps/api/src/archnemesis/modules/validation/patch.py:146-155
+ * Supports both "from_node" (backend field name) and "from" for flexibility.
+ */
+export const edgeDiffSchema = z.object({
+  from_node: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string(),
+  flows: z.string().default(""),
+  condition: z.string().nullable().default(null).optional(),
+});
+
+export const edgeChangeSchema = z.object({
+  from_node: z.string().optional(),
+  from: z.string().optional(),
+  to: z.string(),
+  changed_fields: z.array(z.string()),
+});
+
+export const constraintChangeSchema = z.object({
+  id: z.string(),
+  changed_fields: z.array(z.string()),
+});
+
+export const diffResultSchema: z.ZodType<DiffResult> = z.object({
+  added_nodes: z.array(z.string()).default([]),
+  removed_nodes: z.array(z.string()).default([]),
+  changed_nodes: z.array(nodeChangeSchema).default([]),
+  added_edges: z.array(edgeDiffSchema).default([]),
+  removed_edges: z.array(edgeDiffSchema).default([]),
+  changed_edges: z.array(edgeChangeSchema).default([]),
+  added_constraints: z.array(z.string()).default([]),
+  removed_constraints: z.array(z.string()).default([]),
+  changed_constraints: z.array(constraintChangeSchema).default([]),
+  entry_changed: z.boolean().default(false),
+  exit_changed: z.boolean().default(false),
+});
+
+export const patchStatusSchema = z.enum([
+  "proposed",
+  "blocked",
+  "needs_confirmation",
+  "accepted",
+  "rejected",
+  "superseded",
+]);
+
+export const patchSummarySchema: z.ZodType<PatchSummary> = z.object({
+  id: z.string(),
+  status: patchStatusSchema,
+  diff: diffResultSchema.nullable().default(null),
+  issues: z.array(validationIssueSchema).default([]),
+  ops_count: z.number().default(0),
+  preview_spec: architectureSpecSchema.nullable().default(null).optional().transform((v) => v ?? null),
+});
+
+export const chatResponseSchema: z.ZodType<ChatResponse> = z.object({
+  message_id: z.string(),
+  reply: z.string(),
+  patch: patchSummarySchema.nullable().default(null),
+});
+
+export const refinedDesignResponseSchema: z.ZodType<RefinedDesignResponse> = z.object({
+  id: z.string(),
+  intake_session_id: z.string(),
+  current_version: z.number(),
+  brief: requirementBriefSchema,
+  spec: architectureSpecSchema,
+  warnings: z.array(z.string()).default([]),
+  flow_order: z.array(z.string()).default([]),
+  prompt_version: z.string(),
+  explanation: explanationSchema.nullable().default(null).optional().transform((v) => v ?? null),
+});
+
+export const rejectPatchResponseSchema: z.ZodType<RejectPatchResponse> = z.object({
+  id: z.string(),
+  status: z.string().default("rejected"),
+});
+
+export const chatMessageItemSchema = z.object({
+  id: z.string(),
+  role: z.string(),
+  text: z.string(),
+  created_at: z.string(),
+});
+
+export const messagesResponseSchema: z.ZodType<MessagesResponse> = z.object({
+  messages: z.array(chatMessageItemSchema).default([]),
+});
+
+export const versionSummaryItemSchema = z.object({
+  version_no: z.number(),
+  created_at: z.string(),
+  change_note: z.string().nullable().default(null),
+});
+
+export const versionsResponseSchema: z.ZodType<VersionsResponse> = z.object({
+  versions: z.array(versionSummaryItemSchema).default([]),
+});
+
 export const historyListSchema = z.array(historyEntrySchema);
 
 async function parseErrorResponse(res: Response): Promise<ApiError> {
@@ -339,5 +468,90 @@ export async function getAdminDesignVersion(
   );
   return handleResponse(res, adminDesignVersionResponseSchema);
 }
+
+// ---------------------------------------------------------------------------
+// Refinement API Client Helpers (Phase 7)
+// ---------------------------------------------------------------------------
+
+export async function postChat(
+  designId: string,
+  message: string,
+): Promise<ChatResponse> {
+  const res = await fetch(`/api/designs/${encodeURIComponent(designId)}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message }),
+  });
+  return handleResponse(res, chatResponseSchema);
+}
+
+export async function getMessages(
+  designId: string,
+): Promise<MessagesResponse> {
+  const res = await fetch(`/api/designs/${encodeURIComponent(designId)}/messages`);
+  return handleResponse(res, messagesResponseSchema);
+}
+
+export async function getVersions(
+  designId: string,
+): Promise<VersionsResponse> {
+  const res = await fetch(`/api/designs/${encodeURIComponent(designId)}/versions`);
+  return handleResponse(res, versionsResponseSchema);
+}
+
+export async function getDesignVersion(
+  designId: string,
+  versionNo: number,
+): Promise<RefinedDesignResponse> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(designId)}/versions/${encodeURIComponent(versionNo)}`,
+  );
+  return handleResponse(res, refinedDesignResponseSchema);
+}
+
+export async function acceptPatch(
+  designId: string,
+  patchId: string,
+  confirmDrop = false,
+): Promise<RefinedDesignResponse> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(designId)}/patches/${encodeURIComponent(patchId)}/accept`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm_drop: confirmDrop }),
+    },
+  );
+  return handleResponse(res, refinedDesignResponseSchema);
+}
+
+export async function rejectPatch(
+  designId: string,
+  patchId: string,
+): Promise<RejectPatchResponse> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(designId)}/patches/${encodeURIComponent(patchId)}/reject`,
+    {
+      method: "POST",
+    },
+  );
+  return handleResponse(res, rejectPatchResponseSchema);
+}
+
+export async function restoreVersion(
+  designId: string,
+  versionNo: number,
+): Promise<RefinedDesignResponse> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(designId)}/restore`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version_no: versionNo }),
+    },
+  );
+  return handleResponse(res, refinedDesignResponseSchema);
+}
+
 
 

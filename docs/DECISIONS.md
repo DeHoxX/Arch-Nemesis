@@ -2430,6 +2430,17 @@ If we removed it: The Versions panel could not render a complete history list wi
 Decided by: user approved
 Status: active
 
+### D-227 — Phase 7C1 — Phase 7C1: refinement types, API client, union-graph builder
+What: Add TypeScript interfaces and Zod schemas in `apps/web/src/lib/types.ts` and `apps/web/src/lib/api.ts` for refinement domain contracts (`DiffResult`, `ValidationIssue`, `PatchSummary` with `preview_spec`, `ChatResponse`, `RefinedDesignResponse`, `RejectPatchResponse`, `MessagesResponse`, `VersionsResponse`), implement API client helper functions (`postChat`, `getMessages`, `getVersions`, `getDesignVersion`, `acceptPatch`, `rejectPatch`, `restoreVersion`), and create pure `buildUnionGraph` helper in `apps/web/src/lib/diff.ts`.
+Why: Stage 7C requires client-side types and API helpers that strictly match the backend schemas and error envelopes without mutating input specs. The pure `buildUnionGraph` function merges current spec with candidate patch `preview_spec` and `diff` results, tagging nodes and edges with `diffStatus` (`unchanged`, `added`, `removed`, `edited`) while ensuring structural compatibility with `@dagrejs/dagre` layout and diagram components.
+Alternatives considered:
+1. Mutating the current spec in-place: Rejected to preserve React state immutability.
+2. Generating diffs on the client: Rejected because the backend already provides deterministic structural diffs and validated preview specs.
+If we removed it: The refinement UI components could not communicate with backend endpoints or render union diff overlays.
+Decided by: user approved
+Status: active
+
+
 
 
 ## Phase 3 Summary
