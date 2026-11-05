@@ -1,6 +1,6 @@
 """FastAPI router for architecture refinement chat, suggestions, and versioning."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from archnemesis.dependencies import LLM, DBSession
 from archnemesis.modules.refinement import service
@@ -15,11 +15,14 @@ from archnemesis.modules.refinement.schemas import (
     SuggestionsResponse,
     VersionsResponse,
 )
+from archnemesis.rate_limit import rate_limit
 
 router = APIRouter(prefix="/api/designs", tags=["refinement"])
 
 
-@router.post("/{id}/chat", response_model=ChatResponse)
+@router.post(
+    "/{id}/chat", response_model=ChatResponse, dependencies=[Depends(rate_limit("refinement"))]
+)
 async def post_chat(
     id: str,
     request: ChatRequest,
@@ -30,7 +33,11 @@ async def post_chat(
     return await service.handle_chat(db=db, design_id=id, request=request, llm=llm)
 
 
-@router.post("/{id}/suggestions", response_model=SuggestionsResponse)
+@router.post(
+    "/{id}/suggestions",
+    response_model=SuggestionsResponse,
+    dependencies=[Depends(rate_limit("refinement"))],
+)
 async def post_suggestions(
     id: str,
     db: DBSession,

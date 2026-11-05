@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.db.engine import create_engine_and_session
 from archnemesis.db.tables import Base
+from archnemesis.rate_limit import clear_rate_limits
 from archnemesis.settings import Settings, get_settings
 
 
@@ -32,8 +33,10 @@ def isolate_settings_from_env_file(
 
     # 4. Clear cached settings before and after each test
     get_settings.cache_clear()
+    clear_rate_limits()
     yield
     get_settings.cache_clear()
+    clear_rate_limits()
 
 
 def error_body(response: httpx.Response) -> dict[str, Any]:

@@ -4,7 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from archnemesis.settings import get_settings
 from archnemesis.shared.brief import BriefNumber, RequirementBrief
+
+MAX_INPUT_CHARS: int = get_settings().max_input_chars
 
 
 class IntakeBriefLLM(BaseModel):
@@ -35,8 +38,8 @@ class IntakeLLMOutput(BaseModel):
 class IntakeTurnRequest(BaseModel):
     """Request payload for an intake dialogue turn."""
 
-    session_id: str | None = None
-    text: str
+    session_id: str | None = Field(default=None, max_length=36)
+    text: str = Field(min_length=1, max_length=MAX_INPUT_CHARS)
 
 
 class IntakeTurnResponse(BaseModel):

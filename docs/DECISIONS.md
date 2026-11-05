@@ -2555,6 +2555,29 @@ If we removed it: Users returning to an in-progress intake session or error stat
 Decided by: user approved
 Status: active
 
+### D-239 — Phase 8A — in-memory sliding window rate limiting and reverse proxy client IP resolution
+What: Implemented an in-memory sliding window rate limiter in archnemesis.rate_limit with limits configured strictly via settings.py: intake/turn (60/hr), POST /api/designs (10/hr), refinement chat and suggestions combined (30/hr), and POST /api/leads (5/hr, honeypot leads count against quota). Applied via FastAPI dependencies returning 429 RATE_LIMITED with Retry-After header and uniform error message "Too many requests. Please try again later." In-memory deque structures prune stale entries older than 3600 seconds, with periodic cleanup of empty IP keys and clear_rate_limits() helper for test isolation. Client IP resolution trusts X-Forwarded-For (left-most IP) only when the direct connection is from trusted local proxies (127.0.0.1, ::1).
+Why: Protects public endpoints and LLM budget without adding third-party dependencies (BUILD_PLAN.md:571).
+Known limitations:
+1. Client-sent X-Forwarded-For is not overwritten by Next.js rewrites because base-server.js:601 uses the nullish coalescing assignment (??=), so client IP spoofing is possible if the Next.js frontend is exposed directly to the public internet without an upstream edge proxy (e.g. Cloudflare) that sanitizes X-Forwarded-For.
+2. In-memory limits reset when the server restarts.
+3. The shared refinement bucket (30 requests/hr across /chat and /suggestions) can be depleted by rapid suggestion clicks, starving user chat messages before reaching the 20-turn session design cap.
+Alternatives considered:
+1. Redis-backed rate limiter: Rejected per BUILD_PLAN.md:571 to avoid external infrastructure and new dependencies.
+2. Separate buckets for chat and suggestions: Rejected to strictly enforce the plan's combined 30/hr refinement ceiling.
+If we removed it: Malicious or automated clients could rapidly exhaust free-tier LLM API quotas and SQLite database storage.
+Decided by: user approved
+Status: active
+
+### D-240 — Phase 8A — comprehensive request body input length constraints
+What: Added strict Pydantic length constraints to all unbounded request body fields: IntakeTurnRequest.session_id (max_length=36), IntakeTurnRequest.text (min_length=1, max_length=MAX_INPUT_CHARS from settings), CreateDesignRequest.session_id (min_length=1, max_length=36), and CreateLeadRequest.website (max_length=200). Oversize or malformed inputs return the standard 422 INPUT_INVALID error envelope without echoing raw user text.
+Why: Satisfies BUILD_PLAN.md:573 ensuring deterministic structural defense against memory exhaustion and payload stuffing attacks.
+Alternatives considered:
+1. Hardcoded character caps in models: Rejected in favor of referencing settings.max_input_chars to maintain single source of truth.
+If we removed it: Unbounded text payloads could cause excessive LLM token usage or memory spikes in backend JSON deserialization.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

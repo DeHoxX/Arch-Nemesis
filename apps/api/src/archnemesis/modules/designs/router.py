@@ -1,15 +1,16 @@
 """FastAPI router for generating and retrieving architecture designs."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from archnemesis.dependencies import LLM, DBSession
 from archnemesis.modules.designs import service
 from archnemesis.modules.designs.schemas import CreateDesignRequest, DesignResponse
+from archnemesis.rate_limit import rate_limit
 
 router = APIRouter(prefix="/api/designs", tags=["designs"])
 
 
-@router.post("", response_model=DesignResponse)
+@router.post("", response_model=DesignResponse, dependencies=[Depends(rate_limit("designs"))])
 async def post_create_design(
     request: CreateDesignRequest,
     db: DBSession,

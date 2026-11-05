@@ -26,13 +26,21 @@ export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
   readonly issues?: string[];
+  readonly retryAfter?: number;
 
-  constructor(message: string, code: string, status: number, issues?: string[]) {
+  constructor(
+    message: string,
+    code: string,
+    status: number,
+    issues?: string[],
+    retryAfter?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
     this.issues = issues;
+    this.retryAfter = retryAfter;
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
@@ -340,6 +348,10 @@ export const suggestionsResponseSchema: z.ZodType<SuggestionsResponse> = z.objec
 export const historyListSchema = z.array(historyEntrySchema);
 
 async function parseErrorResponse(res: Response): Promise<ApiError> {
+  const retryAfterHeader = res.headers?.get?.("Retry-After");
+  const retryAfter = retryAfterHeader ? parseInt(retryAfterHeader, 10) : undefined;
+  const validRetryAfter = typeof retryAfter === "number" && !isNaN(retryAfter) ? retryAfter : undefined;
+
   try {
     const json = await res.json();
     const parsed = apiErrorEnvelopeSchema.safeParse(json);
@@ -349,6 +361,7 @@ async function parseErrorResponse(res: Response): Promise<ApiError> {
         parsed.data.error.code,
         res.status,
         parsed.data.error.issues,
+        validRetryAfter,
       );
     }
     // Fallback if error body didn't match envelope:
@@ -360,13 +373,22 @@ async function parseErrorResponse(res: Response): Promise<ApiError> {
         : undefined;
 
     return new ApiError(
-      json?.message || json?.error?.message || `HTTP ${res.status}`,
-      json?.code || json?.error?.code || "HTTP_ERROR",
+      json?.message ||
+        json?.error?.message ||
+        (res.status === 429 ? "Too many requests. Please try again later." : `HTTP ${res.status}`),
+      json?.code || json?.error?.code || (res.status === 429 ? "RATE_LIMITED" : "HTTP_ERROR"),
       res.status,
       issues,
+      validRetryAfter,
     );
   } catch {
-    return new ApiError(`HTTP error ${res.status}`, "NETWORK_ERROR", res.status);
+    return new ApiError(
+      res.status === 429 ? "Too many requests. Please try again later." : `HTTP error ${res.status}`,
+      res.status === 429 ? "RATE_LIMITED" : "NETWORK_ERROR",
+      res.status,
+      undefined,
+      validRetryAfter,
+    );
   }
 }
 

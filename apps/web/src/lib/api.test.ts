@@ -8,6 +8,7 @@ import {
   diffResultSchema,
   edgeSpecSchema,
   getDesignVersion,
+  getHealth,
   getMessages,
   getVersions,
   messagesResponseSchema,
@@ -584,6 +585,69 @@ describe("api client Zod schema parsing", () => {
       expect(sugg?.preview_spec).not.toBeNull();
       expect(res.discarded_count).toBe(2);
       expect(res.discarded_issue_codes).toEqual([["E_BAD_REF"]]);
+    });
+
+    it("handles 429 RATE_LIMITED with friendly message and Retry-After header", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "RATE_LIMITED",
+              message: "Too many requests. Please try again later.",
+            },
+          }),
+          {
+            status: 429,
+            headers: { "Retry-After": "45" },
+          },
+        ),
+      );
+
+      await expect(getHealth()).rejects.toMatchObject({
+        name: "ApiError",
+        status: 429,
+        code: "RATE_LIMITED",
+        message: "Too many requests. Please try again later.",
+        retryAfter: 45,
+      });
+    });
+
+    it("handles 429 without JSON envelope with fallback message and Retry-After", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response("Too Many Requests", {
+          status: 429,
+          headers: { "Retry-After": "60" },
+        }),
+      );
+
+      await expect(getHealth()).rejects.toMatchObject({
+        name: "ApiError",
+        status: 429,
+        code: "RATE_LIMITED",
+        message: "Too many requests. Please try again later.",
+        retryAfter: 60,
+      });
+    });
+
+    it("handles error response whose mock has NO headers object gracefully", async () => {
+      vi.mocked(fetch).mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: async () => ({
+          error: {
+            code: "NOT_FOUND",
+            message: "We could not find that design.",
+          },
+        }),
+      } as unknown as Response);
+
+      await expect(getHealth()).rejects.toMatchObject({
+        name: "ApiError",
+        status: 404,
+        code: "NOT_FOUND",
+        message: "We could not find that design.",
+        retryAfter: undefined,
+      });
     });
   });
 });

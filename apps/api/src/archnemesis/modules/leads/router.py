@@ -13,6 +13,7 @@ from archnemesis.modules.leads.schemas import (
     CreateLeadRequest,
     CreateLeadResponse,
 )
+from archnemesis.rate_limit import rate_limit
 from archnemesis.settings import get_settings
 
 router = APIRouter(tags=["leads"])
@@ -37,7 +38,12 @@ def verify_admin_token(
         raise UnauthorizedError("Not authorised.")
 
 
-@router.post("/api/leads", status_code=201, response_model=CreateLeadResponse)
+@router.post(
+    "/api/leads",
+    status_code=201,
+    response_model=CreateLeadResponse,
+    dependencies=[Depends(rate_limit("leads"))],
+)
 async def post_create_lead(
     request: CreateLeadRequest,
     db: DBSession,

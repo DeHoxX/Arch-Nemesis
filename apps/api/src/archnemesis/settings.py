@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     max_refinement_turns: int = 20
     max_versions: int = 15
 
+    # Rate limiting (Phase 8A, sliding window per client IP per hour)
+    rate_limit_intake_per_hour: int = 60
+    rate_limit_designs_per_hour: int = 10
+    rate_limit_refinement_per_hour: int = 30
+    rate_limit_leads_per_hour: int = 5
+    rate_limit_trusted_proxies: list[str] = ["127.0.0.1", "::1"]
+
 
 @lru_cache
 def get_settings() -> Settings:

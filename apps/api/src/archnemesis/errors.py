@@ -209,14 +209,27 @@ class RestoreCurrentVersionError(AppError):
         )
 
 
+class RateLimitedError(AppError):
+    def __init__(self, retry_after: int = 60) -> None:
+        super().__init__(
+            code="RATE_LIMITED",
+            message="Too many requests. Please try again later.",
+            status_code=429,
+        )
+        self.retry_after = retry_after
+        self.headers = {"Retry-After": str(retry_after)}
+
+
 async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     """Return uniform error envelope: {"error": {"code": "...", "message": "..."}}."""
     data: dict[str, object] = {"code": exc.code, "message": exc.message}
     if hasattr(exc, "issues") and exc.issues:
         data["issues"] = exc.issues
+    headers = getattr(exc, "headers", None)
     return JSONResponse(
         status_code=exc.status_code,
         content={"error": data},
+        headers=headers,
     )
 
 

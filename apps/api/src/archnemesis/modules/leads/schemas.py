@@ -21,7 +21,7 @@ class CreateLeadRequest(BaseModel):
     name: str
     email: str
     note: str | None = None
-    website: str | None = None
+    website: str | None = Field(default=None, max_length=200)
 
     @field_validator("name")
     @classmethod

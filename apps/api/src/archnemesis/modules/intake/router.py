@@ -1,6 +1,6 @@
 """FastAPI router for intake discovery dialogue."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from archnemesis.dependencies import LLM, DBSession
 from archnemesis.modules.intake import service
@@ -8,11 +8,14 @@ from archnemesis.modules.intake.schemas import (
     IntakeTurnRequest,
     IntakeTurnResponse,
 )
+from archnemesis.rate_limit import rate_limit
 
 router = APIRouter(prefix="/api/intake", tags=["intake"])
 
 
-@router.post("/turn", response_model=IntakeTurnResponse)
+@router.post(
+    "/turn", response_model=IntakeTurnResponse, dependencies=[Depends(rate_limit("intake"))]
+)
 async def post_turn(
     request: IntakeTurnRequest,
     db: DBSession,

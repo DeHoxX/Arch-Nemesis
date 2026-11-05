@@ -12,7 +12,7 @@ class CreateDesignRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    session_id: str
+    session_id: str = Field(min_length=1, max_length=36)
 
 
 class DesignResponse(BaseModel):
