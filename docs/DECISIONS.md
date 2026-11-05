@@ -2545,6 +2545,16 @@ If we removed it: Users exploring components in the detail panel would have to m
 Decided by: user approved
 Status: active
 
+### D-238 — Phase 7D3 — Home page New design button and in-place state reset
+What: Added a conditional "New design" button next to "Past designs" on the home page (apps/web/src/app/page.tsx) that appears whenever active or restored intake state exists (messages.length > 0 or brief !== null or sessionId !== null). On click, it clears sessionStorage via clearIntakeState(), resets local state (sessionId, messages, brief, inputText, validationError), and resets mutation states without a page reload. Updated storage persistence effect to clear storage when all state is empty.
+Why: Satisfies BUILD_PLAN.md:552 (N3) allowing users with an in-progress or restored intake session to reset back to a clean slate directly from the home header without having to navigate to an external URL or reload the page.
+Alternatives considered:
+1. Full page navigation to "/?new=1": Rejected because a full navigation or page reload introduces unnecessary latency and jarring visual flash when in-place React state reset accomplishes the exact same result cleanly.
+2. Unconditional "New design" button: Rejected per specification to keep the header uncluttered when the intake form is already fresh and empty.
+If we removed it: Users returning to an in-progress intake session or error state would have no visible button on the home page to start a new design prompt without manually navigating away or clearing browser storage.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

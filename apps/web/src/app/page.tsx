@@ -156,9 +156,26 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     }
   }, [isNew, router]);
 
+  const handleReset = () => {
+    clearIntakeState();
+    setSessionId(null);
+    setMessages([]);
+    setBrief(null);
+    setInputText("");
+    setValidationError(null);
+    intakeMutation.reset();
+    designMutation.reset();
+  };
+
+  const hasActiveIntake = messages.length > 0 || brief !== null || sessionId !== null;
+
   // Persist updated state to sessionStorage
   useEffect(() => {
     if (isNew) {
+      return;
+    }
+    if (!sessionId && messages.length === 0 && !brief && !inputText) {
+      clearIntakeState();
       return;
     }
     saveIntakeState({
@@ -241,12 +258,23 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
               <span className="size-2 rounded-full bg-[#ccff00]" />
               Arch-Nemesis System Architect
             </div>
-            <Link
-              href="/history"
-              className="text-xs font-mono text-muted-foreground hover:text-[#ccff00] transition-colors underline underline-offset-4"
-            >
-              Past designs
-            </Link>
+            <div className="flex items-center gap-3">
+              {hasActiveIntake && (
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="text-xs font-mono text-muted-foreground hover:text-[#ccff00] transition-colors underline underline-offset-4"
+                >
+                  New design
+                </button>
+              )}
+              <Link
+                href="/history"
+                className="text-xs font-mono text-muted-foreground hover:text-[#ccff00] transition-colors underline underline-offset-4"
+              >
+                Past designs
+              </Link>
+            </div>
           </div>
           <h1 className="font-heading text-3xl md:text-4xl font-bold tracking-tight text-foreground">
             Describe the system you need

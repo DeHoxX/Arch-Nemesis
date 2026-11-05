@@ -753,4 +753,140 @@ describe("HomePage Component", () => {
       }
     }
   });
+
+  describe("Phase 7D3 (N3): New design button on home page", () => {
+    it("omits 'New design' button on a fresh empty page", () => {
+      renderWithClient(<HomePage />);
+
+      expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
+      expect(
+        screen.getByRole("heading", {
+          name: "Describe the system you need",
+          level: 1,
+        }),
+      ).toBeDefined();
+      expect(
+        screen.getByPlaceholderText(
+          "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
+        ),
+      ).toBeDefined();
+    });
+
+    it("displays 'New design' button when restored messages/brief exist, and clicking it clears storage and resets UI", async () => {
+      const user = userEvent.setup();
+
+      window.sessionStorage.setItem(
+        INTAKE_STORAGE_KEY,
+        JSON.stringify({
+          version: "v1",
+          sessionId: "session_existing_brief",
+          inputText: "",
+          messages: [
+            { id: "m1", sender: "user", text: "Original requirement" },
+            { id: "m2", sender: "assistant", questions: ["Question 1?"] },
+          ],
+          brief: {
+            summary: "Telemetry Processing System",
+            users: "Engineers",
+            data_involved: ["metrics"],
+            domain_hint: "infrastructure",
+            stated_constraints: [],
+            unverifiable_requirements: [],
+            numbers_given: [],
+            assumptions: [],
+          },
+        }),
+      );
+
+      renderWithClient(<HomePage />);
+
+      // "New design" button appears because active/restored intake state exists
+      const newDesignBtn = await screen.findByRole("button", { name: "New design" });
+      expect(newDesignBtn).toBeDefined();
+      expect(screen.getByText("Telemetry Processing System")).toBeDefined();
+
+      // Click "New design"
+      await user.click(newDesignBtn);
+
+      // Storage is cleared
+      await waitFor(() => {
+        expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
+      });
+
+      // "New design" button is hidden when empty
+      expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
+
+      // UI returns to empty prompt with exact heading and placeholder
+      expect(
+        screen.getByRole("heading", {
+          name: "Describe the system you need",
+          level: 1,
+        }),
+      ).toBeDefined();
+      const textarea = screen.getByPlaceholderText(
+        "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
+      );
+      expect((textarea as HTMLTextAreaElement).value).toBe("");
+      expect(screen.queryByText("Telemetry Processing System")).toBeNull();
+      expect(screen.queryByText("Original requirement")).toBeNull();
+    });
+
+    it("shows 'New design' after a started chat turn, and clicking it returns to empty prompt", async () => {
+      const user = userEvent.setup();
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "needs_info",
+          session_id: "session_new_chat",
+          round: 1,
+          questions: ["What auth protocols are supported?"],
+          brief: null,
+        }),
+      } as unknown as Response);
+
+      renderWithClient(<HomePage />);
+
+      // Initially no "New design" button
+      expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
+
+      // Start chat turn
+      const textarea = screen.getByPlaceholderText(
+        "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
+      );
+      await user.type(textarea, "Need auth service");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      // Assistant question appears
+      await screen.findByText("What auth protocols are supported?");
+
+      // "New design" button is now visible
+      const newDesignBtn = await screen.findByRole("button", { name: "New design" });
+      expect(newDesignBtn).toBeDefined();
+
+      // Click "New design"
+      await user.click(newDesignBtn);
+
+      // Storage is empty and UI returns to empty prompt
+      await waitFor(() => {
+        expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
+        expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
+      });
+
+      expect(screen.queryByText("What auth protocols are supported?")).toBeNull();
+      expect(screen.queryByText("Need auth service")).toBeNull();
+      expect(
+        screen.getByRole("heading", {
+          name: "Describe the system you need",
+          level: 1,
+        }),
+      ).toBeDefined();
+      expect(
+        screen.getByPlaceholderText(
+          "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
+        ),
+      ).toBeDefined();
+    });
+  });
 });
