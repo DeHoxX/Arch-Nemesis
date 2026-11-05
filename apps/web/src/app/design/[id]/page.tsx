@@ -116,6 +116,7 @@ function DesignContent(): React.ReactElement {
   const [discardedCount, setDiscardedCount] = useState<number>(0);
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
+  const [chatDraft, setChatDraft] = useState<string>("");
   const diagramContainerRef = useRef<HTMLDivElement>(null);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
@@ -232,6 +233,7 @@ function DesignContent(): React.ReactElement {
   const handleSendMessage = async (text: string) => {
     if (!id || isSendingChat || isViewingHistorical) return;
     setIsSendingChat(true);
+    setChatDraft("");
 
     try {
       const res = await postChat(id, text);
@@ -657,6 +659,8 @@ function DesignContent(): React.ReactElement {
                     node={selectedNode}
                     spec={activeDesign?.spec ?? displaySpec}
                     onClose={() => setSelectedNodeId(null)}
+                    onPrefillChat={(text) => setChatDraft(text)}
+                    disabledShortcuts={Boolean(pendingPatch) || isViewingHistorical}
                   />
                 </div>
               )}
@@ -693,6 +697,8 @@ function DesignContent(): React.ReactElement {
                 isSending={isSendingChat}
                 isViewingHistorical={isViewingHistorical}
                 hasPendingPatch={Boolean(pendingPatch)}
+                draft={chatDraft}
+                onDraftChange={setChatDraft}
                 patchCard={
                   pendingPatch ? (
                     <PatchCard

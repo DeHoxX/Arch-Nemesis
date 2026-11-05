@@ -1392,5 +1392,134 @@ describe("DesignPage Component (/design/[id])", () => {
       });
       expect(chatInput.disabled).toBe(false);
     });
+
+    it("fills chat draft on node shortcut click without sending chat request, and disables shortcuts when patch is pending", async () => {
+      const user = userEvent.setup();
+      const chatCalls: string[] = [];
+
+      // Use mobile viewport so node selection uses FallbackList and avoids jsdom d3-zoom mouse event errors
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      const fetchMock = vi.fn().mockImplementation((url, opts) => {
+        if (url.includes("/chat")) {
+          chatCalls.push(opts?.body);
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "m_1",
+              reply: "Chat response",
+              patch: null,
+            }),
+          } as unknown as Response);
+        }
+        if (url.includes("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (url.includes("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: [] }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      // Switch to Architecture tab
+      const archTab = await screen.findByRole("tab", { name: /Architecture/i });
+      await user.click(archTab);
+
+      // Select Ingest Node via FallbackList
+      const fallbackRegion = await screen.findByRole("region", {
+        name: "Component Flow Order",
+      });
+      const ingestButton = within(fallbackRegion).getByRole("button", {
+        name: /^1\.\s+Ingest Node/,
+      });
+      await user.click(ingestButton);
+
+      // DetailPanel opens with shortcut buttons
+      const askBtn = await screen.findByRole("button", { name: "Ask about this node" });
+      const removeBtn = await screen.findByRole("button", { name: "Remove this node" });
+      expect(askBtn).toBeDefined();
+      expect(removeBtn).toBeDefined();
+
+      // Click 'Ask about this node'
+      await user.click(askBtn);
+
+      // Chat input is filled with exact template
+      const chatInput = screen.getByLabelText("Refinement instruction input") as HTMLTextAreaElement;
+      expect(chatInput.value).toBe(
+        "Tell me about the 'Ingest Node' part: why is it needed and what could go wrong?",
+      );
+
+      // Zero chat network calls made (NEVER auto-sends)
+      expect(chatCalls).toHaveLength(0);
+
+      // Click 'Remove this node'
+      await user.click(removeBtn);
+      expect(chatInput.value).toBe(
+        "Remove the 'Ingest Node' part and fix the connections around it",
+      );
+      expect(chatCalls).toHaveLength(0);
+
+      // Propose a change to make a patch pending
+      await user.type(chatInput, "Add cache");
+      const sendBtn = screen.getByLabelText("Send refinement request");
+
+      fetchMock.mockImplementationOnce((url) => {
+        if (url.includes("/chat")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              message_id: "m_2",
+              reply: "Proposed cache node",
+              patch: mockPatchSummary,
+            }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+
+      await user.click(sendBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+      });
+
+      // Shortcut buttons are now disabled because a patch is pending
+      expect((screen.getByRole("button", { name: "Ask about this node" }) as HTMLButtonElement).disabled).toBe(true);
+      expect((screen.getByRole("button", { name: "Remove this node" }) as HTMLButtonElement).disabled).toBe(true);
+    });
   });
 });

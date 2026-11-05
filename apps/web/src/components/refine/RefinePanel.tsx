@@ -27,6 +27,9 @@ export interface RefinePanelProps {
   hasPendingPatch?: boolean;
   patchCard?: React.ReactNode;
   onSendMessage: (message: string) => void;
+  // Lifted Chat Draft Props (Phase 7D2)
+  draft?: string;
+  onDraftChange?: (draft: string) => void;
   // Phase 7D1 Suggestions Props
   suggestions?: SuggestionItemResponse[];
   discardedCount?: number;
@@ -71,6 +74,8 @@ export function RefinePanel({
   hasPendingPatch = false,
   patchCard,
   onSendMessage,
+  draft,
+  onDraftChange,
   suggestions = [],
   discardedCount = 0,
   isLoadingSuggestions = false,
@@ -78,7 +83,19 @@ export function RefinePanel({
   onAskSuggestions,
   onApplySuggestion,
 }: RefinePanelProps): React.ReactElement {
-  const [inputText, setInputText] = useState("");
+  const [internalText, setInternalText] = useState("");
+  const isControlled = draft !== undefined;
+  const inputText = isControlled ? draft : internalText;
+
+  const handleInputChange = (newVal: string) => {
+    const capped = newVal.slice(0, MAX_REFINEMENT_INPUT_CHARS);
+    if (isControlled) {
+      onDraftChange?.(capped);
+    } else {
+      setInternalText(capped);
+    }
+  };
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isTurnsCapped = turnsUsed >= maxTurns;
@@ -92,7 +109,11 @@ export function RefinePanel({
     const trimmed = inputText.trim();
     if (!trimmed || isInputDisabled) return;
     onSendMessage(trimmed);
-    setInputText("");
+    if (isControlled) {
+      onDraftChange?.("");
+    } else {
+      setInternalText("");
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -309,7 +330,7 @@ export function RefinePanel({
         <div className="relative w-full">
           <Textarea
             value={inputText}
-            onChange={(e) => setInputText(e.target.value.slice(0, MAX_REFINEMENT_INPUT_CHARS))}
+            onChange={(e) => handleInputChange(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
               isInputDisabled

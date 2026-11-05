@@ -205,4 +205,96 @@ describe("DetailPanel component", () => {
     expect(screen.getByText("sec_filings_api")).toBeDefined();
     expect(screen.getByText("statute_search")).toBeDefined();
   });
+
+  it("omits shortcut buttons when onPrefillChat is not provided", () => {
+    render(<DetailPanel node={mockSpec.nodes[0] as NodeSpec} spec={mockSpec} />);
+
+    expect(screen.queryByRole("button", { name: "Ask about this node" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove this node" })).toBeNull();
+  });
+
+  it("renders both shortcut buttons when onPrefillChat is provided, and passes exact prefill text", async () => {
+    const user = userEvent.setup();
+    const handlePrefill = vi.fn();
+    const targetNode = mockSpec.nodes[0] as NodeSpec; // Intake Portal
+
+    render(
+      <DetailPanel
+        node={targetNode}
+        spec={mockSpec}
+        onPrefillChat={handlePrefill}
+      />,
+    );
+
+    const askBtn = screen.getByRole("button", { name: "Ask about this node" });
+    const removeBtn = screen.getByRole("button", { name: "Remove this node" });
+    expect(askBtn).toBeDefined();
+    expect(removeBtn).toBeDefined();
+
+    // 1. Click 'Ask about this node'
+    await user.click(askBtn);
+    expect(handlePrefill).toHaveBeenCalledTimes(1);
+    expect(handlePrefill).toHaveBeenLastCalledWith(
+      "Tell me about the 'Intake Portal' part: why is it needed and what could go wrong?",
+    );
+
+    // 2. Click 'Remove this node'
+    await user.click(removeBtn);
+    expect(handlePrefill).toHaveBeenCalledTimes(2);
+    expect(handlePrefill).toHaveBeenLastCalledWith(
+      "Remove the 'Intake Portal' part and fix the connections around it",
+    );
+  });
+
+  it("handles hostile node name literally in shortcut prefill strings", async () => {
+    const user = userEvent.setup();
+    const handlePrefill = vi.fn();
+    const hostileNode: NodeSpec = {
+      id: "hostile_node",
+      name: "<script>alert('xss')</script> and 'quotes'",
+      type: "service",
+      role: "Untrusted evaluation",
+      inputs: [],
+      outputs: [],
+      tech_options: [],
+      needs_model: false,
+    };
+
+    render(
+      <DetailPanel
+        node={hostileNode}
+        spec={mockSpec}
+        onPrefillChat={handlePrefill}
+      />,
+    );
+
+    const askBtn = screen.getByRole("button", { name: "Ask about this node" });
+    await user.click(askBtn);
+    expect(handlePrefill).toHaveBeenCalledWith(
+      "Tell me about the '<script>alert('xss')</script> and 'quotes'' part: why is it needed and what could go wrong?",
+    );
+
+    const removeBtn = screen.getByRole("button", { name: "Remove this node" });
+    await user.click(removeBtn);
+    expect(handlePrefill).toHaveBeenCalledWith(
+      "Remove the '<script>alert('xss')</script> and 'quotes'' part and fix the connections around it",
+    );
+  });
+
+  it("disables shortcut buttons when disabledShortcuts is true", () => {
+    render(
+      <DetailPanel
+        node={mockSpec.nodes[0] as NodeSpec}
+        spec={mockSpec}
+        onPrefillChat={vi.fn()}
+        disabledShortcuts={true}
+      />,
+    );
+
+    const askBtn = screen.getByRole("button", { name: "Ask about this node" }) as HTMLButtonElement;
+    const removeBtn = screen.getByRole("button", { name: "Remove this node" }) as HTMLButtonElement;
+
+    expect(askBtn.disabled).toBe(true);
+    expect(removeBtn.disabled).toBe(true);
+  });
 });

@@ -2535,6 +2535,16 @@ If we removed it: Users could not visually inspect candidate suggestions on the 
 Decided by: user approved
 Status: active
 
+### D-237 — Phase 7D2 — node detail panel refinement chat prefill shortcuts and lifted draft state
+What: Lifted chat draft state from RefinePanel to page.tsx (chatDraft/setChatDraft), adding optional draft and onDraftChange props to RefinePanel while preserving internal state fallback. Added onPrefillChat and disabledShortcuts props to DetailPanel, rendering two shortcut buttons ("Ask about this node" and "Remove this node") when onPrefillChat is provided. Prefills standard plain-text prompt templates capped at 1000 characters without auto-sending, focusing the textarea, and disabling both buttons when a patch is pending or a historical version is viewed.
+Why: Satisfies BUILD_PLAN.md:550 requirement for node-level conversational shortcuts that guide user prompt construction while preventing inadvertent mutations. Omitting buttons when onPrefillChat is absent ensures read-only admin interfaces remain unaffected.
+Alternatives considered:
+1. Auto-submitting prompt on shortcut click: Rejected strictly by BUILD_PLAN.md:550 ("only fill the chat box and never send").
+2. Passing imperative ref: Rejected in favor of declarative lifted draft state.
+If we removed it: Users exploring components in the detail panel would have to manually retype component names and query phrasing into the refinement input.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

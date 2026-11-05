@@ -342,4 +342,40 @@ describe("RefinePanel", () => {
     await user.click(retryBtn);
     expect(handleAsk).toHaveBeenCalledTimes(1);
   });
+
+  it("renders controlled draft prop in textarea and calls onDraftChange when typing", async () => {
+    const user = userEvent.setup();
+    const handleDraftChange = vi.fn();
+
+    const { rerender } = render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        draft="Initial draft from node shortcut"
+        onDraftChange={handleDraftChange}
+      />,
+    );
+
+    const textarea = screen.getByLabelText("Refinement instruction input") as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Initial draft from node shortcut");
+
+    // Typing calls onDraftChange
+    await user.type(textarea, "!");
+    expect(handleDraftChange).toHaveBeenCalledWith("Initial draft from node shortcut!");
+
+    // Rerendering with updated draft reflects in textarea
+    rerender(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        draft="Updated draft"
+        onDraftChange={handleDraftChange}
+      />,
+    );
+    expect(textarea.value).toBe("Updated draft");
+  });
 });

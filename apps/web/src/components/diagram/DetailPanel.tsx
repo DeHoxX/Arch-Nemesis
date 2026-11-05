@@ -1,5 +1,6 @@
 import React from "react";
-import { X } from "lucide-react";
+import { MessageSquare, Trash2, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { ArchitectureSpec, NodeSpec } from "@/lib/types";
 
@@ -7,6 +8,8 @@ export interface DetailPanelProps {
   node: NodeSpec | null;
   spec: ArchitectureSpec;
   onClose?: () => void;
+  onPrefillChat?: (text: string) => void;
+  disabledShortcuts?: boolean;
 }
 
 /**
@@ -32,6 +35,8 @@ export function DetailPanel({
   node,
   spec,
   onClose,
+  onPrefillChat,
+  disabledShortcuts = false,
 }: DetailPanelProps): React.ReactElement | null {
   if (!node) {
     return null;
@@ -229,6 +234,50 @@ export function DetailPanel({
             <Separator />
             <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-400">
               This part uses an AI model.
+            </div>
+          </>
+        )}
+
+        {/* Node shortcuts (Phase 7D2, BUILD_PLAN.md:550) */}
+        {onPrefillChat && (
+          <>
+            <Separator />
+            <div className="space-y-2 pt-1" aria-label="Node chat shortcuts">
+              <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                Actions
+              </h4>
+              <div className="flex flex-col gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const text = `Tell me about the '${node.name}' part: why is it needed and what could go wrong?`.slice(0, 1000);
+                    onPrefillChat(text);
+                    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Refinement instruction input"]')?.focus();
+                  }}
+                  disabled={disabledShortcuts}
+                  className="w-full justify-start text-xs h-8 text-foreground"
+                >
+                  <MessageSquare className="size-3.5 mr-1.5 text-muted-foreground" aria-hidden="true" />
+                  Ask about this node
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const text = `Remove the '${node.name}' part and fix the connections around it`.slice(0, 1000);
+                    onPrefillChat(text);
+                    document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Refinement instruction input"]')?.focus();
+                  }}
+                  disabled={disabledShortcuts}
+                  className="w-full justify-start text-xs h-8 text-foreground"
+                >
+                  <Trash2 className="size-3.5 mr-1.5 text-muted-foreground" aria-hidden="true" />
+                  Remove this node
+                </Button>
+              </div>
             </div>
           </>
         )}
