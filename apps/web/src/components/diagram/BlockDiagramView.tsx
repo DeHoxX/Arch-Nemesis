@@ -15,10 +15,13 @@ import "@xyflow/react/dist/style.css";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
+import { FitViewWatcher } from "./FitViewWatcher";
 import { computeLayout } from "./layout";
 
 export interface BlockDiagramViewProps {
   spec: ArchitectureSpec | UnionArchitectureSpec;
+  fitViewTrigger?: unknown;
+  nodesKey?: string;
   className?: string;
 }
 
@@ -40,10 +43,17 @@ const nodeTypes = {
  */
 export function BlockDiagramView({
   spec,
+  fitViewTrigger,
+  nodesKey,
   className,
 }: BlockDiagramViewProps): React.ReactElement {
   // Pure Dagre top-to-bottom layout calculation
   const layout = useMemo(() => computeLayout(spec), [spec]);
+
+  const computedNodesKey = useMemo(
+    () => nodesKey ?? spec.nodes.map((n) => n.id).sort().join(","),
+    [nodesKey, spec.nodes],
+  );
 
   const entryIds = useMemo(() => new Set(spec.entry_ids || []), [spec.entry_ids]);
   const exitIds = useMemo(() => new Set(spec.exit_ids || []), [spec.exit_ids]);
@@ -145,6 +155,7 @@ export function BlockDiagramView({
         fitView
         fitViewOptions={{ padding: 0.2 }}
       >
+        <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
         <Background gap={16} size={1} />
         <Controls showInteractive={false} />
       </ReactFlow>

@@ -218,6 +218,11 @@ function DesignContent(): React.ReactElement {
     return activeDesign.spec;
   }, [activeDesign, pendingPatch, isViewingHistorical]);
 
+  const nodesKey = useMemo(
+    () => displaySpec.nodes.map((n) => n.id).sort().join(","),
+    [displaySpec.nodes],
+  );
+
   // Refinement Handlers
   const handleSendMessage = async (text: string) => {
     if (!id || isSendingChat || isViewingHistorical) return;
@@ -516,6 +521,8 @@ function DesignContent(): React.ReactElement {
                 >
                   <BlockDiagramView
                     spec={displaySpec}
+                    fitViewTrigger={pendingPatch ? pendingPatch.id : null}
+                    nodesKey={nodesKey}
                     className="h-full w-full"
                   />
                 </div>
@@ -550,6 +557,8 @@ function DesignContent(): React.ReactElement {
                       spec={displaySpec}
                       selectedNodeId={selectedNodeId}
                       onSelectNode={setSelectedNodeId}
+                      fitViewTrigger={pendingPatch ? pendingPatch.id : null}
+                      nodesKey={nodesKey}
                       className="h-full w-full"
                     />
                   </div>

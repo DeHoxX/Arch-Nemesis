@@ -213,4 +213,19 @@ describe("DiagramView component", () => {
     expect(screen.getByText("New")).toBeDefined();
     expect(screen.getByText("Removed")).toBeDefined();
   });
+
+  it("accepts fitViewTrigger prop and re-renders cleanly when trigger updates", () => {
+    const { rerender } = render(
+      <DiagramView spec={mockLegalSpec} fitViewTrigger={null} />,
+    );
+
+    expect(screen.getByText("Client Portal")).toBeDefined();
+
+    // Trigger update (e.g. patch appears)
+    rerender(
+      <DiagramView spec={mockLegalSpec} fitViewTrigger="patch_test_123" />,
+    );
+
+    expect(screen.getByText("Client Portal")).toBeDefined();
+  });
 });

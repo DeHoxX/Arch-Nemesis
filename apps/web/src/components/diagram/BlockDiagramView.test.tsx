@@ -180,5 +180,25 @@ describe("BlockDiagramView component", () => {
     expect(edgePath.style.strokeDasharray).toBe("6 6");
     expect(edgePath.style.opacity).toBe("0.6");
   });
+
+  it("accepts fitViewTrigger and nodesKey props without error", () => {
+    const { rerender } = render(
+      <BlockDiagramView
+        spec={mockSpec}
+        fitViewTrigger="patch_1"
+        nodesKey="client_portal,intake_validator,attorney_review"
+      />,
+    );
+    expect(screen.getByRole("region", { name: "Block Diagram" })).toBeDefined();
+
+    rerender(
+      <BlockDiagramView
+        spec={mockSpec}
+        fitViewTrigger={null}
+        nodesKey="client_portal,intake_validator,attorney_review"
+      />,
+    );
+    expect(screen.getByRole("region", { name: "Block Diagram" })).toBeDefined();
+  });
 });
 

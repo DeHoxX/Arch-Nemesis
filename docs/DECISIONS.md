@@ -2495,6 +2495,36 @@ If we removed it: Users would have no interface on the design page to interactiv
 Decided by: plan
 Status: active
 
+### D-233 — Phase 7C3b — Test setup DOMMatrixReadOnly stub
+What: Added minimal window.DOMMatrixReadOnly and window.DOMMatrix class stubs in apps/web/src/test/setup.ts providing standard 2D transform matrix fields (including m22).
+Why: @xyflow/system's updateNodeInternals extracts { m22: zoom } from new window.DOMMatrixReadOnly(style.transform). Standard JSDOM lacks DOMMatrixReadOnly, which threw an uncaught TypeError in multi-turn page tests causing React to unmount the entire component tree.
+Alternatives considered:
+1. Mocking updateNodeInternals globally: Rejected because mocking deep internal library functions is brittle across xyflow version updates.
+2. Installing external dommatrix polyfill package: Rejected to avoid adding a new dependency for test-environment geometry stubs.
+If we removed it: JSDOM test suites exercising dynamic React Flow node updates in results page flows would crash on updateNodeInternals.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-234 — Phase 7C3c — Phase 7C3c: fitView on patch appear/clear via FitViewWatcher
+What: Created FitViewWatcher child component in apps/web/src/components/diagram/FitViewWatcher.tsx and added optional fitViewTrigger?: unknown prop to DiagramViewProps and BlockDiagramViewProps. page.tsx passes fitViewTrigger = pendingPatch ? pendingPatch.id : null. FitViewWatcher invokes useReactFlow().fitView({ padding: 0.2 }) inside a useEffect when trigger changes, skipping initial mount and omitting animation duration to respect prefers-reduced-motion.
+Why: Candidate refinement patches can add or edit nodes outside the current viewport. Without re-fitting, users would have to manually pan/zoom to find newly added union nodes. Calling fitView imperatively only when a patch appears and clears keeps the diagram framed properly without jarring shifts during other interactions.
+Alternatives considered:
+1. Remounting entire diagram component on key change: Rejected because it resets user interaction state and causes canvas flicker.
+2. Forwarding imperative ref from DiagramView: Rejected because child component inside <ReactFlow> directly consumes useReactFlow() without extra prop drilling or ref plumbing.
+If we removed it: Newly added nodes in union graphs during refinement patch review could appear outside the visible canvas boundary.
+Decided by: user approved (Option 1)
+Status: active
+
+### D-235 — Phase 7C3c fix — fitView deferred re-center on patch clear via requestAnimationFrame and nodesKey
+What: Extended FitViewWatcher to accept optional nodesKey?: string alongside trigger?: unknown, and deferred the useReactFlow().fitView({ padding: 0.2 }) call inside requestAnimationFrame with cancelAnimationFrame cleanup. Updated DiagramView, BlockDiagramView, and page.tsx to compute and forward nodesKey.
+Why: In browser testing, clearing a candidate patch on Reject failed to re-center the canvas. When pendingPatch was set to null, FitViewWatcher's synchronous useEffect ran before React Flow finished updating its internal store and DOM node measurements for the contracted graph, causing fitView to measure stale bounding dimensions. Deferring the fit call via requestAnimationFrame lets xyflow synchronize node additions/removals before measuring.
+Alternatives considered:
+1. setTimeout with arbitrary millisecond delay: Rejected as unreliable across different device refresh rates and prone to visual jank.
+2. useLayoutEffect: Rejected because layout measurements for React Flow internal canvas elements are asynchronously reconciled across subcomponents and ResizeObserver events.
+If we removed it: Rejecting a candidate patch would leave the viewport zoomed out or centered on the bounds of the cleared union graph instead of reframing the original design.
+Decided by: agent proposed, user approved
+Status: active
+
 
 ## Phase 3 Summary
 

@@ -15,12 +15,15 @@ import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { DiagramEdge } from "./DiagramEdge";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
+import { FitViewWatcher } from "./FitViewWatcher";
 import { computeLayout } from "./layout";
 
 export interface DiagramViewProps {
   spec: ArchitectureSpec | UnionArchitectureSpec;
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string | null) => void;
+  fitViewTrigger?: unknown;
+  nodesKey?: string;
   className?: string;
 }
 
@@ -49,10 +52,17 @@ export function DiagramView({
   spec,
   selectedNodeId,
   onSelectNode,
+  fitViewTrigger,
+  nodesKey,
   className,
 }: DiagramViewProps): React.ReactElement {
   // Pure Dagre top-to-bottom layout calculation
   const layout = useMemo(() => computeLayout(spec), [spec]);
+
+  const computedNodesKey = useMemo(
+    () => nodesKey ?? spec.nodes.map((n) => n.id).sort().join(","),
+    [nodesKey, spec.nodes],
+  );
 
   // Transform layout nodes to React Flow Node structure with explicit dimensions & handle positions
   const nodes: Node<DiagramNodeData>[] = useMemo(() => {
@@ -159,6 +169,7 @@ export function DiagramView({
         onNodeClick={(_, node) => onSelectNode?.(node.id)}
         onPaneClick={() => onSelectNode?.(null)}
       >
+        <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
         <Background gap={16} size={1} />
         <Controls showInteractive={false} />
       </ReactFlow>
