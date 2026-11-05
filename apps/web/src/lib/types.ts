@@ -380,6 +380,30 @@ export interface VersionsResponse {
   versions: VersionSummaryItem[];
 }
 
+/**
+ * Single validated suggestion exposed to the client.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:71-82
+ */
+export interface SuggestionItemResponse {
+  patch_id: string;
+  title: string;
+  reason: string;
+  status: PatchStatus;
+  diff: DiffResult | null;
+  preview_spec?: ArchitectureSpec | null;
+  issues?: ValidationIssue[];
+}
+
+/**
+ * Suggestions list response with discarded counter.
+ * Backend source: apps/api/src/archnemesis/modules/refinement/schemas.py:84-91
+ */
+export interface SuggestionsResponse {
+  suggestions: SuggestionItemResponse[];
+  discarded_count: number;
+  discarded_issue_codes?: string[][];
+}
+
 // ---------------------------------------------------------------------------
 // Union Graph Types (Pure Client Diff)
 // ---------------------------------------------------------------------------

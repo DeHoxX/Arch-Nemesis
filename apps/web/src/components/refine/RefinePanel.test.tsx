@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { ChatMessageItem } from "@/lib/types";
+import type { ChatMessageItem, SuggestionItemResponse } from "@/lib/types";
 import { RefinePanel } from "./RefinePanel";
 
 describe("RefinePanel", () => {
@@ -155,5 +155,191 @@ describe("RefinePanel", () => {
         "This design has reached the limit of 15 versions. Please contact our team to continue.",
       ),
     ).toBeDefined();
+  });
+
+  it("renders 'What can we add or remove?' button and handles onAskSuggestions", async () => {
+    const user = userEvent.setup();
+    const handleAsk = vi.fn();
+
+    render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        onAskSuggestions={handleAsk}
+      />,
+    );
+
+    const askBtn = screen.getByRole("button", { name: "Request architectural suggestions" });
+    expect(askBtn).toBeDefined();
+    expect(askBtn.textContent).toContain("What can we add or remove?");
+
+    await user.click(askBtn);
+    expect(handleAsk).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders suggestions with badge, hostile text in plain text, and calls onApplySuggestion with suggestion object", async () => {
+    const user = userEvent.setup();
+    const handleApply = vi.fn();
+    const hostileSuggestion: SuggestionItemResponse = {
+      patch_id: "patch-sugg-1",
+      title: "<img src=x onerror=alert(1)> Add rate limiter",
+      reason: "<script>alert('xss-reason')</script> Protect downstream APIs",
+      status: "proposed",
+      diff: {
+        added_nodes: ["rate_limiter"],
+        removed_nodes: [],
+        changed_nodes: [],
+        added_edges: [],
+        removed_edges: [],
+        changed_edges: [],
+        added_constraints: [],
+        removed_constraints: [],
+        changed_constraints: [],
+        entry_changed: false,
+        exit_changed: false,
+      },
+      preview_spec: null,
+      issues: [],
+    };
+
+    render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        suggestions={[hostileSuggestion]}
+        onApplySuggestion={handleApply}
+      />,
+    );
+
+    // Badge
+    expect(screen.getByText("Suggestion (opinion, not verified)")).toBeDefined();
+
+    // Plain text verification: title and reason are plain text, no malicious elements created
+    expect(screen.getByText("<img src=x onerror=alert(1)> Add rate limiter")).toBeDefined();
+    expect(screen.getByText("<script>alert('xss-reason')</script> Protect downstream APIs")).toBeDefined();
+    expect(document.querySelector("img[src='x']")).toBeNull();
+    expect(document.querySelector("script")).toBeNull();
+
+    // Apply button
+    const applyBtn = screen.getByRole("button", {
+      name: "Apply suggestion: <img src=x onerror=alert(1)> Add rate limiter",
+    });
+    expect(applyBtn).toBeDefined();
+
+    await user.click(applyBtn);
+    expect(handleApply).toHaveBeenCalledTimes(1);
+    expect(handleApply).toHaveBeenCalledWith(hostileSuggestion);
+  });
+
+  it("renders discarded note when discardedCount > 0 even when suggestions list is empty", () => {
+    render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        suggestions={[]}
+        discardedCount={3}
+      />,
+    );
+
+    expect(screen.getByText("3 suggestions were discarded because they broke a rule.")).toBeDefined();
+  });
+
+  it("disables 'What can we add or remove?' button when sending, viewing historical, turns capped, or patch pending", () => {
+    const handleAsk = vi.fn();
+
+    // 1. Normal state -> enabled
+    const { rerender } = render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        onAskSuggestions={handleAsk}
+      />,
+    );
+    const askBtn = screen.getByRole("button", { name: "Request architectural suggestions" }) as HTMLButtonElement;
+    expect(askBtn.disabled).toBe(false);
+
+    // 2. Sending state -> disabled
+    rerender(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        isSending={true}
+        onSendMessage={vi.fn()}
+        onAskSuggestions={handleAsk}
+      />,
+    );
+    expect(askBtn.disabled).toBe(true);
+
+    // 3. Historical version -> disabled
+    rerender(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        isViewingHistorical={true}
+        onSendMessage={vi.fn()}
+        onAskSuggestions={handleAsk}
+      />,
+    );
+    expect(askBtn.disabled).toBe(true);
+
+    // 4. Turns capped -> disabled
+    rerender(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={20}
+        maxTurns={20}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        onAskSuggestions={handleAsk}
+      />,
+    );
+    expect(askBtn.disabled).toBe(true);
+
+    // 5. Patch pending -> disabled
+    rerender(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        hasPendingPatch={true}
+        onSendMessage={vi.fn()}
+        onAskSuggestions={handleAsk}
+      />,
+    );
+    expect(askBtn.disabled).toBe(true);
+  });
+
+  it("renders error message and Retry button when suggestionsError is present", async () => {
+    const user = userEvent.setup();
+    const handleAsk = vi.fn();
+
+    render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={0}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+        suggestionsError="Suggestions are temporarily unavailable. Please try again."
+        onAskSuggestions={handleAsk}
+      />,
+    );
+
+    expect(screen.getByText("Suggestions are temporarily unavailable. Please try again.")).toBeDefined();
+
+    const retryBtn = screen.getByRole("button", { name: "Retry" });
+    expect(retryBtn).toBeDefined();
+
+    await user.click(retryBtn);
+    expect(handleAsk).toHaveBeenCalledTimes(1);
   });
 });

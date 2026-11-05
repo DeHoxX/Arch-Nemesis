@@ -14,6 +14,7 @@ import {
   nodeSpecSchema,
   patchSummarySchema,
   postChat,
+  postSuggestions,
   refinedDesignResponseSchema,
   rejectPatch,
   rejectPatchResponseSchema,
@@ -535,6 +536,54 @@ describe("api client Zod schema parsing", () => {
         body: JSON.stringify({ version_no: 1 }),
       });
       expect(res.current_version).toBe(3);
+    });
+
+    it("postSuggestions issues POST to /api/designs/:id/suggestions and parses response", async () => {
+      const mockSuggestionsRes = {
+        suggestions: [
+          {
+            patch_id: "sugg-1",
+            title: "Add rate limiter",
+            reason: "Protects backend from surges",
+            status: "proposed",
+            diff: {
+              added_nodes: ["rate_limiter"],
+              removed_nodes: [],
+              changed_nodes: [],
+              added_edges: [],
+              removed_edges: [],
+              changed_edges: [],
+              added_constraints: [],
+              removed_constraints: [],
+              changed_constraints: [],
+              entry_changed: false,
+              exit_changed: false,
+            },
+            preview_spec: VALID_DESIGN_FIXTURE.spec,
+            issues: [],
+          },
+        ],
+        discarded_count: 2,
+        discarded_issue_codes: [["E_BAD_REF"]],
+      };
+
+      vi.mocked(fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(mockSuggestionsRes), { status: 200 }),
+      );
+
+      const res = await postSuggestions("des-1");
+      expect(fetch).toHaveBeenCalledWith("/api/designs/des-1/suggestions", {
+        method: "POST",
+      });
+      expect(res.suggestions).toHaveLength(1);
+      const sugg = res.suggestions[0];
+      expect(sugg).toBeDefined();
+      expect(sugg?.patch_id).toBe("sugg-1");
+      expect(sugg?.title).toBe("Add rate limiter");
+      expect(sugg?.status).toBe("proposed");
+      expect(sugg?.preview_spec).not.toBeNull();
+      expect(res.discarded_count).toBe(2);
+      expect(res.discarded_issue_codes).toEqual([["E_BAD_REF"]]);
     });
   });
 });

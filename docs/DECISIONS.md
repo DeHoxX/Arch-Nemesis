@@ -2525,6 +2525,16 @@ If we removed it: Rejecting a candidate patch would leave the viewport zoomed ou
 Decided by: agent proposed, user approved
 Status: active
 
+### D-236 — Phase 7D1 — architectural suggestions UI and candidate patch apply flow
+What: Added optional preview_spec (ArchitectureSpec | None = None) and issues (list[ValidationIssue] = Field(default_factory=list)) to SuggestionItemResponse in schemas.py, passed through from apply_patch in service.py. Added postSuggestions in api.ts, "What can we add or remove?" button in RefinePanel, suggestion cards with "Suggestion (opinion, not verified)" badge, discarded count alert, and Apply action that builds a PatchSummary and sets pendingPatch to open the visual union diff.
+Why: To review suggested architectural changes before committing, the frontend diagram requires preview_spec to build the union graph with visual diff markers (BUILD_PLAN.md:548). Passing preview_spec and issues directly from apply_patch reuses the existing pendingPatch and PatchCard pipeline cleanly without extra API calls or client-side reconstruction.
+Alternatives considered:
+1. Re-validating or reconstructing preview_spec in the browser: Rejected because client code lacks constraint checking and rule coverage validation logic.
+2. Dedicated suggestion accept endpoint: Rejected to maintain a single atomic accept pipeline (POST /patches/{pid}/accept) across all patch kinds.
+If we removed it: Users could not visually inspect candidate suggestions on the architecture diagram before accepting them.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

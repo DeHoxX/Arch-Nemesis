@@ -366,6 +366,8 @@ async def handle_suggestions(
                     reason=reason,
                     status=res.status,
                     diff=res.diff,
+                    preview_spec=res.spec,
+                    issues=res.issues,
                 )
             )
         else:

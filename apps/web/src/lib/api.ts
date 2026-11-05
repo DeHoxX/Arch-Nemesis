@@ -18,6 +18,8 @@ import type {
   RejectPatchResponse,
   ValidationIssue,
   VersionsResponse,
+  SuggestionItemResponse,
+  SuggestionsResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -319,6 +321,22 @@ export const versionsResponseSchema: z.ZodType<VersionsResponse> = z.object({
   versions: z.array(versionSummaryItemSchema).default([]),
 });
 
+export const suggestionItemResponseSchema: z.ZodType<SuggestionItemResponse> = z.object({
+  patch_id: z.string(),
+  title: z.string(),
+  reason: z.string(),
+  status: patchStatusSchema,
+  diff: diffResultSchema.nullable().default(null),
+  preview_spec: architectureSpecSchema.nullable().default(null).optional().transform((v) => v ?? null),
+  issues: z.array(validationIssueSchema).default([]),
+});
+
+export const suggestionsResponseSchema: z.ZodType<SuggestionsResponse> = z.object({
+  suggestions: z.array(suggestionItemResponseSchema).default([]),
+  discarded_count: z.number().default(0),
+  discarded_issue_codes: z.array(z.array(z.string())).default([]),
+});
+
 export const historyListSchema = z.array(historyEntrySchema);
 
 async function parseErrorResponse(res: Response): Promise<ApiError> {
@@ -551,6 +569,18 @@ export async function restoreVersion(
     },
   );
   return handleResponse(res, refinedDesignResponseSchema);
+}
+
+export async function postSuggestions(
+  designId: string,
+): Promise<SuggestionsResponse> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(designId)}/suggestions`,
+    {
+      method: "POST",
+    },
+  );
+  return handleResponse(res, suggestionsResponseSchema);
 }
 
 

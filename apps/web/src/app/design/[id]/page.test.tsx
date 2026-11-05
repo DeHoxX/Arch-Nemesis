@@ -1273,5 +1273,124 @@ describe("DesignPage Component (/design/[id])", () => {
         ).toBeDefined();
       });
     });
+
+    it("fetches suggestions on 'What can we add or remove?', applies suggestion to set pending patch, displays PatchCard with Accept, and locks chat input", async () => {
+      const user = userEvent.setup();
+      const mockSuggestion = {
+        patch_id: "sugg_101",
+        title: "Add telemetry monitor",
+        reason: "Tracks health status",
+        status: "proposed" as const,
+        diff: {
+          added_nodes: ["monitor_node"],
+          removed_nodes: [],
+          changed_nodes: [],
+          added_edges: [],
+          removed_edges: [],
+          changed_edges: [],
+          added_constraints: [],
+          removed_constraints: [],
+          changed_constraints: [],
+          entry_changed: false,
+          exit_changed: false,
+        },
+        preview_spec: {
+          ...mockValidDesign.spec,
+          nodes: [
+            ...mockValidDesign.spec.nodes,
+            {
+              id: "monitor_node",
+              name: "Monitor Node",
+              type: "service",
+              role: "Tracks health",
+              inputs: [],
+              outputs: [],
+              tech_options: [],
+              needs_model: false,
+            },
+          ],
+        },
+        issues: [],
+      };
+
+      const fetchMock = vi.fn().mockImplementation((url) => {
+        if (url.includes("/suggestions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({
+              suggestions: [mockSuggestion],
+              discarded_count: 0,
+              discarded_issue_codes: [],
+            }),
+          } as unknown as Response);
+        }
+        if (url.includes("/messages")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ messages: [] }),
+          } as unknown as Response);
+        }
+        if (url.includes("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => ({ versions: [] }),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+      global.fetch = fetchMock;
+
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText("Ingest Node")).toBeDefined();
+      });
+
+      // 1. Click 'What can we add or remove?'
+      const askSuggestionsBtn = screen.getByRole("button", {
+        name: "Request architectural suggestions",
+      });
+      expect(askSuggestionsBtn).toBeDefined();
+      await user.click(askSuggestionsBtn);
+
+      // 2. Suggestion card rendered with plain text and badge
+      await waitFor(() => {
+        expect(screen.getByText("Add telemetry monitor")).toBeDefined();
+      });
+      expect(screen.getByText("Suggestion (opinion, not verified)")).toBeDefined();
+      expect(screen.getByText("Tracks health status")).toBeDefined();
+
+      // 3. Click 'Apply' on the suggestion
+      const applyBtn = screen.getByRole("button", {
+        name: "Apply suggestion: Add telemetry monitor",
+      });
+      await user.click(applyBtn);
+
+      // 4. pendingPatch is set: PatchCard appears with 'Proposed Change' and 'Accept proposed patch'
+      await waitFor(() => {
+        expect(screen.getByText("Proposed Change")).toBeDefined();
+      });
+      expect(screen.getByRole("button", { name: "Accept proposed patch" })).toBeDefined();
+
+      // 5. Chat input is locked while patch is pending
+      const chatInput = screen.getByLabelText("Refinement instruction input") as HTMLTextAreaElement;
+      expect(chatInput.disabled).toBe(true);
+
+      // 6. Clicking 'Reject proposed patch' clears the pending patch
+      const rejectBtn = screen.getByRole("button", { name: "Reject proposed patch" });
+      await user.click(rejectBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByText("Proposed Change")).toBeNull();
+      });
+      expect(chatInput.disabled).toBe(false);
+    });
   });
 });

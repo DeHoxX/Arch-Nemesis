@@ -33,11 +33,12 @@ import {
   getVersions,
   postChat,
   postExplanation,
+  postSuggestions,
   rejectPatch,
   restoreVersion,
 } from "@/lib/api";
 import { buildUnionGraph } from "@/lib/diff";
-import type { ArchitectureSpec, PatchSummary, UnionArchitectureSpec } from "@/lib/types";
+import type { ArchitectureSpec, PatchSummary, SuggestionItemResponse, UnionArchitectureSpec } from "@/lib/types";
 
 /**
  * SSR-safe and hydration-safe media query hook.
@@ -111,6 +112,10 @@ function DesignContent(): React.ReactElement {
   const [isRejecting, setIsRejecting] = useState<boolean>(false);
   const [isRestoring, setIsRestoring] = useState<boolean>(false);
   const [isSendingChat, setIsSendingChat] = useState<boolean>(false);
+  const [suggestions, setSuggestions] = useState<SuggestionItemResponse[]>([]);
+  const [discardedCount, setDiscardedCount] = useState<number>(0);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
+  const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
@@ -257,6 +262,74 @@ function DesignContent(): React.ReactElement {
     }
   };
 
+  const handleAskSuggestions = async () => {
+    if (!id || isLoadingSuggestions || isSendingChat || isViewingHistorical || Boolean(pendingPatch)) {
+      return;
+    }
+    setIsLoadingSuggestions(true);
+    setSuggestionsError(null);
+
+    try {
+      const res = await postSuggestions(id);
+      setSuggestions(res.suggestions);
+      setDiscardedCount(res.discarded_count);
+      await queryClient.invalidateQueries({ queryKey: ["design-messages", id] });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        if (err.code === "CAP_TURNS") {
+          setSuggestionsError(err.message);
+        } else if (err.status === 503 || err.status === 429) {
+          setSuggestionsError("Suggestions are temporarily unavailable. Please try again.");
+        } else {
+          setSuggestionsError(err.message || "Failed to fetch suggestions.");
+        }
+      } else {
+        setSuggestionsError("Failed to fetch suggestions.");
+      }
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
+  const handleApplySuggestion = (suggestion: SuggestionItemResponse) => {
+    if (!suggestion || Boolean(pendingPatch) || isViewingHistorical) return;
+
+    const diff = suggestion.diff;
+    const opsCount = diff
+      ? diff.added_nodes.length +
+        diff.removed_nodes.length +
+        diff.changed_nodes.length +
+        diff.added_edges.length +
+        diff.removed_edges.length +
+        diff.changed_edges.length +
+        diff.added_constraints.length +
+        diff.removed_constraints.length +
+        diff.changed_constraints.length
+      : 0;
+
+    const patchSummary: PatchSummary = {
+      id: suggestion.patch_id,
+      status: suggestion.status,
+      diff: suggestion.diff,
+      issues: suggestion.issues ?? [],
+      ops_count: opsCount,
+      preview_spec: suggestion.preview_spec ?? null,
+    };
+
+    setPendingPatch(patchSummary);
+
+    if (suggestion.status === "needs_confirmation") {
+      const dropped = (suggestion.issues ?? [])
+        .filter((i) => i.code === "E_BRIEF_CONSTRAINT_UNCOVERED")
+        .map((i) => i.message);
+      setDroppedRequirements(
+        dropped.length > 0
+          ? dropped
+          : ["One or more stated brief requirements will stop being checked."],
+      );
+    }
+  };
+
   const handleAcceptPatch = async (confirmDrop = false) => {
     if (!id || !pendingPatch || isAccepting) return;
 
@@ -271,6 +344,9 @@ function DesignContent(): React.ReactElement {
       const updatedDesign = await acceptPatch(id, pendingPatch.id, confirmDrop);
       queryClient.setQueryData(["design", id], updatedDesign);
       setPendingPatch(null);
+      setSuggestions([]);
+      setDiscardedCount(0);
+      setSuggestionsError(null);
       setIsConfirmDropOpen(false);
       setViewingVersion(null);
       await Promise.all([
@@ -346,6 +422,9 @@ function DesignContent(): React.ReactElement {
       const restoredDesign = await restoreVersion(id, versionNo);
       queryClient.setQueryData(["design", id], restoredDesign);
       setPendingPatch(null);
+      setSuggestions([]);
+      setDiscardedCount(0);
+      setSuggestionsError(null);
       setViewingVersion(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["design-versions", id] }),
@@ -632,6 +711,12 @@ function DesignContent(): React.ReactElement {
                   ) : null
                 }
                 onSendMessage={handleSendMessage}
+                suggestions={suggestions}
+                discardedCount={discardedCount}
+                isLoadingSuggestions={isLoadingSuggestions}
+                suggestionsError={suggestionsError}
+                onAskSuggestions={handleAskSuggestions}
+                onApplySuggestion={handleApplySuggestion}
               />
             </div>
             <div className="lg:col-span-5 w-full">

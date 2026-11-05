@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useRef, useState } from "react";
-import { AlertCircle, History, MessageSquare, Send } from "lucide-react";
+import { AlertCircle, History, Loader2, MessageSquare, Send, Sparkles } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +13,7 @@ import {
   MAX_REFINEMENT_INPUT_CHARS,
   MAX_REFINEMENT_TURNS,
   MAX_VERSIONS,
+  type SuggestionItemResponse,
 } from "@/lib/types";
 
 export interface RefinePanelProps {
@@ -25,25 +27,37 @@ export interface RefinePanelProps {
   hasPendingPatch?: boolean;
   patchCard?: React.ReactNode;
   onSendMessage: (message: string) => void;
+  // Phase 7D1 Suggestions Props
+  suggestions?: SuggestionItemResponse[];
+  discardedCount?: number;
+  isLoadingSuggestions?: boolean;
+  suggestionsError?: string | null;
+  onAskSuggestions?: () => void;
+  onApplySuggestion?: (suggestion: SuggestionItemResponse) => void;
 }
 
 /**
  * RefinePanel: Interactive chat interface to request step-by-step design mutations.
  *
- * Requirements (BUILD_PLAN.md:545, 547):
+ * Requirements (BUILD_PLAN.md:540, 545, 547, 548):
  * - Title "Refine this design".
  * - Message history list (renders user and assistant bubbles).
  * - Textarea with max 1000 characters (mirrored constant), live character counter.
  * - Enter sends message, Shift+Enter creates a new line.
  * - Send button with loading state.
  * - Counters: "Change requests used: {x} of {max}" and "Versions: {y} of {max}".
+ * - "What can we add or remove?" button triggers architectural suggestions (Phase 7D1).
+ * - Suggestions labelled "Suggestion (opinion, not verified)" with plain text titles/reasons (Rule 5).
+ * - Discarded notice "{n} suggestions were discarded because they broke a rule." when discarded_count > 0.
+ * - Apply button triggers onApplySuggestion to open visual diff view.
  * - Disabled states:
  *   - Empty message or whitespace.
  *   - Sending in progress.
- *   - Change requests cap hit (409 CAP_TURNS: "This design has reached the limit of {n} change requests. Please contact our team to continue.").
- *   - Versions cap hit (409 CAP_VERSIONS: "This design has reached the limit of {n} versions. Please contact our team to continue.").
+ *   - Change requests cap hit (409 CAP_TURNS).
+ *   - Versions cap hit (409 CAP_VERSIONS).
  *   - Viewing historical version ("Refinement is only available on the latest version.").
- * - Deliberately defers "What can we add or remove?" button to Phase 7D.
+ *   - Candidate patch pending review.
+ * - 503/429 inline message "Suggestions are temporarily unavailable. Please try again." with Retry button.
  * - Plain text rendering only (no dangerouslySetInnerHTML, Rule 5).
  */
 export function RefinePanel({
@@ -57,6 +71,12 @@ export function RefinePanel({
   hasPendingPatch = false,
   patchCard,
   onSendMessage,
+  suggestions = [],
+  discardedCount = 0,
+  isLoadingSuggestions = false,
+  suggestionsError = null,
+  onAskSuggestions,
+  onApplySuggestion,
 }: RefinePanelProps): React.ReactElement {
   const [inputText, setInputText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -65,6 +85,8 @@ export function RefinePanel({
   const isVersionsCapped = versionsCount >= maxVersions;
   const isInputDisabled =
     isSending || isViewingHistorical || isTurnsCapped || isVersionsCapped || Boolean(hasPendingPatch);
+  const isSuggestionsDisabled =
+    isSending || isViewingHistorical || isTurnsCapped || isVersionsCapped || Boolean(hasPendingPatch) || isLoadingSuggestions;
 
   const handleSend = () => {
     const trimmed = inputText.trim();
@@ -141,9 +163,119 @@ export function RefinePanel({
         <div ref={messagesEndRef} aria-hidden="true" />
       </CardContent>
 
-      <CardFooter className="flex flex-col gap-2 p-3 border-t border-border/40 bg-card/40">
+      <CardFooter className="flex flex-col gap-2.5 p-3 border-t border-border/40 bg-card/40">
         {/* Docked PatchCard above input */}
         {patchCard}
+
+        {/* Suggestions Section (Phase 7D1) */}
+        {discardedCount > 0 && (
+          <div
+            className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300"
+            role="status"
+          >
+            {`${discardedCount} suggestions were discarded because they broke a rule.`}
+          </div>
+        )}
+
+        {suggestions.length > 0 && (
+          <div
+            className="w-full space-y-2 max-h-[260px] overflow-y-auto pr-1"
+            aria-label="Architectural suggestions list"
+          >
+            {suggestions.map((suggestion) => (
+              <div
+                key={suggestion.patch_id}
+                className="rounded-lg border border-border/80 bg-background/60 p-3 space-y-2 text-xs"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] font-mono border-amber-500/40 text-amber-400 bg-amber-500/10 py-0 px-1.5"
+                      >
+                        Suggestion (opinion, not verified)
+                      </Badge>
+                      {suggestion.status === "needs_confirmation" && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-mono border-rose-500/40 text-rose-400 bg-rose-500/10 py-0 px-1.5"
+                        >
+                          Needs confirmation
+                        </Badge>
+                      )}
+                    </div>
+                    <h4 className="font-semibold text-foreground text-xs break-words">
+                      {suggestion.title}
+                    </h4>
+                    <p className="text-muted-foreground text-xs leading-relaxed break-words">
+                      {suggestion.reason}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => onApplySuggestion?.(suggestion)}
+                    disabled={isInputDisabled}
+                    className="text-xs h-7 px-2.5 font-medium shrink-0 bg-secondary hover:bg-secondary/80 text-secondary-foreground"
+                    aria-label={`Apply suggestion: ${suggestion.title}`}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {suggestionsError && (
+          <div
+            className="w-full flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300"
+            role="alert"
+          >
+            <span>Suggestions are temporarily unavailable. Please try again.</span>
+            {onAskSuggestions && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onAskSuggestions}
+                disabled={isSuggestionsDisabled}
+                className="h-6 px-2 text-xs text-rose-200 hover:text-rose-100 hover:bg-rose-500/20"
+              >
+                Retry
+              </Button>
+            )}
+          </div>
+        )}
+
+        {/* Toolbar: What can we add or remove? button */}
+        <div className="w-full flex items-center justify-between gap-2">
+          {onAskSuggestions && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onAskSuggestions}
+              disabled={isSuggestionsDisabled}
+              className="text-xs h-7 gap-1.5 border-border/80 text-foreground hover:bg-accent hover:text-accent-foreground"
+              aria-label="Request architectural suggestions"
+            >
+              {isLoadingSuggestions ? (
+                <>
+                  <Loader2 className="size-3 animate-spin text-muted-foreground" aria-hidden="true" />
+                  <span>Analyzing architecture...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="size-3 text-[#ccff00]" aria-hidden="true" />
+                  <span>What can we add or remove?</span>
+                </>
+              )}
+            </Button>
+          )}
+        </div>
 
         {/* Cap & Mode Warning Banners */}
         {isViewingHistorical && (
@@ -217,4 +349,3 @@ export function RefinePanel({
     </Card>
   );
 }
-

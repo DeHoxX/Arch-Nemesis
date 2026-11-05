@@ -325,6 +325,55 @@ async def test_suggestions_filter_proposed_and_report_discarded(
         assert data["discarded_count"] == 1
         assert data["suggestions"][0]["title"] == "Add fast path bypass"
         assert data["suggestions"][0]["status"] == "proposed"
+        assert data["suggestions"][0]["preview_spec"] is not None
+        assert isinstance(data["suggestions"][0]["issues"], list)
+
+
+@pytest.mark.asyncio
+async def test_suggestions_response_includes_preview_spec_and_issues(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """SuggestionItemResponse contains preview_spec (ArchitectureSpec) and issues list (ValidationIssue)."""
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id="des-sugg-preview-1")
+
+    good_patch = Patch(
+        ops=[
+            Op(
+                op="add_edge",
+                edge=EdgePatchSpec.model_validate(
+                    {"from": "node_auth", "to": "node_out", "flows": "fast_path"}
+                ),
+            )
+        ]
+    )
+    fake_llm = FakeLLMClient(
+        script=[
+            {
+                "suggestions": [
+                    {
+                        "title": "Add fast path bypass",
+                        "reason": "Allows authenticated requests to quickly exit.",
+                        "patch": good_patch.model_dump(),
+                    }
+                ]
+            }
+        ]
+    )
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/api/designs/des-sugg-preview-1/suggestions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["suggestions"]) == 1
+        sugg = data["suggestions"][0]
+        assert sugg["preview_spec"] is not None
+        assert isinstance(sugg["preview_spec"]["nodes"], list)
+        assert isinstance(sugg["preview_spec"]["edges"], list)
+        assert any(e["flows"] == "fast_path" for e in sugg["preview_spec"]["edges"])
+        assert "issues" in sugg
+        assert isinstance(sugg["issues"], list)
 
 
 # =========================================================================

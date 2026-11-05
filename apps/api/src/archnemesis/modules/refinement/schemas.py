@@ -78,6 +78,8 @@ class SuggestionItemResponse(BaseModel):
     reason: str
     status: PatchStatus
     diff: DiffResult | None = None
+    preview_spec: ArchitectureSpec | None = None
+    issues: list[ValidationIssue] = Field(default_factory=list)
 
 
 class SuggestionsResponse(BaseModel):
