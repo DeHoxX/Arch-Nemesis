@@ -108,20 +108,54 @@ def sanitize_validator_message(msg: str) -> str:
     return msg[:300]
 
 
-def load_eval_cases(cases_dir: Path, only_case_id: str | None = None) -> list[dict[str, Any]]:
-    """Load evaluation cases from JSON files."""
-    if not cases_dir.exists():
-        raise FileNotFoundError(f"Cases directory not found: {cases_dir}")
+def load_eval_cases(
+    cases_source: Path | str | None = None,
+    only_case_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Load evaluation cases from JSON files, a directory, or comma-separated file paths."""
+    if cases_source is None:
+        source_path = repo_root / "evals" / "cases"
+    elif isinstance(cases_source, str):
+        # Support comma-separated file paths
+        if "," in cases_source:
+            file_paths = [Path(p.strip()) for p in cases_source.split(",") if p.strip()]
+            cases: list[dict[str, Any]] = []
+            for fp in file_paths:
+                resolved = fp if fp.is_absolute() else (repo_root / fp)
+                if not resolved.exists():
+                    raise FileNotFoundError(f"Case file not found: {resolved}")
+                with open(resolved, "r", encoding="utf-8") as f:
+                    case_data = json.load(f)
+                if only_case_id is None or case_data.get("id") == only_case_id:
+                    cases.append(case_data)
+            if only_case_id and not cases:
+                raise ValueError(f"Case '{only_case_id}' not found in specified files")
+            return cases
 
-    cases: list[dict[str, Any]] = []
-    for file_path in sorted(cases_dir.glob("*.json")):
-        with open(file_path, "r", encoding="utf-8") as f:
+        source_path = Path(cases_source)
+        if not source_path.is_absolute():
+            source_path = repo_root / source_path
+    else:
+        source_path = cases_source
+
+    if not source_path.exists():
+        raise FileNotFoundError(f"Cases path not found: {source_path}")
+
+    cases = []
+    if source_path.is_file():
+        with open(source_path, "r", encoding="utf-8") as f:
             case_data = json.load(f)
         if only_case_id is None or case_data.get("id") == only_case_id:
             cases.append(case_data)
+    else:
+        for file_path in sorted(source_path.glob("*.json")):
+            with open(file_path, "r", encoding="utf-8") as f:
+                case_data = json.load(f)
+            if only_case_id is None or case_data.get("id") == only_case_id:
+                cases.append(case_data)
 
     if only_case_id and not cases:
-        raise ValueError(f"Case '{only_case_id}' not found in {cases_dir}")
+        raise ValueError(f"Case '{only_case_id}' not found in {source_path}")
 
     return cases
 
@@ -683,6 +717,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--runs", type=int, default=5, help="Number of runs per case (default: 5)")
     parser.add_argument("--only", type=str, default=None, help="Run only a specific case ID")
     parser.add_argument(
+        "--cases",
+        type=str,
+        default=None,
+        help="Path to a cases directory or comma-separated JSON file paths (default: evals/cases)",
+    )
+    parser.add_argument(
         "--dry", action="store_true", help="Run with FakeLLMClient without spending quota"
     )
     parser.add_argument(
@@ -697,8 +737,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-    cases_dir = repo_root / "evals" / "cases"
-    cases = load_eval_cases(cases_dir, only_case_id=args.only)
+    cases_source = args.cases if args.cases else (repo_root / "evals" / "cases")
+    cases = load_eval_cases(cases_source, only_case_id=args.only)
 
     if args.out:
         out_path = Path(args.out)

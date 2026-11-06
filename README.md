@@ -1,21 +1,71 @@
 # Arch-Nemesis
 
-Arch-Nemesis is a web application where users describe a business need in plain words and receive an interactive architecture diagram and plain-language explanation.
+Arch-Nemesis is a web application where users describe a business need in plain words (any domain) and receive an interactive architecture diagram and a plain-language explanation.
 It serves as a pre-sales engineering tool that saves qualified client leads for manual proof-of-concept preparation without inventing timeline or cost figures.
 Deterministic code validates the architecture design against strict graph constraints, while large language models propose the structure and draft the explanation.
 
+---
+
 ## Prerequisites
 
-- **Python**: 3.12 or newer (source: `docs/BUILD_PLAN.md` Section 4; installed on machine: Python 3.12.1)
-- **uv**: Python package manager (version requirements: check the official docs at https://docs.astral.sh/uv/; installed on machine: uv 0.7.8)
-- **Node.js**: Node.js LTS (check the Next.js installation page for the current minimum; installed on machine: Node.js v22.23.2)
-- **npm**: Node package manager bundled with Node.js (check the official docs at https://docs.npmjs.com/)
+- **Python**: 3.12 or newer
+- **uv**: Fast Python package manager ([installation instructions](https://docs.astral.sh/uv/))
+- **Node.js**: Node.js LTS (v20+ or v22+)
+- **npm**: Node package manager bundled with Node.js
+- **PowerShell**: For running developer automation scripts (`scripts/dev.ps1`, `scripts/check.ps1`)
 
-## Running the Application (Target from Phase 1)
+---
 
-*Note: Application servers and dependencies will be configured in Phase 1. The commands below represent the target development workflow.*
+## Clean-Clone Setup Guide
 
-Open two terminal windows:
+Follow these steps in exact order when setting up a fresh clone of the repository:
+
+### 1. Install Backend Dependencies
+```powershell
+cd apps\api
+uv sync
+```
+
+### 2. Install Frontend Dependencies
+```powershell
+cd ..\web
+npm install
+```
+
+### 3. Configure Backend Environment
+Copy the example environment template to create your local `.env`:
+```powershell
+cd ..\api
+copy .env.example .env
+```
+Open `apps/api/.env` and configure the following variables:
+- `GEMINI_API_KEY`: Your Google Gemini API key.
+- `LLM_MODEL_INTAKE`: Gemini model ID for intake discovery (e.g. `gemini-2.5-flash`).
+- `LLM_MODEL_ARCHITECT`: Gemini model ID for architecture generation (e.g. `gemini-2.5-pro`).
+- `LLM_MODEL_WRITER`: Gemini model ID for explanation and refinement tasks (e.g. `gemini-2.5-flash`).
+- `ADMIN_TOKEN` *(optional)*: Bearer token for accessing protected `/api/leads` admin endpoints.
+
+### 4. Run Database Migrations
+Apply the database schema up to the latest migration head:
+```powershell
+cd apps\api
+uv run alembic upgrade head
+```
+> **Note:** Run `uv run alembic upgrade head` whenever pulling changes that introduce new database migrations.
+
+---
+
+## Running the Application
+
+### Option A: Automated Dual-Process Launch (Recommended)
+From the repository root, execute the launch script in PowerShell:
+```powershell
+powershell scripts\dev.ps1
+```
+This launches the FastAPI backend and Next.js frontend in separate terminal windows.
+
+### Option B: Manual Process Launch
+Open two separate terminal windows:
 
 **Terminal 1 (Backend API):**
 ```powershell
@@ -29,4 +79,49 @@ cd apps\web
 npm run dev
 ```
 
-Next.js automatically rewrites `/api/*` requests to the FastAPI backend on port 8000.
+Next.js automatically proxies `/api/*` requests to the FastAPI backend on port 8000. Access the web interface at `http://localhost:3000`.
+
+---
+
+## Verification & Tooling
+
+### Run Full Test Suite & Linters
+From the repository root, run the comprehensive verification script:
+```powershell
+powershell scripts\check.ps1
+```
+This executes:
+- **Backend:** `ruff check`, `ruff format --check`, `mypy src tests`, `lint-imports` architectural contracts, and `pytest`.
+- **Frontend:** ESLint, TypeScript typecheck (`tsc --noEmit`), and Vitest test suite.
+
+---
+
+## Evaluation Benchmark Suite
+
+Arch-Nemesis includes an evaluation harness in `evals/` to benchmark LLM architecture generation quality, constraint satisfaction, code repair rates, and graph complexity across prompt and model revisions without spending production quota.
+
+### Run Evaluations
+```powershell
+# Dry run with FakeLLMClient (zero API quota spent):
+python evals/run.py --dry --runs 5
+
+# Custom cases directory or specific files:
+python evals/run.py --dry --cases evals/cases/finance.json,evals/cases/legal.json
+
+# Live evaluation against configured Gemini models:
+python evals/run.py --runs 5 --pause-seconds 8.0
+```
+
+### Compare Evaluation Runs
+Compare two evaluation runs side by side to detect regressions or improvements:
+```powershell
+python evals/compare.py evals/results/baseline.json evals/results/candidate.json
+```
+
+---
+
+## Known Limitations
+
+1. **In-Memory Rate Limiting**: The sliding-window rate limiters for intake, design generation, refinement, and leads reside in application process memory. In-memory counters reset upon backend restart or across multiple horizontal workers.
+2. **Reverse Proxy Client IP (`X-Forwarded-For`)**: Under Next.js rewrites, client-sent `X-Forwarded-For` headers are preserved if present (`base-server.js` uses nullish coalescing `??=`). When deployed behind an untrusted edge network without a dedicated reverse-proxy edge stripping client headers, spoofing is possible (see `docs/DECISIONS.md:D-239`).
+3. **Spec Cache Organic Hit Rate**: The architecture specification cache (`spec_cache`) keys entries on canonical JSON of the `RequirementBrief`. Because requirement briefs are written in LLM-generated natural language, organic user hit rates are near 0%. The cache primarily optimizes evaluation benchmarks, repeated identical retries, and test runs (see `docs/DECISIONS.md:D-241`).

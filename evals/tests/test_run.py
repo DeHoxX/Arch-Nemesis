@@ -1435,3 +1435,32 @@ def test_recompute_metrics_gives_expected_numbers_on_synthetic_data(tmp_path: Pa
     assert f_stats["applicable_runs"] == 2
     assert f_stats["satisfied_runs"] == 1
     assert f_stats["new_rate"] == 0.5
+
+
+def test_dry_run_with_custom_cases_flag(tmp_path: Path, repo_root_path: Path) -> None:
+    """Verify evals/run.py --dry executes cleanly when pointing --cases to a file or custom directory."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    vague_case = cases_dir / "vague.json"
+    out_file = tmp_path / "dry_cases_results.json"
+
+    exit_code = main(
+        [
+            "--dry",
+            "--runs",
+            "1",
+            "--cases",
+            str(vague_case),
+            "--out",
+            str(out_file),
+        ]
+    )
+
+    assert exit_code == 0
+    assert out_file.exists()
+    with open(out_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert len(data["runs"]) == 1
+    assert data["runs"][0]["case_id"] == "vague"
+    assert "avg_edge_count" in data["summary"]
+    assert "avg_agents" in data["summary"]

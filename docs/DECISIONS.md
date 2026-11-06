@@ -2611,6 +2611,44 @@ If we removed it: Running migration tests before logging tests in the same pytes
 Decided by: user requested
 Status: active
 
+### D-244 — Phase 8C — security response headers in Next.js and CSP status investigation
+What: Added async `headers()` configuration to `apps/web/next.config.ts` applying `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `X-Frame-Options: DENY` for all routes (`/:path*`), while keeping existing options (`proxyTimeout`, `cacheComponents`, `partialPrefetching`, `turbopack`, `rewrites`) untouched.
+CSP Investigation Findings:
+1. React Flow Canvas: React Flow heavily relies on dynamic inline styles on DOM elements for interactive node positioning, panning, zooming, and SVG path calculations (`style="..."` attributes). Without `'unsafe-inline'`, the canvas fails to render or drag nodes.
+2. Next.js Dev Overlay & Eval: Next.js Fast Refresh and Turbopack development runtime rely on eval and inline scripts in development mode.
+3. Tailwind CSS & Radix UI: Tailwind OKLCH runtime styling and Radix primitives use computed inline styles and CSS variables.
+Conclusion: Enabling a strict `Content-Security-Policy` header in v1 breaks the interactive architecture canvas unless broad exemptions (`'unsafe-inline'`, `'unsafe-eval'`) are granted, which defeats the security purpose of CSP. Therefore, CSP is NOT enabled in v1; user decides later when production proxy/CDN or nonce generation infrastructure is designed.
+Alternatives considered:
+1. Enabling CSP with `'unsafe-inline'` and `'unsafe-eval'`: Rejected because it provides pseudo-security while still risking canvas edge-case failures.
+2. Enabling CSP only on production builds: Rejected to avoid environment drift between development and production.
+If we removed it: The frontend web application would lack standard HTTP security headers protecting against MIME-sniffing, clickjacking, and referrer leakage.
+Decided by: user approved
+Status: active
+
+### D-245 — Phase 8C — comprehensive logging privacy and sensitive data audit test
+What: Implemented `apps/api/tests/test_log_audit.py` to verify that confidential user identifiers—intake need text, refinement chat messages, and prospective client lead details (name, email, note)—are never emitted in standard library logging messages, logging arguments, or structlog record attributes throughout the application lifecycle.
+Why: Strictly enforces Rule 6 ("Secrets live only in backend env... Never log full prompts or full LLM responses") and Rule 10 ("Lead data: store the minimum, keep it out of logs").
+Alternatives considered: Manual code reviews or relying solely on individual unit tests. Rejected because a dedicated end-to-end audit test with sentinel strings exercises the entire integrated API pipeline and guards against future logging regressions.
+If we removed it: A developer introducing a new structlog event could inadvertently leak personal identifiable information (PII) or confidential client requirements into server logs without detection.
+Decided by: user approved
+Status: active
+
+### D-246 — Phase 8C — evaluation runner case selection and complexity rollup metrics
+What: Expanded `evals/run.py` CLI with `--cases <path>` accepting either a path to a custom case directory or a comma-separated list of JSON case files (defaulting to `evals/cases/`); enhanced `EvalSummary` in `evals/metrics.py` to aggregate overall `avg_edge_count` and `avg_agents`; updated `evals/compare.py` to display these complexity rollups in side-by-side comparison tables; updated `evals/tests` to verify structural execution.
+Why: Satisfies Phase 8 evaluation tooling requirements, enabling flexible targeted evaluations on specific subsets of cases and providing immediate visibility into graph density and multi-agent architecture trends across prompt revisions.
+Alternatives considered: Requiring users to temporarily delete or move case files to run subsets. Rejected as cumbersome and error-prone.
+If we removed it: Running benchmarks on a single modified case would require running the entire evaluation suite or manually editing test scripts.
+Decided by: user approved
+Status: active
+
+### D-247 — Phase 8C — clean clone onboarding documentation and operational limits disclosure
+What: Updated `README.md` to document the verified clean-clone setup procedure in exact chronological order (`uv sync`, `npm install`, copying `.env.example`, `alembic upgrade head`, dev launch commands, verification via `scripts/check.ps1`, eval tooling), and transparently disclosed known operational limitations (in-memory rate limiting resetting on process restart, client-sent `X-Forwarded-For` spoofing risk under Next.js rewrites per D-239, and near-zero organic hit rate for architecture spec cache).
+Why: Ensures seamless developer onboarding, reproducible verification from clean repository clones, and honest disclosure of system capabilities and constraints.
+Alternatives considered: Leaving setup instructions fragmented across phase documentation. Rejected to maintain a unified, production-ready developer guide.
+If we removed it: New contributors or evaluators would face setup friction and might overlook critical environment configuration steps or operational constraints.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

@@ -221,6 +221,22 @@ def compare_overall_summaries(
             higher_is_better=False,
             threshold=0.03,
         ),
+        evaluate_diff(
+            "OVERALL",
+            "avg_edge_count",
+            float(summary_a.get("avg_edge_count", 0.0)),
+            float(summary_b.get("avg_edge_count", 0.0)),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
+        evaluate_diff(
+            "OVERALL",
+            "avg_agents",
+            float(summary_a.get("avg_agents", 0.0)),
+            float(summary_b.get("avg_agents", 0.0)),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
     ]
     return diffs
 

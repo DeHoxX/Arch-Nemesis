@@ -98,6 +98,8 @@ class EvalSummary:
     code_repair_rate: float
     fallback_rate: float
     avg_node_count: float
+    avg_edge_count: float
+    avg_agents: float
     w_merge_as_agent_rate: float
     avg_wall_clock_seconds: float
     total_llm_calls: int
@@ -212,6 +214,8 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
             code_repair_rate=0.0,
             fallback_rate=0.0,
             avg_node_count=0.0,
+            avg_edge_count=0.0,
+            avg_agents=0.0,
             w_merge_as_agent_rate=0.0,
             avg_wall_clock_seconds=0.0,
             total_llm_calls=0,
@@ -233,6 +237,8 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
     fallbacks = sum(1 for r in runs if r.explainer_source == "fallback" and not r.is_422)
     merge_as_agent_runs = sum(1 for r in runs if r.w_merge_as_agent_count > 0)
     avg_nodes = sum(r.node_count for r in runs) / total
+    avg_edges = sum(r.edge_count for r in runs) / total
+    avg_agents = sum(r.agent_count for r in runs) / total
     avg_wall = sum(r.wall_clock_seconds for r in runs) / total
     total_calls = sum(r.llm_call_count for r in runs)
 
@@ -252,6 +258,8 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
         code_repair_rate=round(repairs / total, 4),
         fallback_rate=fallback_rate,
         avg_node_count=round(avg_nodes, 2),
+        avg_edge_count=round(avg_edges, 2),
+        avg_agents=round(avg_agents, 2),
         w_merge_as_agent_rate=round(merge_as_agent_runs / total, 4),
         avg_wall_clock_seconds=round(avg_wall, 2),
         total_llm_calls=total_calls,
