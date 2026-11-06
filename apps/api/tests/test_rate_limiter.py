@@ -154,3 +154,28 @@ def test_sliding_window_purge_removes_expired_keys() -> None:
     assert ("leads", "10.0.0.1") not in custom_limiter._buckets
     assert ("leads", "10.0.0.2") in custom_limiter._buckets
     assert len(custom_limiter._buckets[("leads", "10.0.0.2")]) == 1
+
+
+@pytest.mark.asyncio
+async def test_retry_after_never_exceeds_window_right_after_first_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Retry-After header is clamped to window_seconds and never exceeds 3600 right after the first request."""
+    monkeypatch.setenv("RATE_LIMIT_LEADS_PER_HOUR", "1")
+    get_settings.cache_clear()
+    clear_rate_limits()
+
+    app = create_test_rate_limited_app("leads")
+    transport = httpx.ASGITransport(app=app, client=("192.0.2.99", 54321))
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        # First request consumes limit of 1
+        res1 = await client.post("/test-limit")
+        assert res1.status_code == 200
+
+        # Second request immediately afterwards triggers 429
+        res2 = await client.post("/test-limit")
+        assert res2.status_code == 429
+        assert "retry-after" in res2.headers
+        retry_after = int(res2.headers["retry-after"])
+        assert 1 <= retry_after <= 3600
+        assert retry_after <= int(limiter.window_seconds)

@@ -71,7 +71,7 @@ def test_migration_0004_refinement_tables(tmp_path: Path, monkeypatch: pytest.Mo
         conn.close()
 
         # Check downgrade
-        command.downgrade(alembic_cfg, "-1")
+        command.downgrade(alembic_cfg, "0003_leads")
         conn = sqlite3.connect(str(db_file))
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='patches'")

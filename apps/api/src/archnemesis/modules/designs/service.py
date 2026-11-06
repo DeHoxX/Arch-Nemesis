@@ -1,6 +1,8 @@
 """Service layer for architecture design generation, persistence, and retrieval."""
 
+import hashlib
 import json
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from sqlalchemy.exc import IntegrityError
@@ -9,16 +11,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from archnemesis.errors import NotFoundError, NotReadyError
 from archnemesis.llm.base import LLMClient
 from archnemesis.modules.architect import service as architect_service
+from archnemesis.modules.architect.service import ARCHITECT_PROMPT_NAME
 from archnemesis.modules.designs import repo
 from archnemesis.modules.designs.schemas import CreateDesignRequest, DesignResponse
 from archnemesis.modules.explainer.schemas import Explanation
 from archnemesis.modules.intake import repo as intake_repo
-from archnemesis.modules.validation.models import ArchitectureSpec
+from archnemesis.modules.validation.models import (
+    ArchitectureSpec,
+    Limits,
+    ValidationResult,
+)
 from archnemesis.modules.validation.ordering import order_nodes
+from archnemesis.modules.validation.validate import validate
 from archnemesis.settings import get_settings
 from archnemesis.shared.brief import RequirementBrief
 
-logger = structlog.get_logger()
+logger = structlog.get_logger(__name__)
+
+SPEC_CACHE_TTL_DAYS: int = 7
+
+
+def compute_spec_cache_key(
+    brief: RequirementBrief,
+    prompt_version: str,
+    architect_model: str,
+) -> str:
+    """Compute deterministic SHA-256 cache key from canonical JSON of brief, prompt version, and model."""
+    brief_dict = brief.model_dump(by_alias=True)
+    canonical_brief_json = json.dumps(brief_dict, sort_keys=True, separators=(",", ":"))
+    raw = f"{canonical_brief_json}|{prompt_version}|{architect_model}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 async def create_design(
@@ -40,8 +62,8 @@ async def create_design(
             brief_obj = RequirementBrief.model_validate(brief_dict)
             warnings_list = json.loads(version.warnings_json)
             spec_dict = json.loads(version.spec_json)
-            spec = ArchitectureSpec.model_validate(spec_dict)
-            flow_order = order_nodes(spec)
+            existing_spec = ArchitectureSpec.model_validate(spec_dict)
+            flow_order = order_nodes(existing_spec)
             existing_explanation: Explanation | None = None
             if version.explanation_json is not None:
                 existing_explanation = Explanation.model_validate(
@@ -52,7 +74,7 @@ async def create_design(
                 intake_session_id=existing_design.intake_session_id,
                 current_version=version.version_no,
                 brief=brief_obj,
-                spec=spec,
+                spec=existing_spec,
                 warnings=warnings_list,
                 flow_order=flow_order,
                 prompt_version=version.prompt_version,
@@ -69,12 +91,66 @@ async def create_design(
     brief_dict = json.loads(session.brief_json)
     brief = RequirementBrief.model_validate(brief_dict)
 
-    # 4. Generate architecture via architect service
-    spec, prompt_version, _, val_res = await architect_service.generate_and_validate(brief, llm)
+    # 4. Check spec cache before invoking LLM
+    settings = get_settings()
+    architect_model = settings.llm_model_architect or ""
+    base_prompt_version = ARCHITECT_PROMPT_NAME
+    cache_key = compute_spec_cache_key(brief, base_prompt_version, architect_model)
+
+    cached_entry = await repo.get_cached_spec(db, cache_key)
+    spec: ArchitectureSpec
+    prompt_version: str
+    val_res: ValidationResult | None = None
+    is_cache_hit = False
+
+    if cached_entry is not None:
+        try:
+            created_at_dt = datetime.fromisoformat(cached_entry.created_at)
+            if created_at_dt.tzinfo is None:
+                created_at_dt = created_at_dt.replace(tzinfo=UTC)
+            now_dt = datetime.now(UTC)
+            if now_dt - created_at_dt <= timedelta(days=SPEC_CACHE_TTL_DAYS):
+                is_cache_hit = True
+                cached_spec_dict = json.loads(cached_entry.spec_json)
+                spec = ArchitectureSpec.model_validate(cached_spec_dict)
+                limits = Limits(max_nodes=settings.max_nodes, max_edges=settings.max_edges)
+                brief_constraints = {c.id: c.text for c in brief.stated_constraints}
+                val_res = validate(spec, brief_constraints=brief_constraints, limits=limits)
+                prompt_version = f"{base_prompt_version} (cached)"
+            else:
+                # Expired: remove and treat as miss
+                await repo.delete_cached_spec(db, cache_key)
+        except (ValueError, TypeError, json.JSONDecodeError):
+            await repo.delete_cached_spec(db, cache_key)
+
+    if is_cache_hit:
+        logger.info(
+            "spec_cache_event",
+            cache_hit=True,
+            key_prefix=cache_key[:8],
+            node_count=len(spec.nodes),
+            prompt_version=prompt_version,
+        )
+    else:
+        # Commit session so no DB connection/transaction is held open across the LLM call
+        await db.commit()
+        spec, prompt_version, _, val_res = await architect_service.generate_and_validate(brief, llm)
+        logger.info(
+            "spec_cache_event",
+            cache_hit=False,
+            key_prefix=cache_key[:8],
+            node_count=len(spec.nodes),
+            prompt_version=prompt_version,
+        )
+        # Store in spec cache only after successful validation
+        await repo.set_cached_spec(
+            db=db,
+            key=cache_key,
+            spec_dict=spec.model_dump(by_alias=True),
+        )
 
     # 5. Save design and version 1 with concurrency protection
-    settings = get_settings()
-    models_dict = {"architect": settings.llm_model_architect or ""}
+    models_dict = {"architect": architect_model}
 
     try:
         warnings_to_store = [w.message for w in val_res.warnings] if val_res else []

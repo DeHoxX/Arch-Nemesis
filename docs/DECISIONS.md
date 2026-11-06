@@ -2578,6 +2578,39 @@ If we removed it: Unbounded text payloads could cause excessive LLM token usage 
 Decided by: user approved
 Status: active
 
+### D-241 — Phase 8B — architecture specification cache table and prompt_version cached labeling
+What: Added spec_cache database table (migration 0005_spec_cache) keyed by SHA-256 of canonical JSON of RequirementBrief + "|" + prompt_version + "|" + architect model name, expiring after 7 days. On a cache hit in designs service, the LLM call is skipped, deterministic code validation and ordering are executed, and a brand new DesignTable row and DesignVersionTable row are created for the requesting session with explanation_json=None (lazy explanation generation). The new version's prompt_version is stored as the original prompt version plus " (cached)" (Option B). Stale cache entries (> 7 days) are evicted upon lookup. Only validated specs (including code_repair successes) are inserted; failing specs are never cached. Concurrent inserts of the same key are safely handled without raising 500 errors.
+Why: Satisfies BUILD_PLAN.md:572 protecting LLM quota and speeding up repeated design generations.
+Real hit rate context:
+- Organic hit rate is about 0% because RequirementBrief consists of LLM-written freeform prose (summary, users, assumptions, constraint texts) which differs across natural user dialogues even for identical inputs.
+- Practical benefit is realized mainly during evals, benchmarks, automated test suites, and identical session retries.
+Alternatives considered:
+1. Reusing existing design row instead of creating a new row: Rejected per BUILD_PLAN.md:572 ("so two people never share a design").
+2. Storing unadorned prompt_version without "(cached)": Rejected in favor of Option B to provide transparent provenance in version telemetry.
+If we removed it: Automated evaluations and benchmark regression runs would consume substantial unnecessary Gemini API tokens for identical brief inputs.
+Decided by: user approved
+Status: active
+
+### D-242 — Phase 8B — spec_cache metadata boundaries and on-access expiration eviction
+What: Documented that on an architecture spec cache hit, the W_CODE_REPAIR_APPLIED warning and "+code_repair" suffix in prompt_version are omitted because spec_cache stores only spec_json (the structurally validated specification), and re-validating the cached spec produces only static lint warnings; furthermore, expired spec_cache rows (> 7 days) are deleted lazily upon access rather than via a background vacuum task.
+Why: Keeps the spec_cache schema minimal (key, spec_json, created_at) while ensuring all designs served from the cache pass code validation and ordering. The omission of W_CODE_REPAIR_APPLIED is harmless because the stored spec graph is already structurally sound and compliant with all stated constraints.
+Alternatives considered:
+1. Adding warnings_json and prompt_version columns to spec_cache: Rejected to keep the cache table schema minimal and ensure warnings reflect live validation against current limits and constraints.
+2. Background cron/daemon for expired cache cleanup: Rejected to avoid background worker infrastructure and complexity; lazy on-access eviction prunes stale rows deterministically.
+If we removed it: Downstream developers might expect cache hits to faithfully replay historical repair diagnostics from the initial LLM call.
+Decided by: user approved
+Status: active
+
+### D-243 — Phase 8B — alembic env.py logging configuration and logger isolation
+What: Updated alembic/env.py to skip calling logging.config.fileConfig when root logger handlers already exist (`not logging.root.handlers`), and when fileConfig is called (such as during standalone CLI migration runs), pass `disable_existing_loggers=False`.
+Why: Standard library `logging.config.fileConfig(..., disable_existing_loggers=True)` disables all pre-existing non-root loggers by default. When migration tests run programmatically via `alembic.command.upgrade`, this default behavior disabled application loggers created by earlier tests (e.g. `archnemesis.modules.designs.service` instantiated during `test_designs.py`), preventing subsequent tests (e.g. `test_spec_cache.py`) from capturing INFO records in caplog. Skipping fileConfig when logging is already configured preserves active pytest/caplog root handlers and log levels, while `disable_existing_loggers=False` ensures no existing loggers are muted during CLI or test migrations. Production CLI execution (`alembic upgrade head`) remains identical as root handlers are empty at startup.
+Alternatives considered:
+1. Passing only `disable_existing_loggers=False` without checking root handlers: Rejected because `fileConfig` also clears existing root handlers and resets the root log level to WARN, which would strip active pytest caplog handlers inside tests that execute migration commands.
+2. Manually re-enabling `logger.disabled = False` in individual tests: Rejected as fragile test-level workaround that fails to address the root leak in migration execution.
+If we removed it: Running migration tests before logging tests in the same pytest session silently disables application loggers and drops caplog records across test boundaries.
+Decided by: user requested
+Status: active
+
 
 ## Phase 3 Summary
 

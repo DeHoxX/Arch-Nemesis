@@ -64,7 +64,8 @@ class SlidingWindowRateLimiter:
 
         if len(timestamps) >= limit:
             oldest = timestamps[0]
-            retry_after = max(1, int(self.window_seconds - (now - oldest)) + 1)
+            remaining = int(self.window_seconds - (now - oldest)) + 1
+            retry_after = max(1, min(int(self.window_seconds), remaining))
             raise RateLimitedError(retry_after=retry_after)
 
         timestamps.append(now)

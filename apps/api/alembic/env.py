@@ -1,3 +1,4 @@
+import logging
 from logging.config import fileConfig
 
 from sqlalchemy import create_engine
@@ -7,8 +8,8 @@ from archnemesis.settings import get_settings
 
 config = context.config
 
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+if config.config_file_name is not None and not logging.root.handlers:
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = None
 

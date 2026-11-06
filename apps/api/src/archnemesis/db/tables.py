@@ -116,3 +116,13 @@ class PatchTable(Base):
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
     decided_at: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+
+class SpecCacheTable(Base):
+    """Database record for cached architecture specifications."""
+
+    __tablename__ = "spec_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    spec_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)

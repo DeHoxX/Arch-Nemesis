@@ -5,10 +5,11 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from archnemesis.db.tables import DesignTable, DesignVersionTable
+from archnemesis.db.tables import DesignTable, DesignVersionTable, SpecCacheTable
 
 
 def _now() -> str:
@@ -77,3 +78,30 @@ async def create_design(
     await db.refresh(design)
     await db.refresh(version)
     return design, version
+
+
+async def get_cached_spec(db: AsyncSession, key: str) -> SpecCacheTable | None:
+    stmt = select(SpecCacheTable).where(SpecCacheTable.key == key)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def delete_cached_spec(db: AsyncSession, key: str) -> None:
+    stmt = delete(SpecCacheTable).where(SpecCacheTable.key == key)
+    await db.execute(stmt)
+    await db.commit()
+
+
+async def set_cached_spec(
+    db: AsyncSession, key: str, spec_dict: dict[str, Any], created_at: str | None = None
+) -> None:
+    entry = SpecCacheTable(
+        key=key,
+        spec_json=json.dumps(spec_dict),
+        created_at=created_at or _now(),
+    )
+    db.add(entry)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
