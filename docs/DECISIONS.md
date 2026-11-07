@@ -2691,6 +2691,37 @@ If we removed it: Operators auditing past design turn metrics might wonder why p
 Decided by: user approved
 Status: active
 
+### D-252 — Phase 8D — deviation — App shell with responsive past-designs sidebar sourcing from localStorage
+What: Wrap the application in an `AppShell` component providing a responsive, collapsible left sidebar that lists past architecture designs directly from browser `localStorage` (`archnemesis.history.v1`) using the existing `useHistory()` hook. Includes a "New design" button at the top linking to `/?new=1`.
+Why: Offers instant 1-click navigation between past designs and starting a fresh design without requiring users to navigate away to the dedicated `/history` page. Sourcing strictly from client `localStorage` adheres to Rule 10 (keeping user designs client-private; no public listing of all users' designs in multi-user deployments) and avoids creating unnecessary backend endpoints. Marked as a deviation from BUILD_PLAN.md:446/506 where history was only accessible on `/history` or via a header link.
+Alternatives considered:
+1. New backend `GET /api/designs` listing endpoint: Rejected because it violates Rule 10 and privacy boundaries without user accounts, which BUILD_PLAN:514 forbids.
+If we removed it: Users would have to repeatedly navigate back and forth to the standalone `/history` page to view or switch between designs.
+Decided by: user approved
+Status: active
+
+### D-253 — Phase 8D — deviation — Route visibility rules for sidebar in AppShell
+What: Enforce route-based sidebar visibility and default collapse states:
+1. `/` (Home) and `/history`: Sidebar is visible and defaults to expanded on desktop (`>=1024px`).
+2. `/design/[id]` (Results): Sidebar is present but defaults to collapsed on mount, with a top-left toggle button, ensuring maximum canvas width for interactive diagrams while retaining 1-click access to past designs.
+3. `/admin` and `/admin/designs/*`: Sidebar is completely hidden to keep internal administrative lead review isolated and uncluttered.
+Why: The architecture and block diagram canvases on results pages require maximum horizontal viewport space to prevent node clipping. Defaulting to collapsed on `/design/[id]` protects the canvas while allowing users to open the drawer/sidebar on demand. Admin pages are for team lead triage where visitor history is irrelevant.
+Alternatives considered:
+1. Always expanded on desktop across all routes: Rejected because it cramps the 1024px+ diagram canvas on `/design/[id]`.
+2. Hiding sidebar completely on `/design/[id]`: Rejected because users need to switch between past designs without navigating back to home.
+If we removed it: Diagram layouts on results pages would suffer horizontal cramping or users would lose sidebar navigation when reviewing designs.
+Decided by: user approved
+Status: active
+
+### D-254 — Phase 8D — deviation — Collapse state persistence in localStorage
+What: Persist desktop sidebar collapse state in `localStorage` under `archnemesis.sidebar.collapsed` (`"true"` | `"false"`), defaulting to open on desktop (`>=1024px`) for `/` and `/history`, and defaulting to collapsed on `/design/[id]`. Below 768px, render an accessible modal drawer (`role="dialog"`, `aria-modal="true"`, `aria-label="Navigation and past designs"`, backdrop overlay, and `Escape` key close handling).
+Why: Retaining user toggle preferences across home page refreshes improves UX continuity. On mobile viewports (`<768px`), standard drawer semantics with modal backdrop, ARIA attributes (`aria-expanded`, `aria-controls`), and keyboard `Escape` handling prevent layout breakage on narrow screens.
+Alternatives considered:
+1. React state only: Rejected because collapse preferences would be forgotten on every page navigation or browser reload.
+If we removed it: Users who prefer a collapsed sidebar on desktop would have it re-open on every page refresh.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

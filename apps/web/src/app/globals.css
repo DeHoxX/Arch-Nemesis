@@ -49,7 +49,9 @@
 }
 
 :root {
-  --page-bg: #0a0a0a;
+  --page-bg: #1f1f23;
+  --sidebar-bg: #18181b;
+  --card-bg: #26262b;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -85,6 +87,9 @@
 }
 
 .dark {
+  --page-bg: #1f1f23;
+  --sidebar-bg: #18181b;
+  --card-bg: #26262b;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);
