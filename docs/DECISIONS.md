@@ -2649,6 +2649,18 @@ If we removed it: New contributors or evaluators would face setup friction and m
 Decided by: user approved
 Status: active
 
+### D-248 — Phase 8C — proxy client IP forwarding limitation under Next.js rewrites
+What: Live testing via `curl.exe` against both `http://localhost:3000/api/leads` and `http://10.135.3.1:3000/api/leads` with temporary logging verified that FastAPI receives `direct_host=127.0.0.1` and `x_forwarded_for=None` in both cases. Contrary to previous expectations based on source reading of `base-server.js:601`, the Next.js rewrite proxy mechanism does NOT attach an `X-Forwarded-For` header when forwarding `/api/*` requests to the backend. As a result, FastAPI's rate limiter always resolves `client_ip=127.0.0.1`, placing all requests through Next.js into a single shared rate-limit bucket per server process.
+Decision: Accepted as a known limitation for v1 (approved by user); no code change will be made in v1. A real production deployment must place a dedicated reverse proxy (e.g. Nginx, Cloudflare, AWS ALB) in front that explicitly sets `X-Forwarded-For`, or implement a Next.js route handler / middleware proxy.
+Supersession: This decision supersedes the assumptions in D-239 and D-247 regarding Next.js rewrite `X-Forwarded-For` propagation.
+Why: Accurately reflects observed runtime reality without introducing complex proxy workarounds or architectural changes in Phase 8.
+Alternatives considered:
+1. Converting Next.js rewrites to explicit API route handlers or middleware: Rejected for v1 to avoid rewrite complexity and maintain clean layer separation.
+2. Disabling rate limiting: Rejected because the limiter remains fully functional and correct when a proper reverse proxy is present.
+If we removed it: Operators deploying the application publicly might assume client IP rate-limiting functions out-of-the-box behind Next.js rewrites.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 
