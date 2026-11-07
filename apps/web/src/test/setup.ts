@@ -123,6 +123,11 @@ if (typeof window !== "undefined") {
     }
   }
 
+  // Provide scrollIntoView stub in JSDOM environment
+  if (typeof window.Element !== "undefined" && !window.Element.prototype.scrollIntoView) {
+    window.Element.prototype.scrollIntoView = () => {};
+  }
+
   // Provide default element layout dimensions in JSDOM so React Flow can compute viewport bounds
   if (!Object.getOwnPropertyDescriptor(window.HTMLElement.prototype, "offsetWidth")) {
     Object.defineProperties(window.HTMLElement.prototype, {

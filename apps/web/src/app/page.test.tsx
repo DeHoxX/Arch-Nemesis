@@ -463,7 +463,7 @@ describe("HomePage Component", () => {
     expect((textarea as HTMLTextAreaElement).value).toBe("");
   });
 
-  it("restores chat messages, session ID, and brief card from sessionStorage on mount, hiding textarea", async () => {
+  it("restores chat messages, session ID, and brief card from sessionStorage on mount", async () => {
     window.sessionStorage.setItem(
       INTAKE_STORAGE_KEY,
       JSON.stringify({
@@ -498,7 +498,9 @@ describe("HomePage Component", () => {
       expect(screen.getByText("What is the expected throughput?")).toBeDefined();
       expect(screen.getByText("Automated Claims Validation Pipeline")).toBeDefined();
       expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
-      expect(screen.queryByPlaceholderText(/For example: a support assistant/)).toBeNull();
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      expect(textarea).toBeDefined();
+      expect(textarea.getAttribute("disabled")).toBeNull();
     });
   });
 
@@ -754,11 +756,12 @@ describe("HomePage Component", () => {
     }
   });
 
-  describe("Phase 7D3 (N3): New design button on home page", () => {
-    it("omits 'New design' button on a fresh empty page", () => {
+  describe("Stage 2: Bottom-docked chat layout and session management", () => {
+    it("omits home page's own 'Past designs' and 'New design' buttons (sidebar handles them)", () => {
       renderWithClient(<HomePage />);
 
       expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Past designs" })).toBeNull();
       expect(
         screen.getByRole("heading", {
           name: "Describe the system you need",
@@ -772,24 +775,82 @@ describe("HomePage Component", () => {
       ).toBeDefined();
     });
 
-    it("displays 'New design' button when restored messages/brief exist, and clicking it clears storage and resets UI", async () => {
+    it("sends message on Enter without Shift, but Shift+Enter inserts newline without sending", async () => {
       const user = userEvent.setup();
 
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "needs_info",
+          session_id: "sess_enter_test",
+          round: 1,
+          questions: ["What database is used?"],
+          brief: null,
+        }),
+      } as unknown as Response);
+
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+
+      // Typing with Shift+Enter does NOT send
+      await user.type(textarea, "Line 1{Shift>}{Enter}{/Shift}Line 2");
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      // Pressing plain Enter sends
+      await user.type(textarea, "{Enter}");
+      await waitFor(() => {
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+      });
+      expect(
+        screen.getByText(
+          (_, el) =>
+            el?.tagName.toLowerCase() === "p" &&
+            el.textContent === "Line 1\nLine 2",
+        ),
+      ).toBeDefined();
+    });
+
+    it("does not send when input is empty, whitespace only, or exceeds 4000 chars", async () => {
+      const user = userEvent.setup();
+      global.fetch = vi.fn();
+
+      renderWithClient(<HomePage />);
+
+      const sendBtn = screen.getByRole("button", { name: /send/i });
+      expect(sendBtn.getAttribute("disabled")).toBeDefined();
+
+      // Whitespace only
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      await user.type(textarea, "   ");
+      await user.click(sendBtn);
+      expect(global.fetch).not.toHaveBeenCalled();
+
+      // Exceeds 4000 characters
+      fireEvent.change(textarea, { target: { value: "a".repeat(4001) } });
+      await user.click(sendBtn);
+      expect(global.fetch).not.toHaveBeenCalled();
+      expect(screen.getByText("Input must not exceed 4000 characters.")).toBeDefined();
+    });
+
+    it("renders messages in order and renders BriefCard inline while keeping input enabled", async () => {
       window.sessionStorage.setItem(
         INTAKE_STORAGE_KEY,
         JSON.stringify({
           version: "v1",
-          sessionId: "session_existing_brief",
+          sessionId: "sess_brief_ready",
           inputText: "",
           messages: [
-            { id: "m1", sender: "user", text: "Original requirement" },
-            { id: "m2", sender: "assistant", questions: ["Question 1?"] },
+            { id: "m1", sender: "user", text: "First requirement" },
+            { id: "m2", sender: "assistant", questions: ["Clarification 1?"] },
+            { id: "m3", sender: "user", text: "Clarification reply" },
           ],
           brief: {
-            summary: "Telemetry Processing System",
-            users: "Engineers",
-            data_involved: ["metrics"],
-            domain_hint: "infrastructure",
+            summary: "Inline Synthesized System",
+            users: "Auditors",
+            data_involved: ["Logs"],
+            domain_hint: "Security",
             stated_constraints: [],
             unverifiable_requirements: [],
             numbers_given: [],
@@ -800,93 +861,75 @@ describe("HomePage Component", () => {
 
       renderWithClient(<HomePage />);
 
-      // "New design" button appears because active/restored intake state exists
-      const newDesignBtn = await screen.findByRole("button", { name: "New design" });
-      expect(newDesignBtn).toBeDefined();
-      expect(screen.getByText("Telemetry Processing System")).toBeDefined();
+      // Messages in order
+      expect(screen.getByText("First requirement")).toBeDefined();
+      expect(screen.getByText("Clarification 1?")).toBeDefined();
+      expect(screen.getByText("Clarification reply")).toBeDefined();
 
-      // Click "New design"
-      await user.click(newDesignBtn);
+      // BriefCard rendered inline
+      expect(screen.getByText("Inline Synthesized System")).toBeDefined();
+      expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
 
-      // Storage is cleared
-      await waitFor(() => {
-        expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
-      });
-
-      // "New design" button is hidden when empty
-      expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
-
-      // UI returns to empty prompt with exact heading and placeholder
-      expect(
-        screen.getByRole("heading", {
-          name: "Describe the system you need",
-          level: 1,
-        }),
-      ).toBeDefined();
-      const textarea = screen.getByPlaceholderText(
-        "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
-      );
-      expect((textarea as HTMLTextAreaElement).value).toBe("");
-      expect(screen.queryByText("Telemetry Processing System")).toBeNull();
-      expect(screen.queryByText("Original requirement")).toBeNull();
+      // Input remains enabled after brief is shown
+      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      expect(textarea.getAttribute("disabled")).toBeNull();
     });
 
-    it("shows 'New design' after a started chat turn, and clicking it returns to empty prompt", async () => {
-      const user = userEvent.setup();
-
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          status: "needs_info",
-          session_id: "session_new_chat",
-          round: 1,
-          questions: ["What auth protocols are supported?"],
+    it("restores intake dialogue from sessionStorage, and ?new=1 resets state", async () => {
+      window.sessionStorage.setItem(
+        INTAKE_STORAGE_KEY,
+        JSON.stringify({
+          version: "v1",
+          sessionId: "sess_restore_test",
+          inputText: "Saved input text",
+          messages: [
+            { id: "m1", sender: "user", text: "Restored dialogue prompt" },
+          ],
           brief: null,
         }),
-      } as unknown as Response);
+      );
+
+      // Render default: restores state
+      const { unmount } = renderWithClient(<HomePage />);
+      expect(screen.getByText("Restored dialogue prompt")).toBeDefined();
+      expect(
+        (screen.getByPlaceholderText(/For example: a support assistant/) as HTMLTextAreaElement)
+          .value,
+      ).toBe("Saved input text");
+      unmount();
+
+      // Now navigate with ?new=1: clears state
+      mockSearchParams = new URLSearchParams("new=1");
+      renderWithClient(<HomePage />);
+
+      expect(screen.queryByText("Restored dialogue prompt")).toBeNull();
+      expect(
+        (screen.getByPlaceholderText(/For example: a support assistant/) as HTMLTextAreaElement)
+          .value,
+      ).toBe("");
+      expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
+      expect(mockReplace).toHaveBeenCalledWith("/", { scroll: false });
+    });
+
+    it("renders hostile user strings strictly as plain text", () => {
+      const hostileText = "<script>alert('xss')</script>";
+      window.sessionStorage.setItem(
+        INTAKE_STORAGE_KEY,
+        JSON.stringify({
+          version: "v1",
+          sessionId: "sess_hostile",
+          inputText: "",
+          messages: [
+            { id: "m_xss", sender: "user", text: hostileText },
+          ],
+          brief: null,
+        }),
+      );
 
       renderWithClient(<HomePage />);
 
-      // Initially no "New design" button
-      expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
-
-      // Start chat turn
-      const textarea = screen.getByPlaceholderText(
-        "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
-      );
-      await user.type(textarea, "Need auth service");
-      await user.click(screen.getByRole("button", { name: /send/i }));
-
-      // Assistant question appears
-      await screen.findByText("What auth protocols are supported?");
-
-      // "New design" button is now visible
-      const newDesignBtn = await screen.findByRole("button", { name: "New design" });
-      expect(newDesignBtn).toBeDefined();
-
-      // Click "New design"
-      await user.click(newDesignBtn);
-
-      // Storage is empty and UI returns to empty prompt
-      await waitFor(() => {
-        expect(screen.queryByRole("button", { name: "New design" })).toBeNull();
-        expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
-      });
-
-      expect(screen.queryByText("What auth protocols are supported?")).toBeNull();
-      expect(screen.queryByText("Need auth service")).toBeNull();
-      expect(
-        screen.getByRole("heading", {
-          name: "Describe the system you need",
-          level: 1,
-        }),
-      ).toBeDefined();
-      expect(
-        screen.getByPlaceholderText(
-          "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
-        ),
-      ).toBeDefined();
+      expect(screen.getByText(hostileText)).toBeDefined();
+      expect(document.querySelector("script[src*='alert']")).toBeNull();
     });
   });
 });

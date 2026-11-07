@@ -2,7 +2,13 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Sidebar } from "./Sidebar";
+import {
+  SIDEBAR_DEFAULT_WIDTH,
+  SIDEBAR_MAX_WIDTH,
+  SIDEBAR_MIN_WIDTH,
+  SIDEBAR_WIDTH_STORAGE_KEY,
+  Sidebar,
+} from "./Sidebar";
 import { AppShell, SIDEBAR_COLLAPSE_STORAGE_KEY } from "./AppShell";
 import { HISTORY_STORAGE_KEY } from "@/lib/history";
 
@@ -98,12 +104,80 @@ describe("Sidebar component", () => {
       expect(handleClose).toHaveBeenCalledTimes(2);
     }
   });
+
+  it("renders resizable drag handle with separator role and ARIA attributes on desktop", () => {
+    render(<Sidebar isMobileDrawer={false} />);
+
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+    expect(handle).toBeDefined();
+    expect(handle.getAttribute("aria-orientation")).toBe("vertical");
+    expect(handle.getAttribute("aria-valuenow")).toBe(String(SIDEBAR_DEFAULT_WIDTH));
+    expect(handle.getAttribute("aria-valuemin")).toBe(String(SIDEBAR_MIN_WIDTH));
+    expect(handle.getAttribute("aria-valuemax")).toBe(String(SIDEBAR_MAX_WIDTH));
+  });
+
+  it("ignores corrupt non-numeric width in localStorage and falls back to default 256 px", () => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, "invalid_nan");
+
+    render(<Sidebar isMobileDrawer={false} />);
+
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+    expect(handle.getAttribute("aria-valuenow")).toBe(String(SIDEBAR_DEFAULT_WIDTH));
+  });
+
+  it("clamps width from localStorage within 200 and 420 px", () => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, "500");
+
+    render(<Sidebar isMobileDrawer={false} />);
+
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+    expect(handle.getAttribute("aria-valuenow")).toBe(String(SIDEBAR_MAX_WIDTH));
+  });
+
+  it("resizes sidebar via keyboard ArrowLeft and ArrowRight, persisting clamped value", () => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, "256");
+
+    render(<Sidebar isMobileDrawer={false} />);
+
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+
+    // ArrowLeft decreases by 16px
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(handle.getAttribute("aria-valuenow")).toBe("240");
+    expect(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY)).toBe("240");
+
+    // ArrowRight increases by 16px
+    fireEvent.keyDown(handle, { key: "ArrowRight" });
+    expect(handle.getAttribute("aria-valuenow")).toBe("256");
+    expect(window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY)).toBe("256");
+  });
+
+  it("cancels trailing resize timeout on unmount and does not fire after unmount", () => {
+    vi.useFakeTimers();
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+
+    const { unmount } = render(<Sidebar isMobileDrawer={false} />);
+    const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+
+    fireEvent.keyDown(handle, { key: "ArrowLeft" });
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    vi.advanceTimersByTime(300);
+
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+
+    dispatchSpy.mockRestore();
+    vi.useRealTimers();
+  });
 });
 
 describe("AppShell component", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     mockPathname = "/";
+    window.innerWidth = 1024;
     window.localStorage.clear();
   });
 
@@ -145,10 +219,8 @@ describe("AppShell component", () => {
     );
 
     expect(screen.getByText("Design Canvas")).toBeDefined();
-    // Desktop sidebar is collapsed by default on /design/*
     expect(screen.queryByRole("button", { name: "Collapse sidebar" })).toBeNull();
 
-    // Toggle button is present
     const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
     expect(toggleBtn).toBeDefined();
     expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
@@ -157,7 +229,6 @@ describe("AppShell component", () => {
   it("expands sidebar when toggle button is clicked and persists preference to localStorage", async () => {
     const user = userEvent.setup();
     mockPathname = "/";
-    // Set initially collapsed
     window.localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, "true");
 
     render(
@@ -169,14 +240,13 @@ describe("AppShell component", () => {
     const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
     await user.click(toggleBtn);
 
-    // Now sidebar is open
     expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeDefined();
     expect(window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)).toBe("false");
   });
 
   it("closes mobile drawer when Escape key is pressed", () => {
     mockPathname = "/";
-    window.innerWidth = 500; // mobile size
+    window.innerWidth = 500;
 
     render(
       <AppShell>
@@ -187,13 +257,37 @@ describe("AppShell component", () => {
     const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
     fireEvent.click(toggleBtn);
 
-    // Mobile drawer is now open
     expect(screen.getByRole("dialog", { name: "Navigation and past designs" })).toBeDefined();
 
-    // Press Escape
     fireEvent.keyDown(window, { key: "Escape" });
 
-    // Drawer is closed
     expect(screen.queryByRole("dialog", { name: "Navigation and past designs" })).toBeNull();
+    window.innerWidth = 1024;
+  });
+
+  it("cancels trailing toggle resize timeout on unmount and does not fire after unmount", () => {
+    vi.useFakeTimers();
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    window.innerWidth = 1024;
+
+    window.localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, "true");
+    const { unmount } = render(
+      <AppShell>
+        <div>Content</div>
+      </AppShell>,
+    );
+
+    const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
+    fireEvent.click(toggleBtn);
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    vi.advanceTimersByTime(300);
+
+    expect(dispatchSpy).toHaveBeenCalledTimes(1);
+
+    dispatchSpy.mockRestore();
+    vi.useRealTimers();
   });
 });

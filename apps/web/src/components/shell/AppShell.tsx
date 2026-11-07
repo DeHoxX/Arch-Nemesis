@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -100,12 +100,30 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isDrawerOpen]);
 
+  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up any pending trailing resize timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeTimeoutRef.current !== null) {
+        clearTimeout(resizeTimeoutRef.current);
+        resizeTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Notify diagram canvases (React Flow) to refit on sidebar toggle
   const triggerCanvasResize = useCallback(() => {
     if (typeof window === "undefined") return;
     window.dispatchEvent(new Event("resize"));
-    setTimeout(() => {
-      window.dispatchEvent(new Event("resize"));
+    if (resizeTimeoutRef.current !== null) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+    resizeTimeoutRef.current = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("resize"));
+      }
+      resizeTimeoutRef.current = null;
     }, 220);
   }, []);
 

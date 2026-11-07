@@ -2722,6 +2722,44 @@ If we removed it: Users who prefer a collapsed sidebar on desktop would have it 
 Decided by: user approved
 Status: active
 
+### D-255 — Phase 8D — deviation — Bottom-docked chat layout with scrollable stream for intake home page
+What: Restructure the home intake page (`apps/web/src/app/page.tsx`) into a dynamic viewport column (`h-[100dvh]`) with an auto-scrolling message stream above and a docked bottom input bar (`max-w-2xl` centered). Remove the home page's own "Past designs" and "New design" buttons (which are now provided by the left sidebar), while keeping `/history` and N1/N2 behaviors intact.
+Why: Replaces the centered static card aesthetic with modern conversational chat UX (like Claude and ChatGPT). Using `h-[100dvh]` inside a flex container prevents iOS Safari and mobile Chrome virtual keyboards from pushing or clipping the input container off-screen. Sits inside `AppShell` without inner scrolling wrappers, completely preventing double scrollbars. Marked as DEVIATION from BUILD_PLAN.md:446 and :506 regarding home page link locations.
+Alternatives considered:
+1. Fixed bottom positioning (`fixed bottom-0`): Rejected because mobile virtual keyboard transitions clip or overlap fixed elements.
+2. Centered static card: Rejected per user instruction to adopt modern conversational chat UX.
+If we removed it: The home page would remain a centered static card with double scrollbars and poor mobile keyboard usability.
+Decided by: user approved
+Status: active
+
+### D-256 — Phase 8D — Input remains enabled after brief synthesis
+What: Keep the bottom input box enabled and interactive after the requirement brief is displayed inline at the bottom of the message stream. Subsequent messages sent to an already finalized session are caught by existing backend 409 `SESSION_CLOSED` logic and display the approved polite guidance message ("This design request is finished. Use New design to start another.") per D-194.
+Why: Disabling the input box or replacing it with an "Intake complete" bar feels jarring and un-conversational. Keeping the input active provides a seamless conversational UI, while existing backend session integrity safeguards politely guide users to start a new design if the session is closed.
+Alternatives considered:
+1. Disabling the input textarea and button once the brief is rendered: Rejected per user instruction to keep the input enabled.
+If we removed it: The input would be locked or hidden upon brief arrival, preventing user interaction.
+Decided by: user approved
+Status: active
+
+### D-257 — Phase 8D — deviation — Resizable desktop sidebar with localStorage width persistence
+What: Add a vertical drag handle on the right edge of the desktop sidebar (`>=768px`) enabling fluid resizing between 200px and 420px (default 256px), with full keyboard accessibility (`role="separator"`, `aria-orientation="vertical"`, `aria-valuenow`, `aria-valuemin="200"`, `aria-valuemax="420"`, `ArrowLeft`/`ArrowRight` adjusting by 16px). Persist width in `localStorage` under `archnemesis.sidebar.width` (clamped and safe against corrupt values). Dispatch a window resize event upon drag completion so React Flow canvases refit smoothly.
+Why: Allows users on wide monitors to expand the sidebar to read full architecture design titles or narrow it to maximize diagram canvas space. Using pointer events with `setPointerCapture` provides smooth, dependency-free resizing without third-party libraries.
+Alternatives considered:
+1. Fixed width only: Rejected because long titles are truncated too aggressively.
+2. Third-party resizable packages: Rejected to avoid unnecessary external dependencies.
+If we removed it: The desktop sidebar width would remain fixed at 256px.
+Decided by: user approved
+Status: active
+
+### D-258 — Phase 8D — fix — Unmount timer cleanup for diagram canvas resize events
+What: Track trailing resize timeout identifiers in refs (`resizeTimeoutRef`) in `Sidebar.tsx` and `AppShell.tsx`, and cancel them on component unmount via `useEffect` cleanup handlers. Guard delayed execution with `typeof window !== "undefined"`.
+Why: Trailing `setTimeout` callbacks (200ms in Sidebar, 220ms in AppShell) dispatched window resize events to trigger React Flow refits after CSS layout changes. During test teardown when the JSDOM window was destroyed, uncancelled timers fired into an undefined global scope, causing "window is not defined" unhandled errors. Clearing the timers on unmount cleanly prevents post-teardown execution and memory leaks while preserving real browser refit behavior.
+Alternatives considered:
+1. Omitting the delayed resize dispatch: Rejected because CSS width transitions (e.g. 200ms) require a delayed event to re-measure final container bounds accurately.
+If we removed it: Asynchronous test runs would report unhandled window errors during teardown.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

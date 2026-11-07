@@ -1,10 +1,48 @@
 "use client";
 
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Clock, PanelLeftClose, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useHistory } from "@/lib/history";
+
+export const SIDEBAR_WIDTH_STORAGE_KEY = "archnemesis.sidebar.width";
+export const SIDEBAR_MIN_WIDTH = 200;
+export const SIDEBAR_MAX_WIDTH = 420;
+export const SIDEBAR_DEFAULT_WIDTH = 256;
+
+export function loadSidebarWidthPreference(): number {
+  if (typeof window === "undefined") {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
+    if (!raw) return SIDEBAR_DEFAULT_WIDTH;
+    const parsed = Number(raw);
+    if (isNaN(parsed) || !isFinite(parsed)) return SIDEBAR_DEFAULT_WIDTH;
+    return Math.min(
+      SIDEBAR_MAX_WIDTH,
+      Math.max(SIDEBAR_MIN_WIDTH, Math.round(parsed)),
+    );
+  } catch {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+export function saveSidebarWidthPreference(width: number): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    const clamped = Math.min(
+      SIDEBAR_MAX_WIDTH,
+      Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)),
+    );
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(clamped));
+  } catch {
+    // Gracefully ignore storage quota or access errors
+  }
+}
 
 export interface SidebarProps {
   onCloseDrawer?: () => void;
@@ -18,6 +56,98 @@ export function Sidebar({
   isMobileDrawer = false,
 }: SidebarProps): React.ReactElement {
   const history = useHistory();
+
+  // Desktop width state
+  const [width, setWidth] = useState<number>(() => {
+    return isMobileDrawer ? SIDEBAR_DEFAULT_WIDTH : loadSidebarWidthPreference();
+  });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartXRef = useRef(0);
+  const dragStartWidthRef = useRef(width);
+  const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Clean up any pending trailing resize timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (resizeTimeoutRef.current !== null) {
+        clearTimeout(resizeTimeoutRef.current);
+        resizeTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  const triggerResizeEvent = useCallback(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new Event("resize"));
+    if (resizeTimeoutRef.current !== null) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+    resizeTimeoutRef.current = setTimeout(() => {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("resize"));
+      }
+      resizeTimeoutRef.current = null;
+    }, 200);
+  }, []);
+
+  // Update width and persist
+  const updateWidth = useCallback(
+    (newWidth: number) => {
+      const clamped = Math.min(
+        SIDEBAR_MAX_WIDTH,
+        Math.max(SIDEBAR_MIN_WIDTH, Math.round(newWidth)),
+      );
+      setWidth(clamped);
+      saveSidebarWidthPreference(clamped);
+      triggerResizeEvent();
+    },
+    [triggerResizeEvent],
+  );
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDragging(true);
+    dragStartXRef.current = e.clientX;
+    dragStartWidthRef.current = width;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const delta = e.clientX - dragStartXRef.current;
+    const targetWidth = dragStartWidthRef.current + delta;
+    const clamped = Math.min(
+      SIDEBAR_MAX_WIDTH,
+      Math.max(SIDEBAR_MIN_WIDTH, Math.round(targetWidth)),
+    );
+    setWidth(clamped);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+    setIsDragging(false);
+    setWidth((current) => {
+      saveSidebarWidthPreference(current);
+      triggerResizeEvent();
+      return current;
+    });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      updateWidth(width - 16);
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault();
+      updateWidth(width + 16);
+    }
+  };
 
   const handleNavigate = () => {
     if (isMobileDrawer && onCloseDrawer) {
@@ -145,10 +275,30 @@ export function Sidebar({
   return (
     <aside
       id="app-sidebar"
-      className="sticky top-0 h-screen w-64 shrink-0 border-r border-border/40"
+      className="sticky top-0 h-screen shrink-0 border-r border-border/40 relative group"
+      style={{ width: `${width}px` }}
     >
       {content}
+
+      {/* Desktop Drag Handle */}
+      <div
+        role="separator"
+        tabIndex={0}
+        aria-orientation="vertical"
+        aria-valuenow={width}
+        aria-valuemin={SIDEBAR_MIN_WIDTH}
+        aria-valuemax={SIDEBAR_MAX_WIDTH}
+        aria-label="Resize sidebar"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onKeyDown={handleKeyDown}
+        className={`absolute top-0 right-0 bottom-0 w-2 cursor-col-resize z-20 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
+          isDragging
+            ? "bg-muted-foreground/60"
+            : "hover:bg-muted-foreground/30 active:bg-muted-foreground/50"
+        }`}
+      />
     </aside>
   );
 }
-
