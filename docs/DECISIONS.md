@@ -2661,6 +2661,36 @@ If we removed it: Operators deploying the application publicly might assume clie
 Decided by: user approved
 Status: active
 
+### D-249 — Phase 8C — Record suggestions runs as discarded patch for guaranteed turn accounting (DEVIATION)
+What: When `POST /api/designs/{id}/suggestions` runs and zero proposed/needs_confirmation suggestions are kept (all generated candidates fail validation rules or empty list returned), insert a placeholder record into `patches` with `status="discarded"`, `kind="suggestion"`, and the run's `created_at` timestamp.
+Deviation: BUILD_PLAN.md:535 lists patch statuses as `proposed`, `blocked`, `needs_confirmation`, `accepted`, `rejected`, `superseded`. Adding `status="discarded"` for all-discarded suggestion runs is a deviation to ensure `count_refinement_turns` (`select(func.count(func.distinct(PatchTable.created_at)))`) advances by exactly 1 turn without requiring a new database table or schema migration.
+Why: BUILD_PLAN.md:545 requires that every user suggestion run counts toward `MAX_REFINEMENT_TURNS`. Without persisting a discarded run record, an all-discarded run wrote nothing to the database, allowing users to bypass turn limits with unlimited LLM suggestion queries.
+Alternatives considered:
+1. Migration 0006 for a dedicated `refinement_turns` table: Rejected as unnecessary schema churn when `PatchTable` already provides distinct timestamp turn tracking.
+2. Inserting synthetic messages into `chat_messages`: Rejected because it pollutes LLM conversation context and chat transcript UI.
+If we removed it: Users could trigger expensive LLM suggestion queries indefinitely whenever candidates were invalid, bypassing qualification budget limits.
+Decided by: user approved
+Status: active
+
+### D-250 — Phase 8C — Backend single source of truth for turns_used and max_turns
+What: Expose `turns_used` and `max_turns` as required integer fields in `MessagesResponse` (`GET /api/designs/{id}/messages`). Update frontend `page.tsx` to read `messagesData.turns_used` and `messagesData.max_turns` directly for the `RefinePanel` counter, removing the client-side `messagesList.filter(role == 'user').length` approximation.
+Why: The frontend previously derived turns used strictly by counting user chat messages, completely missing suggestion turns and causing UI counter desynchronization and unexpected 409 `CAP_TURNS` lockouts. Exposing authoritative backend metrics guarantees the UI counter reflects the exact state evaluated by backend cap guards.
+Alternatives considered:
+1. Client-side heuristic adding local suggestion counts: Rejected because it diverges across page refreshes and multi-tab sessions.
+2. New dedicated turns introspection endpoint: Rejected to avoid unnecessary endpoint proliferation when `MessagesResponse` is already fetched and invalidated across every refinement action.
+If we removed it: The UI counter would continue to desynchronize whenever suggestions are used, confusing prospective leads and violating the single-source-of-truth principle.
+Decided by: user approved
+Status: active
+
+### D-251 — Phase 8C — Historical all-discarded suggestion runs limitation
+What: Acknowledge the known limitation that previous all-discarded suggestion runs performed before D-249 were never recorded in SQLite and cannot be retroactively recovered or counted.
+Why: Database records for historical designs only contain patches that passed validation (`status in ("proposed", "needs_confirmation")`) or chat messages. Historical counts remain based on verifiable rows already stored in `chat_messages` and `patches`.
+Alternatives considered:
+1. Inventing or estimating past discarded runs: Rejected because inventing figures violates core rule 4 and data integrity rules.
+If we removed it: Operators auditing past design turn metrics might wonder why pre-D-249 all-discarded attempts are not reflected in turn counts.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

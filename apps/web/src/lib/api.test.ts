@@ -358,11 +358,15 @@ describe("api client Zod schema parsing", () => {
             created_at: "2026-11-04T12:00:02Z",
           },
         ],
+        turns_used: 1,
+        max_turns: 20,
       };
       const resMessages = messagesResponseSchema.safeParse(messagesPayload);
       expect(resMessages.success).toBe(true);
       if (resMessages.success) {
         expect(resMessages.data.messages).toHaveLength(2);
+        expect(resMessages.data.turns_used).toBe(1);
+        expect(resMessages.data.max_turns).toBe(20);
       }
 
       const versionsPayload = {
@@ -447,7 +451,7 @@ describe("api client Zod schema parsing", () => {
 
     it("getMessages issues GET to /api/designs/:id/messages", async () => {
       vi.mocked(fetch).mockResolvedValueOnce(
-        new Response(JSON.stringify({ messages: [] }), { status: 200 }),
+        new Response(JSON.stringify({ messages: [], turns_used: 0, max_turns: 20 }), { status: 200 }),
       );
 
       const res = await getMessages("des-1");

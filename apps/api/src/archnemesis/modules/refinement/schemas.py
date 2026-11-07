@@ -134,6 +134,8 @@ class MessagesResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     messages: list[ChatMessageItem]
+    turns_used: int
+    max_turns: int
 
 
 class RefinedDesignResponse(BaseModel):

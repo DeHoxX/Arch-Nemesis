@@ -692,7 +692,8 @@ function DesignContent(): React.ReactElement {
             <div className="lg:col-span-7 w-full">
               <RefinePanel
                 messages={messagesList}
-                turnsUsed={messagesList.filter((m) => m.role === "user").length}
+                turnsUsed={messagesData?.turns_used}
+                maxTurns={messagesData?.max_turns}
                 versionsCount={versionsList.length > 0 ? versionsList.length : currentVersion}
                 isSending={isSendingChat}
                 isViewingHistorical={isViewingHistorical}

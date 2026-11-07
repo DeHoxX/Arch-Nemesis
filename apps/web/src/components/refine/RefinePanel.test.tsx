@@ -378,4 +378,58 @@ describe("RefinePanel", () => {
     );
     expect(textarea.value).toBe("Updated draft");
   });
+
+  it("renders nothing for the turns counter when turnsUsed is undefined (loading state)", () => {
+    render(
+      <RefinePanel
+        messages={mockMessages}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/Change requests used:/)).toBeNull();
+    const counterVersions = screen.getByText(
+      (_, el) =>
+        el?.tagName.toLowerCase() === "span" &&
+        el.textContent?.replace(/\s+/g, " ").trim() === "Versions: 1 of 15",
+    );
+    expect(counterVersions).toBeDefined();
+  });
+
+  it("updates turns counter when turnsUsed prop updates (e.g. after suggestions)", () => {
+    const { rerender } = render(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={12}
+        maxTurns={20}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+      />,
+    );
+
+    const counterTurns12 = screen.getByText(
+      (_, el) =>
+        el?.tagName.toLowerCase() === "span" &&
+        el.textContent?.replace(/\s+/g, " ").trim() === "Change requests used: 12 of 20",
+    );
+    expect(counterTurns12).toBeDefined();
+
+    rerender(
+      <RefinePanel
+        messages={mockMessages}
+        turnsUsed={13}
+        maxTurns={20}
+        versionsCount={1}
+        onSendMessage={vi.fn()}
+      />,
+    );
+
+    const counterTurns13 = screen.getByText(
+      (_, el) =>
+        el?.tagName.toLowerCase() === "span" &&
+        el.textContent?.replace(/\s+/g, " ").trim() === "Change requests used: 13 of 20",
+    );
+    expect(counterTurns13).toBeDefined();
+  });
 });

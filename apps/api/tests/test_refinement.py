@@ -7,9 +7,16 @@ from typing import Any
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from archnemesis.db.tables import DesignTable, DesignVersionTable, IntakeSessionTable
+from archnemesis.db.tables import (
+    ChatMessageTable,
+    DesignTable,
+    DesignVersionTable,
+    IntakeSessionTable,
+    PatchTable,
+)
 from archnemesis.dependencies import get_db_session, get_llm_client
 from archnemesis.llm.base import LLMRateLimited, LLMTimeout, LLMUnavailable
 from archnemesis.llm.fake import FakeLLMClient
@@ -1527,3 +1534,237 @@ async def test_versions_list_order_and_404(
         assert resp_404.status_code == 404
         err_data = resp_404.json()
         assert err_data["error"]["code"] == "NOT_FOUND"
+
+
+@pytest.mark.asyncio
+async def test_suggestions_all_discarded_records_turn_and_advances_count(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """When all suggestions fail validation, a discarded patch is stored and advances turns_used by 1."""
+    design_id = "des-all-discarded"
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id)
+
+    # Suggestion with a cycle to force validation discard (status != proposed/needs_confirmation)
+    broken_suggestion_output = {
+        "suggestions": [
+            {
+                "title": "Add cycle edge",
+                "reason": "This creates an invalid cycle",
+                "patch": {
+                    "ops": [
+                        {
+                            "op": "add_edge",
+                            "edge": {
+                                "from": "node_proc",
+                                "to": "node_in",
+                                "flows": "illegal cycle",
+                            },
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+    fake_llm = FakeLLMClient(script=[broken_suggestion_output])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # 1. Run suggestions
+        resp = await client.post(f"/api/designs/{design_id}/suggestions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["suggestions"] == []
+        assert data["discarded_count"] == 1
+
+        # 2. Verify backend turns count via GET /messages
+        msg_resp = await client.get(f"/api/designs/{design_id}/messages")
+        assert msg_resp.status_code == 200
+        msg_data = msg_resp.json()
+        assert msg_data["turns_used"] == 1
+        assert msg_data["max_turns"] == 20
+        assert msg_data["messages"] == []
+
+    # 3. Verify exactly one patch was stored with status="discarded"
+    async with temp_db_session_factory() as session:
+        stmt = select(PatchTable).where(PatchTable.design_id == design_id)
+        res = await session.execute(stmt)
+        patches = res.scalars().all()
+        assert len(patches) == 1
+        assert patches[0].status == "discarded"
+        assert patches[0].kind == "suggestion"
+
+
+@pytest.mark.asyncio
+async def test_suggestions_llm_error_does_not_consume_turn(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """An LLM error during suggestions does NOT create a patch record or consume a turn."""
+    design_id = "des-sugg-err"
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id)
+
+    fake_llm = FakeLLMClient(script=[LLMUnavailable("Model down")])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(f"/api/designs/{design_id}/suggestions")
+        assert resp.status_code == 503
+        assert resp.json()["error"]["code"] == "LLM_UNAVAILABLE"
+
+        msg_resp = await client.get(f"/api/designs/{design_id}/messages")
+        assert msg_resp.status_code == 200
+        assert msg_resp.json()["turns_used"] == 0
+
+    async with temp_db_session_factory() as session:
+        stmt = select(PatchTable).where(PatchTable.design_id == design_id)
+        res = await session.execute(stmt)
+        assert len(res.scalars().all()) == 0
+
+
+@pytest.mark.asyncio
+async def test_discarded_patch_cannot_be_accepted_or_rejected(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """A patch with status='discarded' cannot be accepted or rejected (returns 409 STALE_PATCH)."""
+    design_id = "des-no-accept-discarded"
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id)
+        discarded_patch = PatchTable(
+            id="pat-discarded-1",
+            design_id=design_id,
+            kind="suggestion",
+            base_version=1,
+            status="discarded",
+            patch_json="{}",
+            diff_json=None,
+            issues_json="[]",
+            reason="All suggestions discarded",
+            created_at="2026-11-04T00:00:00Z",
+        )
+        session.add(discarded_patch)
+        await session.commit()
+
+    fake_llm = FakeLLMClient(script=[])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Attempt to accept discarded patch
+        accept_resp = await client.post(
+            f"/api/designs/{design_id}/patches/pat-discarded-1/accept",
+            json={"confirm_drop": False},
+        )
+        assert accept_resp.status_code == 409
+        assert accept_resp.json()["error"]["code"] == "STALE_PATCH"
+
+        # Attempt to reject discarded patch
+        reject_resp = await client.post(f"/api/designs/{design_id}/patches/pat-discarded-1/reject")
+        assert reject_resp.status_code == 409
+        assert reject_resp.json()["error"]["code"] == "STALE_PATCH"
+
+
+@pytest.mark.asyncio
+async def test_suggestions_cap_turns_409_fires_at_limit_with_discarded_runs(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CAP_TURNS 409 fires when limit is reached by combination of chat and discarded suggestions."""
+    design_id = "des-cap-turns-combo"
+    get_settings.cache_clear()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "max_refinement_turns", 2)
+
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id)
+
+    chat_reply = {"reply": "Got it.", "patch": None}
+    broken_suggestion = {
+        "suggestions": [
+            {
+                "title": "Broken",
+                "reason": "Self-loop edge",
+                "patch": {
+                    "ops": [
+                        {
+                            "op": "add_edge",
+                            "edge": {"from": "node_in", "to": "node_in", "flows": "loop"},
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+    fake_llm = FakeLLMClient(script=[chat_reply, broken_suggestion])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Turn 1: Chat message
+        chat_resp = await client.post(
+            f"/api/designs/{design_id}/chat", json={"message": "First message"}
+        )
+        assert chat_resp.status_code == 200
+
+        # Turn 2: Discarded suggestions
+        sugg_resp = await client.post(f"/api/designs/{design_id}/suggestions")
+        assert sugg_resp.status_code == 200
+
+        # Verify counter shows 2 turns used
+        msg_resp = await client.get(f"/api/designs/{design_id}/messages")
+        assert msg_resp.status_code == 200
+        assert msg_resp.json()["turns_used"] == 2
+        assert msg_resp.json()["max_turns"] == 2
+
+        # Turn 3: Exceeds cap (chat)
+        blocked_chat = await client.post(
+            f"/api/designs/{design_id}/chat", json={"message": "Exceeding turn"}
+        )
+        assert blocked_chat.status_code == 409
+        assert blocked_chat.json()["error"]["code"] == "CAP_TURNS"
+
+        # Turn 3: Exceeds cap (suggestions)
+        blocked_sugg = await client.post(f"/api/designs/{design_id}/suggestions")
+        assert blocked_sugg.status_code == 409
+        assert blocked_sugg.json()["error"]["code"] == "CAP_TURNS"
+
+    get_settings.cache_clear()
+
+
+@pytest.mark.asyncio
+async def test_old_style_design_with_chat_messages_gives_same_count(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Historical designs with user chat messages compute the expected turn count via count_refinement_turns."""
+    design_id = "des-old-style"
+    async with temp_db_session_factory() as session:
+        await _seed_test_design(session, design_id=design_id)
+        # Seed 3 user chat messages and 2 assistant messages
+        for i in range(3):
+            session.add(
+                ChatMessageTable(
+                    id=f"msg-user-{i}",
+                    design_id=design_id,
+                    role="user",
+                    text=f"User request {i}",
+                    created_at=f"2026-11-04T00:0{i}:00Z",
+                )
+            )
+            session.add(
+                ChatMessageTable(
+                    id=f"msg-asst-{i}",
+                    design_id=design_id,
+                    role="assistant",
+                    text=f"Assistant reply {i}",
+                    created_at=f"2026-11-04T00:0{i}:30Z",
+                )
+            )
+        await session.commit()
+
+    fake_llm = FakeLLMClient(script=[])
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        msg_resp = await client.get(f"/api/designs/{design_id}/messages")
+        assert msg_resp.status_code == 200
+        data = msg_resp.json()
+        assert data["turns_used"] == 3
+        assert len(data["messages"]) == 6

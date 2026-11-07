@@ -381,6 +381,22 @@ async def handle_suggestions(
                 issue_codes=issue_codes,
             )
 
+    if len(kept_suggestions) == 0:
+        placeholder_patch_id = str(uuid.uuid4())
+        await repo.create_patch(
+            db=db,
+            patch_id=placeholder_patch_id,
+            design_id=design_id,
+            kind="suggestion",
+            base_version=design.current_version,
+            status="discarded",
+            patch_json="{}",
+            diff_json=None,
+            issues_json=json.dumps(discarded_issue_codes),
+            reason="All suggestions discarded by validation rules",
+            created_at=now_iso,
+        )
+
     await db.commit()
 
     logger.info(
@@ -421,6 +437,15 @@ async def accept_patch(
             patch_id=patch_id,
             patch_base=patch_record.base_version,
             current_version=design.current_version,
+        )
+        raise StalePatchError()
+
+    if patch_record.status == "discarded":
+        logger.info(
+            "accept_discarded_patch",
+            design_id=design_id,
+            patch_id=patch_id,
+            status=patch_record.status,
         )
         raise StalePatchError()
 
@@ -558,6 +583,15 @@ async def reject_patch(
     if patch_record is None:
         raise NotFoundError(f"Patch '{patch_id}' not found for design '{design_id}'.")
 
+    if patch_record.status == "discarded":
+        logger.info(
+            "reject_discarded_patch",
+            design_id=design_id,
+            patch_id=patch_id,
+            status=patch_record.status,
+        )
+        raise StalePatchError()
+
     now_iso = datetime.now(UTC).isoformat()
     await repo.update_patch_status(db, patch_id, status="rejected", decided_at=now_iso)
     await db.commit()
@@ -630,10 +664,12 @@ async def get_messages(
     design_id: str,
 ) -> MessagesResponse:
     """Return all chat messages for a design."""
+    settings = get_settings()
     design = await repo.get_design(db, design_id)
     if design is None:
         raise NotFoundError(f"Design '{design_id}' not found.")
 
+    turn_count = await repo.count_refinement_turns(db, design_id)
     records = await repo.get_all_messages(db, design_id)
     items = [
         ChatMessageItem(
@@ -644,7 +680,11 @@ async def get_messages(
         )
         for r in records
     ]
-    return MessagesResponse(messages=items)
+    return MessagesResponse(
+        messages=items,
+        turns_used=turn_count,
+        max_turns=settings.max_refinement_turns,
+    )
 
 
 async def get_version_detail(

@@ -18,7 +18,7 @@ import {
 
 export interface RefinePanelProps {
   messages: ChatMessageItem[];
-  turnsUsed: number;
+  turnsUsed?: number;
   maxTurns?: number;
   versionsCount: number;
   maxVersions?: number;
@@ -98,7 +98,7 @@ export function RefinePanel({
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const isTurnsCapped = turnsUsed >= maxTurns;
+  const isTurnsCapped = typeof turnsUsed === "number" && turnsUsed >= maxTurns;
   const isVersionsCapped = versionsCount >= maxVersions;
   const isInputDisabled =
     isSending || isViewingHistorical || isTurnsCapped || isVersionsCapped || Boolean(hasPendingPatch);
@@ -138,10 +138,14 @@ export function RefinePanel({
             </CardTitle>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
-            <span>
-              Change requests used: <strong className="text-foreground">{turnsUsed}</strong> of {maxTurns}
-            </span>
-            <span className="text-muted-foreground/40" aria-hidden="true">|</span>
+            {typeof turnsUsed === "number" && (
+              <>
+                <span>
+                  Change requests used: <strong className="text-foreground">{turnsUsed}</strong> of {maxTurns}
+                </span>
+                <span className="text-muted-foreground/40" aria-hidden="true">|</span>
+              </>
+            )}
             <span>
               Versions: <strong className="text-foreground">{versionsCount}</strong> of {maxVersions}
             </span>

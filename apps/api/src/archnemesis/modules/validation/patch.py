@@ -38,6 +38,7 @@ PatchStatus = Literal[
     "accepted",
     "rejected",
     "superseded",
+    "discarded",
 ]
 
 DEFAULT_MAX_PATCH_OPS = 20

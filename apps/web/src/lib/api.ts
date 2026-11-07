@@ -274,6 +274,7 @@ export const patchStatusSchema = z.enum([
   "accepted",
   "rejected",
   "superseded",
+  "discarded",
 ]);
 
 export const patchSummarySchema: z.ZodType<PatchSummary> = z.object({
@@ -317,6 +318,8 @@ export const chatMessageItemSchema = z.object({
 
 export const messagesResponseSchema: z.ZodType<MessagesResponse> = z.object({
   messages: z.array(chatMessageItemSchema).default([]),
+  turns_used: z.number(),
+  max_turns: z.number(),
 });
 
 export const versionSummaryItemSchema = z.object({

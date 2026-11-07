@@ -293,7 +293,8 @@ export type PatchStatus =
   | "needs_confirmation"
   | "accepted"
   | "rejected"
-  | "superseded";
+  | "superseded"
+  | "discarded";
 
 /**
  * Candidate patch evaluation summary.
@@ -360,6 +361,8 @@ export interface ChatMessageItem {
  */
 export interface MessagesResponse {
   messages: ChatMessageItem[];
+  turns_used: number;
+  max_turns: number;
 }
 
 /**

@@ -614,7 +614,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -686,7 +686,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -771,7 +771,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -865,7 +865,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -942,7 +942,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -1017,7 +1017,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -1079,7 +1079,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: mockCappedMessages }),
+            json: async () => ({ messages: mockCappedMessages, turns_used: 20, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -1144,7 +1144,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -1230,7 +1230,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (urlStr.endsWith("/versions")) {
@@ -1329,7 +1329,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (url.includes("/versions")) {
@@ -1426,7 +1426,7 @@ describe("DesignPage Component (/design/[id])", () => {
           return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ messages: [] }),
+            json: async () => ({ messages: [], turns_used: 0, max_turns: 20 }),
           } as unknown as Response);
         }
         if (url.includes("/versions")) {
