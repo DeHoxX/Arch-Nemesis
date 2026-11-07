@@ -259,10 +259,13 @@ def build_dry_run_script(cases: list[dict[str, Any]], runs_count: int) -> list[d
             "models_text": "Validator component uses a validation model.",
         }
 
-        # Each run executes 1 intake, 1 architect, 1 explainer
+        title_output = {"title": "Synthetic Architecture Title"}
+
+        # Each run executes 1 intake, 1 architect, 1 title, 1 explainer
         for _ in range(runs_count):
             script.append(intake_output)
             script.append(architect_spec)
+            script.append(title_output)
             script.append(explanation_draft)
 
     return script

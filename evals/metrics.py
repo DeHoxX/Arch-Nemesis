@@ -44,7 +44,9 @@ class CaseRunRecord:
     design_attempt_issues: list[str] = field(default_factory=list)
     design_attempts: list[dict[str, Any]] = field(default_factory=list)
     final_constraints: list[dict[str, Any]] = field(default_factory=list)
-    llm_call_count: int = 0
+    llm_call_count: int = (
+        0  # Total LLM calls across run (intake, architect, title, explainer, retries)
+    )
     wall_clock_seconds: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:

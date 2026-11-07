@@ -80,6 +80,15 @@ async def create_design(
     return design, version
 
 
+async def update_design_title(db: AsyncSession, design_id: str, title: str) -> None:
+    """Update title for a design record."""
+    design = await get_design_by_id(db, design_id)
+    if design is not None:
+        design.title = title
+        await db.commit()
+        await db.refresh(design)
+
+
 async def get_cached_spec(db: AsyncSession, key: str) -> SpecCacheTable | None:
     stmt = select(SpecCacheTable).where(SpecCacheTable.key == key)
     result = await db.execute(stmt)

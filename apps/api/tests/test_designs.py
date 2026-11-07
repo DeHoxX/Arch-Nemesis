@@ -216,7 +216,7 @@ async def test_create_design_idempotency_returns_existing(
             status="ready",
         )
 
-    fake_llm = FakeLLMClient([VALID_SPEC_DICT])
+    fake_llm = FakeLLMClient([VALID_SPEC_DICT, {"title": "Order Processing Pipeline"}])
     app = _create_test_app(temp_db_session_factory, fake_llm)
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -231,7 +231,9 @@ async def test_create_design_idempotency_returns_existing(
         design_id_2 = res2.json()["id"]
 
     assert design_id_1 == design_id_2
-    assert len(fake_llm.calls) == 1  # Only called once
+    architect_calls = [c for c in fake_llm.calls if c["task"] == "architect"]
+    assert len(architect_calls) == 1
+    assert len(fake_llm.calls) == 2  # 1 architect + 1 title during creation; 0 during second POST
     data1 = res1.json()
     data2 = res2.json()
     assert data1["brief"]["summary"] == data2["brief"]["summary"] == "Order processing pipeline."

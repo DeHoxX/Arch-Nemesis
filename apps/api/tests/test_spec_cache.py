@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from archnemesis.db.tables import DesignTable
 from archnemesis.dependencies import get_db_session, get_llm_client
 from archnemesis.errors import DesignFailedError
-from archnemesis.llm.base import LLMClient
+from archnemesis.llm.base import LLMClient, LLMTask
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.main import create_app
 from archnemesis.modules.architect.service import ARCHITECT_PROMPT_NAME
@@ -145,7 +145,13 @@ async def test_spec_cache_miss_calls_llm_and_stores_hit_makes_zero_calls_and_cre
     caplog.clear()
     caplog.set_level(logging.INFO)
 
-    fake_llm = FakeLLMClient(script=[VALID_SPEC_DICT])
+    fake_llm = FakeLLMClient(
+        script=[
+            VALID_SPEC_DICT,
+            {"title": "Order Processing Pipeline"},
+            {"title": "Order Processing Pipeline"},
+        ]
+    )
     app = _create_test_app(temp_db_session_factory, fake_llm)
 
     from archnemesis.modules.designs.service import compute_spec_cache_key
@@ -177,11 +183,12 @@ async def test_spec_cache_miss_calls_llm_and_stores_hit_makes_zero_calls_and_cre
     )
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        # Initial call: cache miss -> LLM invoked once
+        # Initial call: cache miss -> LLM invoked once for architect
         res1 = await client.post("/api/designs", json={"session_id": s1.id})
         assert res1.status_code == 200, res1.text
         data1 = res1.json()
-        assert len(fake_llm.calls) == 1
+        architect_calls_res1 = [c for c in fake_llm.calls if c["task"] == LLMTask.ARCHITECT]
+        assert len(architect_calls_res1) == 1
         assert data1["prompt_version"] == ARCHITECT_PROMPT_NAME
         assert data1["explanation"] is None
 
@@ -191,11 +198,12 @@ async def test_spec_cache_miss_calls_llm_and_stores_hit_makes_zero_calls_and_cre
             assert cached is not None
             assert cached.key == cache_key
 
-        # Second call: cache hit -> ZERO new LLM calls
+        # Second call: cache hit -> ZERO new ARCHITECT LLM calls
         res2 = await client.post("/api/designs", json={"session_id": s2.id})
         assert res2.status_code == 200, res2.text
         data2 = res2.json()
-        assert len(fake_llm.calls) == 1, "Expected zero new LLM calls on cache hit"
+        architect_calls_res2 = [c for c in fake_llm.calls if c["task"] == LLMTask.ARCHITECT]
+        assert len(architect_calls_res2) == 1, "Expected zero new ARCHITECT calls on cache hit"
 
         # Assert two distinct design rows created for two different sessions
         assert data2["id"] != data1["id"], (
@@ -281,7 +289,7 @@ async def test_spec_cache_expired_entry_triggers_miss_and_eviction(
     """An expired cache entry (> 7 days) is deleted and treated as a miss."""
     from archnemesis.modules.designs.service import compute_spec_cache_key, create_design
 
-    fake_llm = FakeLLMClient(script=[VALID_SPEC_DICT])
+    fake_llm = FakeLLMClient(script=[VALID_SPEC_DICT, {"title": "Order Processing Pipeline"}])
     settings = get_settings()
     cache_key = compute_spec_cache_key(
         SAMPLE_BRIEF, ARCHITECT_PROMPT_NAME, settings.llm_model_architect or ""
@@ -310,7 +318,9 @@ async def test_spec_cache_expired_entry_triggers_miss_and_eviction(
         req = CreateDesignRequest(session_id=s.id)
         res = await create_design(db, req, fake_llm)
 
-        assert len(fake_llm.calls) == 1, "Expected LLM call because cache was expired"
+        architect_calls = [c for c in fake_llm.calls if c["task"] == LLMTask.ARCHITECT]
+        assert len(architect_calls) == 1, "Expected architect LLM call because cache was expired"
+        assert len(fake_llm.calls) == 2  # 1 architect + 1 title
         assert res.prompt_version == ARCHITECT_PROMPT_NAME, (
             "Expected fresh generation prompt version"
         )

@@ -22,6 +22,7 @@ class DesignResponse(BaseModel):
 
     id: str
     intake_session_id: str
+    title: str
     current_version: int
     brief: RequirementBrief
     spec: ArchitectureSpec

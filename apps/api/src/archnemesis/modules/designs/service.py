@@ -14,6 +14,10 @@ from archnemesis.modules.architect import service as architect_service
 from archnemesis.modules.architect.service import ARCHITECT_PROMPT_NAME
 from archnemesis.modules.designs import repo
 from archnemesis.modules.designs.schemas import CreateDesignRequest, DesignResponse
+from archnemesis.modules.designs.title import (
+    fallback_title,
+    generate_title_for_design,
+)
 from archnemesis.modules.explainer.schemas import Explanation
 from archnemesis.modules.intake import repo as intake_repo
 from archnemesis.modules.validation.models import (
@@ -69,9 +73,13 @@ async def create_design(
                 existing_explanation = Explanation.model_validate(
                     json.loads(version.explanation_json)
                 )
+            resolved_title = existing_design.title or fallback_title(
+                brief_obj.summary, brief_obj.domain_hint
+            )
             return DesignResponse(
                 id=existing_design.id,
                 intake_session_id=existing_design.intake_session_id,
+                title=resolved_title,
                 current_version=version.version_no,
                 brief=brief_obj,
                 spec=existing_spec,
@@ -189,9 +197,22 @@ async def create_design(
     brief_obj = RequirementBrief.model_validate(brief_dict)
     warnings_list = json.loads(version.warnings_json)
     flow_order = order_nodes(spec)
+
+    # 6. Generate concise title post-save (single attempt, 3s timeout, no retry)
+    if not getattr(design, "title", None):
+        title, source, issue = await generate_title_for_design(design.id, brief_obj, llm)
+        logger.info("design_title_generated", design_id=design.id, source=source, issue=issue)
+        try:
+            await repo.update_design_title(db, design.id, title)
+            design.title = title
+        except Exception:  # noqa: BLE001 - DB title update failure must never fail design creation
+            logger.warning("design_title_db_update_failed", design_id=design.id)
+
+    resolved_title = design.title or fallback_title(brief_obj.summary, brief_obj.domain_hint)
     return DesignResponse(
         id=design.id,
         intake_session_id=design.intake_session_id,
+        title=resolved_title,
         current_version=version.version_no,
         brief=brief_obj,
         spec=spec,
@@ -222,9 +243,11 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
     if version.explanation_json is not None:
         explanation_obj = Explanation.model_validate(json.loads(version.explanation_json))
 
+    resolved_title = design.title or fallback_title(brief_obj.summary, brief_obj.domain_hint)
     return DesignResponse(
         id=design.id,
         intake_session_id=design.intake_session_id,
+        title=resolved_title,
         current_version=version.version_no,
         brief=brief_obj,
         spec=spec,

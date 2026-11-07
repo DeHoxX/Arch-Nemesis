@@ -2760,6 +2760,63 @@ If we removed it: Asynchronous test runs would report unhandled window errors du
 Decided by: user approved
 Status: active
 
+### D-259 — Phase 8D — deviation — Concise title truncation for sidebar items and minimal scoped scrollbar
+What: Implement a pure helper `shortTitle(title)` strictly for past-design links in the sidebar component (`Sidebar.tsx`), taking the first 4–5 words up to at most ~30 characters, breaking cleanly on word boundaries, collapsing whitespace, and appending "..." only if shortened. Full stored titles in `archnemesis.history.v1` (up to 60 characters) and on the `/history` page remain completely untouched and are exposed on sidebar items via the native `title` attribute as plain text. Add a scoped minimal scrollbar class (`sidebar-scrollbar`, ~6px wide, subtle thumb, transparent track) in `globals.css` applied only to the sidebar scroll list.
+Why: Full 60-character titles in narrow sidebars (200–256px) wrap awkwardly across 3–4 lines or create ragged text blocks. Shortening titles at natural word boundaries creates a clean, readable scan-list (similar to Claude and ChatGPT session lists) without modifying persistent localStorage schema or degrading fidelity on `/history`. The scoped scrollbar keeps the sidebar list clean and uncluttered without affecting global window scrollbars. Marked as DEVIATION from BUILD_PLAN.md:506 where titles were displayed verbatim up to 60 chars.
+Alternatives considered:
+1. Truncating stored titles to 30 characters in `saveHistoryEntry`: Rejected because it permanently destroys title data for `/history` and lead exports.
+2. CSS `truncate` only: Often truncates mid-word or produces single-word cutoffs on narrow sidebars.
+If we removed it: Past design titles in the sidebar would either wrap across multiple lines or truncate mid-word without natural phrasing.
+Decided by: user approved
+Status: active
+
+### D-260 — Phase 8D — deviation — Concise AI-generated architecture design titles
+What: Generate a concise, specific 3–5 word title (e.g. "Insurance claims pipeline") for architecture designs, stored on the design record and exposed in DesignResponse as a non-null string. Marked as DEVIATION from BUILD_PLAN.md:506 where titles were verbatim 60-character summary prefixes.
+Why: Brief summaries typically begin with generic boilerplate ("A system designed to...", "An automated...", "Development of a..."), making past designs visually indistinguishable in the sidebar. AI-generated titles identify the specific problem domain and function cleanly.
+Alternatives considered:
+1. Verbatim summary prefix: Rejected because sidebar links become repetitive and confusing.
+2. Generating title on the frontend: Rejected to keep title generation centralized, consistent, and persisted across clients.
+If we removed it: Sidebar titles would remain generic prefix slices.
+Decided by: user approved
+Status: active
+
+### D-261 — Phase 8D — file — Alembic migration 0006 for design title column
+What: Add Alembic migration `0006_design_title.py` adding a nullable `title: String(100)` column to the `designs` table.
+Why: Stores the concise design title at the root design level so it persists independently of individual versions and can be retrieved without parsing version JSON payloads.
+Alternatives considered:
+1. Embedding title in `brief_json` or `spec_json`: Rejected because it couples title persistence to version-specific schemas and breaks domain model boundaries.
+If we removed it: Design titles could not be stored in the database.
+Decided by: user approved
+Status: active
+
+### D-262 — Phase 8D — step — Pure title heuristic and strict code validation rules
+What: Implement a pure heuristic function that extracts 3–5 word Title Case titles from brief fields by stripping generic prefix boilerplate, and enforce strict code validation on LLM output (stripping quotes/markdown/"Title:" prefix, 3–5 words, max 40 chars, rejecting HTML, digits, and Rule-4 forbidden cost/timeline terms). Fall back to the heuristic whenever validation or LLM calls fail.
+Why: Satisfies Rule 1 and Rule 5 by ensuring all LLM output is strictly validated and sanitized by pure code. Guarantees that a title is always returned, even when the model fails, times out, or hallucinates forbidden terms.
+Alternatives considered:
+1. Trusting raw LLM title output: Rejected because LLMs often produce surrounding quotes, conversational preambles, or out-of-scope timeline/cost words.
+If we removed it: Malformed or unvalidated LLM output could leak into UI titles or crash serialization.
+Decided by: user approved
+Status: active
+
+### D-263 — Phase 8D — design — Reuse WRITER model for title generation without new environment variables
+What: Route title generation requests through `LLMTask.WRITER` using the existing `ARCHNEMESIS_LLM_MODEL_WRITER` environment setting without introducing new environment variables or settings fields.
+Why: Title generation is a prose-writing task fully aligned with the writer role. Reusing `LLMTask.WRITER` minimizes configuration surface area while fully complying with Rule 13 (no hardcoded model names).
+Alternatives considered:
+1. Adding a new `ARCHNEMESIS_LLM_MODEL_TITLE` variable: Rejected as unnecessary configuration complexity for a 5-word prose title.
+If we removed it: A new environment variable and settings wiring would be required across all deployment environments.
+Decided by: user approved
+Status: active
+
+### D-264 — Phase 8D — step — Post-save single attempt title generation with 3s timeout
+What: Execute title generation strictly after the architecture design and version 1 are validated and persisted to the database, capped at a single attempt with a 3-second timeout and no retries. If the title call fails, times out, or errors, log minimal metadata and fall back to the heuristic without failing or delaying design creation. On spec-cache hits, generate or fall back to the title in the same manner.
+Why: Design creation is the critical user path. Title generation is an enhancement and must never block, fail, or noticeably delay design synthesis.
+Alternatives considered:
+1. Running title generation before DB commit: Rejected because title failure or latency would block or fail the entire design generation request.
+2. Retrying title generation on failure: Rejected because retries add unacceptable latency to the user response.
+If we removed it: A transient title LLM timeout would cause an otherwise valid architecture design to fail with 500/504.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

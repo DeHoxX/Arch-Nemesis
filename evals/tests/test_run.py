@@ -17,6 +17,8 @@ from pydantic import BaseModel
 from archnemesis.llm.base import LLMClient, LLMRateLimited, LLMTask
 from archnemesis.llm.fake import FakeLLMClient
 
+DEFAULT_TITLE_OUTPUT: dict[str, Any] = {"title": "Support Chat Assistant"}
+
 
 class FailingFakeLLM(LLMClient):
     """Fake client that succeeds once, then raises LLMRateLimited."""
@@ -316,7 +318,13 @@ async def test_run_captures_explainer_retry_and_issue_codes(
         "models_text": "Uses a reviewer model.",
     }
 
-    script = [valid_intake, valid_spec, invalid_draft_attempt_1, valid_draft_attempt_2]
+    script = [
+        valid_intake,
+        valid_spec,
+        DEFAULT_TITLE_OUTPUT,
+        invalid_draft_attempt_1,
+        valid_draft_attempt_2,
+    ]
 
     fake_client = FakeLLMClient(script=script)
 
@@ -460,7 +468,7 @@ async def test_run_explainer_attempt_1_clean_pass(tmp_path: Path, repo_root_path
         "models_text": "Uses a reviewer model.",
     }
 
-    script = [valid_intake, valid_spec, valid_draft_attempt_1]
+    script = [valid_intake, valid_spec, DEFAULT_TITLE_OUTPUT, valid_draft_attempt_1]
 
     fake_client = FakeLLMClient(script=script)
 
@@ -594,7 +602,16 @@ async def test_pause_seconds_sleeps_between_runs_only(
         "models_text": "No models.",
     }
 
-    script = [valid_intake, valid_spec, valid_draft, valid_intake, valid_spec, valid_draft]
+    script = [
+        valid_intake,
+        valid_spec,
+        DEFAULT_TITLE_OUTPUT,
+        valid_draft,
+        valid_intake,
+        valid_spec,
+        DEFAULT_TITLE_OUTPUT,
+        valid_draft,
+    ]
 
     client = InstrumentedLLMClient(FakeLLMClient(script=script))
 
@@ -708,7 +725,9 @@ async def test_429_retry_once_then_success(
 
             self.call_count = 0
 
-            self.inner = FakeLLMClient(script=[valid_intake, valid_spec, valid_draft])
+            self.inner = FakeLLMClient(
+                script=[valid_intake, valid_spec, DEFAULT_TITLE_OUTPUT, valid_draft]
+            )
 
         async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
 

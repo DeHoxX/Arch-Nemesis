@@ -31,6 +31,7 @@ class DesignTable(Base):
     intake_session_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("intake_sessions.id"), unique=True, nullable=False
     )
+    title: Mapped[str | None] = mapped_column(String(100), nullable=True)
     current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
 

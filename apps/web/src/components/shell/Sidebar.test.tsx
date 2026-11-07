@@ -8,6 +8,7 @@ import {
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_WIDTH_STORAGE_KEY,
   Sidebar,
+  shortTitle,
 } from "./Sidebar";
 import { AppShell, SIDEBAR_COLLAPSE_STORAGE_KEY } from "./AppShell";
 import { HISTORY_STORAGE_KEY } from "@/lib/history";
@@ -39,7 +40,7 @@ describe("Sidebar component", () => {
     expect(screen.getByText("No past designs yet")).toBeDefined();
   });
 
-  it("renders past designs list from localStorage sorted newest first with plain text titles", () => {
+  it("renders past designs list from localStorage sorted newest first with shortened plain text titles and full title tooltip", () => {
     const historyData = [
       {
         design_id: "des-001",
@@ -56,7 +57,9 @@ describe("Sidebar component", () => {
 
     render(<Sidebar />);
 
-    expect(screen.getByText("Customer Support Assistant Architecture")).toBeDefined();
+    // Displayed text is shortened with word-boundary ellipsis
+    expect(screen.getByText("Customer Support Assistant...")).toBeDefined();
+    // Short title fits without ellipsis
     expect(screen.getByText("Inventory Sync Pipeline")).toBeDefined();
 
     const links = screen.getAllByRole("link");
@@ -65,7 +68,10 @@ describe("Sidebar component", () => {
     );
     expect(designLinks).toHaveLength(2);
     expect(designLinks[0]?.getAttribute("href")).toBe("/design/des-001");
+    // Tooltip title attribute holds the full stored title
+    expect(designLinks[0]?.getAttribute("title")).toBe("Customer Support Assistant Architecture");
     expect(designLinks[1]?.getAttribute("href")).toBe("/design/des-002");
+    expect(designLinks[1]?.getAttribute("title")).toBe("Inventory Sync Pipeline");
   });
 
   it("renders desktop collapse button and fires callback", async () => {
@@ -289,5 +295,46 @@ describe("AppShell component", () => {
 
     dispatchSpy.mockRestore();
     vi.useRealTimers();
+  });
+});
+
+describe("shortTitle helper", () => {
+  it("returns empty string for empty or whitespace-only titles", () => {
+    expect(shortTitle("")).toBe("");
+    expect(shortTitle("   ")).toBe("");
+  });
+
+  it("leaves short titles unchanged when within character and word limits", () => {
+    expect(shortTitle("Simple App")).toBe("Simple App");
+    expect(shortTitle("Telemetry Pipeline")).toBe("Telemetry Pipeline");
+  });
+
+  it("truncates long titles cleanly at word boundaries and appends ellipsis", () => {
+    expect(shortTitle("Customer Support Assistant Architecture Pipeline")).toBe(
+      "Customer Support Assistant...",
+    );
+  });
+
+  it("preserves a single very long word without cutting in the middle", () => {
+    const longWord = "Supercalifragilisticexpialidocious";
+    expect(shortTitle(longWord)).toBe(longWord);
+  });
+
+  it("collapses extra whitespace between words and trims ends", () => {
+    expect(shortTitle("   Telemetry    Data    Stream   ")).toBe(
+      "Telemetry Data Stream",
+    );
+  });
+
+  it("preserves hostile HTML/script strings as literal plain text", () => {
+    const hostile = "<script>alert('xss')</script> System";
+    const res = shortTitle(hostile);
+    expect(res).toBe("<script>alert('xss')</script>...");
+    expect(res).not.toContain("<script src");
+  });
+
+  it("handles Unicode and non-Latin text (Hindi) cleanly at word boundaries", () => {
+    const hindiTitle = "ग्राहक सहायता प्रणाली वास्तुकला";
+    expect(shortTitle(hindiTitle)).toBe("ग्राहक सहायता प्रणाली...");
   });
 });

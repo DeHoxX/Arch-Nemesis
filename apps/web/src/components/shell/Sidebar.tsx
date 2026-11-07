@@ -11,6 +11,57 @@ export const SIDEBAR_MIN_WIDTH = 200;
 export const SIDEBAR_MAX_WIDTH = 420;
 export const SIDEBAR_DEFAULT_WIDTH = 256;
 
+export const SIDEBAR_TITLE_MAX_CHARS = 30;
+export const SIDEBAR_TITLE_MAX_WORDS = 5;
+
+/**
+ * Pure helper for displaying concise past-design titles in the sidebar.
+ *
+ * Rules (D-259):
+ * - Takes up to 4 to 5 words, at most about 30 characters
+ * - Never cuts a word in the middle
+ * - Appends "..." only if shortened
+ * - Collapses extra whitespace
+ * - Safe for hostile strings and unicode text
+ */
+export function shortTitle(
+  title: string,
+  maxChars = SIDEBAR_TITLE_MAX_CHARS,
+  maxWords = SIDEBAR_TITLE_MAX_WORDS,
+): string {
+  const trimmed = title.trim().replace(/\s+/g, " ");
+  if (!trimmed) {
+    return "";
+  }
+
+  const words = trimmed.split(" ");
+  if (trimmed.length <= maxChars && words.length <= maxWords) {
+    return trimmed;
+  }
+
+  const selected: string[] = [];
+  let currentLength = 0;
+
+  for (let i = 0; i < Math.min(words.length, maxWords); i++) {
+    const word = words[i]!;
+    const needed = selected.length === 0 ? word.length : word.length + 1;
+    if (currentLength + needed <= maxChars) {
+      selected.push(word);
+      currentLength += needed;
+    } else {
+      break;
+    }
+  }
+
+  if (selected.length === 0 && words.length > 0) {
+    selected.push(words[0]!);
+  }
+
+  const result = selected.join(" ");
+  const isShortened = result !== trimmed;
+  return isShortened ? `${result}...` : result;
+}
+
 export function loadSidebarWidthPreference(): number {
   if (typeof window === "undefined") {
     return SIDEBAR_DEFAULT_WIDTH;
@@ -212,7 +263,7 @@ export function Sidebar({
       </div>
 
       {/* Past Designs List */}
-      <div className="flex-1 overflow-y-auto pr-1">
+      <div className="flex-1 overflow-y-auto pr-1 sidebar-scrollbar">
         {history.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
             No past designs yet
@@ -228,7 +279,7 @@ export function Sidebar({
                   className="group flex flex-col rounded-lg px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground"
                 >
                   <span className="truncate font-medium text-foreground/90 group-hover:text-foreground">
-                    {entry.title}
+                    {shortTitle(entry.title)}
                   </span>
                   <span className="text-[10px] font-mono text-muted-foreground/60">
                     {entry.created_at

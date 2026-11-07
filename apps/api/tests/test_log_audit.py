@@ -126,6 +126,7 @@ async def test_end_to_end_log_audit_forbids_sentinel_data(
         script=[
             FAKE_INTAKE_OUTPUT,
             FAKE_ARCHITECT_SPEC,
+            {"title": "Payment System"},
             FAKE_CHAT_OUTPUT,
         ]
     )
