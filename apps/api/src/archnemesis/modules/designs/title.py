@@ -6,7 +6,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from archnemesis.llm.base import LLMClient, LLMError, LLMTask, LLMTimeout
+from archnemesis.llm.base import (
+    LLMClient,
+    LLMError,
+    LLMRateLimited,
+    LLMTask,
+    LLMTimeout,
+    LLMUnavailable,
+)
 from archnemesis.prompts import load_prompt
 from archnemesis.shared.brief import RequirementBrief
 
@@ -73,6 +80,23 @@ class TitleLLMOutput(BaseModel):
     title: str
 
 
+def smart_title_word(word: str) -> str:
+    """Apply Title Case only to words that are entirely lowercase.
+
+    Leave words that already contain an uppercase letter untouched (AI, API, iOS, PII).
+    """
+    if any(c.isupper() for c in word):
+        return word
+    if "-" in word:
+        return "-".join(part.capitalize() for part in word.split("-"))
+    return word.capitalize()
+
+
+def apply_smart_title_case(text: str) -> str:
+    """Format title words: capitalize entirely lowercase words, leave words with uppercase untouched."""
+    return " ".join(smart_title_word(w) for w in text.split())
+
+
 def fallback_title(summary: str, domain_hint: str | None = None) -> str:
     """Generate a deterministic Title Case title (3 to 5 words, max 40 chars) from brief fields.
 
@@ -109,7 +133,7 @@ def fallback_title(summary: str, domain_hint: str | None = None) -> str:
     if not selected_words:
         return "Untitled Design"
 
-    title = " ".join(selected_words).title()
+    title = apply_smart_title_case(" ".join(selected_words))
 
     # Truncate to max 40 characters without splitting words mid-word if possible
     if len(title) > 40:
@@ -179,8 +203,8 @@ def validate_title(raw_text: str) -> tuple[bool, str, str | None]:
     if len(text) > 40:
         return False, "", f"EXCEEDS_MAX_CHARS_{len(text)}"
 
-    # Title case formatting for final output
-    cleaned_title = text.title()
+    # Title case formatting for final output: only capitalize entirely lowercase words
+    cleaned_title = apply_smart_title_case(text)
     return True, cleaned_title, None
 
 
@@ -224,5 +248,11 @@ async def generate_title_for_design(
         return fallback, "heuristic", issue_code
     except (TimeoutError, LLMTimeout):
         return fallback, "heuristic", "TIMEOUT"
+    except LLMRateLimited as exc:
+        msg = getattr(exc, "message", str(exc))
+        return fallback, "heuristic", f"RATE_LIMITED:{msg}"
+    except LLMUnavailable as exc:
+        msg = getattr(exc, "message", str(exc))
+        return fallback, "heuristic", f"UNAVAILABLE:{msg}"
     except (LLMError, Exception):  # noqa: BLE001 - Title failure must never fail design creation
         return fallback, "heuristic", "LLM_ERROR"

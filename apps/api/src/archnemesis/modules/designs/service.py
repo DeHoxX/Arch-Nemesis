@@ -256,3 +256,29 @@ async def get_design(db: AsyncSession, design_id: str) -> DesignResponse:
         prompt_version=version.prompt_version,
         explanation=explanation_obj,
     )
+
+
+async def get_design_titles(db: AsyncSession, design_ids: list[str]) -> dict[str, str]:
+    """Resolve concise titles for requested design IDs in a single query, omitting unknown IDs."""
+    if not design_ids:
+        return {}
+
+    unique_ids = list(dict.fromkeys(design_ids))
+    rows = await repo.get_design_titles_batch(db, unique_ids)
+
+    titles: dict[str, str] = {}
+    for design_id, stored_title, brief_json in rows:
+        if stored_title:
+            titles[design_id] = stored_title
+        elif brief_json:
+            try:
+                brief_dict = json.loads(brief_json)
+                summary = brief_dict.get("summary", "")
+                domain_hint = brief_dict.get("domain_hint", "")
+                titles[design_id] = fallback_title(summary, domain_hint)
+            except Exception:  # noqa: BLE001
+                titles[design_id] = "Untitled Design"
+        else:
+            titles[design_id] = "Untitled Design"
+
+    return titles

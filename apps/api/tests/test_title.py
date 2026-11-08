@@ -111,6 +111,23 @@ def test_validate_title_valid() -> None:
     assert issue is None
 
 
+def test_validate_title_preserves_acronyms_and_cases_lowercase() -> None:
+    ok1, c1, i1 = validate_title("AI Support Assistant")
+    assert ok1 is True
+    assert c1 == "AI Support Assistant"
+    assert i1 is None
+
+    ok2, c2, i2 = validate_title("ai support assistant")
+    assert ok2 is True
+    assert c2 == "Ai Support Assistant"
+    assert i2 is None
+
+    ok3, c3, i3 = validate_title("API Gateway Monitor")
+    assert ok3 is True
+    assert c3 == "API Gateway Monitor"
+    assert i3 is None
+
+
 def test_validate_title_strips_quotes() -> None:
     ok, cleaned, issue = validate_title('"Bank Fraud Engine"')
     assert ok is True
@@ -197,7 +214,7 @@ def test_fallback_title_strips_fluff_prefixes() -> None:
     assert t3 == "Customer Assistant For Support"
 
     t4 = fallback_title("Implement an automated ETL data pipeline")
-    assert t4 == "Etl Data Pipeline"
+    assert t4 == "ETL Data Pipeline"
 
 
 def test_fallback_title_with_domain_hint() -> None:

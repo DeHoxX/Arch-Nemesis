@@ -4,10 +4,25 @@ from fastapi import APIRouter, Depends
 
 from archnemesis.dependencies import LLM, DBSession
 from archnemesis.modules.designs import service
-from archnemesis.modules.designs.schemas import CreateDesignRequest, DesignResponse
+from archnemesis.modules.designs.schemas import (
+    BatchTitlesRequest,
+    BatchTitlesResponse,
+    CreateDesignRequest,
+    DesignResponse,
+)
 from archnemesis.rate_limit import rate_limit
 
 router = APIRouter(prefix="/api/designs", tags=["designs"])
+
+
+@router.post("/titles", response_model=BatchTitlesResponse)
+async def post_get_design_titles(
+    request: BatchTitlesRequest,
+    db: DBSession,
+) -> BatchTitlesResponse:
+    """Fetch concise titles for a batch of design IDs."""
+    titles_map = await service.get_design_titles(db=db, design_ids=request.ids)
+    return BatchTitlesResponse(titles=titles_map)
 
 
 @router.post("", response_model=DesignResponse, dependencies=[Depends(rate_limit("designs"))])

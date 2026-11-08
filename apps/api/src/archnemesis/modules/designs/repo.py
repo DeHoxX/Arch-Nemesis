@@ -89,6 +89,30 @@ async def update_design_title(db: AsyncSession, design_id: str, title: str) -> N
         await db.refresh(design)
 
 
+async def get_design_titles_batch(
+    db: AsyncSession, design_ids: list[str]
+) -> list[tuple[str, str | None, str | None]]:
+    """Fetch design ID, stored title, and version 1 brief_json for a list of design IDs in a single query."""
+    if not design_ids:
+        return []
+
+    stmt = (
+        select(
+            DesignTable.id,
+            DesignTable.title,
+            DesignVersionTable.brief_json,
+        )
+        .join(
+            DesignVersionTable,
+            (DesignVersionTable.design_id == DesignTable.id) & (DesignVersionTable.version_no == 1),
+            isouter=True,
+        )
+        .where(DesignTable.id.in_(design_ids))
+    )
+    result = await db.execute(stmt)
+    return list(result.all())
+
+
 async def get_cached_spec(db: AsyncSession, key: str) -> SpecCacheTable | None:
     stmt = select(SpecCacheTable).where(SpecCacheTable.key == key)
     result = await db.execute(stmt)

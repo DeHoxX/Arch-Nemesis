@@ -1,5 +1,7 @@
 """Pydantic schemas for the designs API."""
 
+from typing import Annotated
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from archnemesis.modules.explainer.schemas import Explanation
@@ -30,3 +32,21 @@ class DesignResponse(BaseModel):
     flow_order: list[str]
     prompt_version: str
     explanation: Explanation | None = None
+
+
+class BatchTitlesRequest(BaseModel):
+    """Request body for fetching concise design titles in batch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: list[Annotated[str, Field(min_length=1, max_length=36)]] = Field(
+        default_factory=list, max_length=200
+    )
+
+
+class BatchTitlesResponse(BaseModel):
+    """Response mapping design IDs to their concise titles."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    titles: dict[str, str] = Field(default_factory=dict)
