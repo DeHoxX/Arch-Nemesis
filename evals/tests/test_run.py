@@ -120,6 +120,27 @@ def test_dry_run_end_to_end(tmp_path: Path, repo_root_path: Path) -> None:
 
     assert run_record["explainer_source"] == "llm"
 
+    # Structural metrics presence in run record
+    assert "branch_count" in run_record
+    assert "fan_in_count" in run_record
+    assert "decision_node_count" in run_record
+    assert "tech_options_total" in run_record
+    assert "nodes_with_tech_options" in run_record
+    assert "nodes_total" in run_record
+    assert run_record["nodes_total"] == 3
+    assert run_record["branch_count"] >= 0
+    assert run_record["fan_in_count"] >= 0
+    assert run_record["decision_node_count"] >= 0
+    assert run_record["tech_options_total"] >= 0
+    assert run_record["nodes_with_tech_options"] >= 0
+
+    # Structural metrics presence in summary
+    assert "avg_branch_count" in data["summary"]
+    assert "avg_fan_in_count" in data["summary"]
+    assert "avg_decision_node_count" in data["summary"]
+    assert "tech_options_fill_rate" in data["summary"]
+    assert "avg_tech_options_per_node" in data["summary"]
+
     # 2. Privacy & Sanitation assertions
 
     assert "need_text" not in content, "need_text must not be persisted in results JSON"
@@ -1483,3 +1504,67 @@ def test_dry_run_with_custom_cases_flag(tmp_path: Path, repo_root_path: Path) ->
     assert data["runs"][0]["case_id"] == "vague"
     assert "avg_edge_count" in data["summary"]
     assert "avg_agents" in data["summary"]
+
+
+def test_dry_run_records_structural_metrics(tmp_path: Path, repo_root_path: Path) -> None:
+    """Verify structural graph metrics (branch_count, tech_options) are accurately populated in runs and summary."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    support_case = cases_dir / "support.json"
+    out_file = tmp_path / "structural_results.json"
+
+    exit_code = main(
+        [
+            "--dry",
+            "--runs",
+            "1",
+            "--cases",
+            str(support_case),
+            "--out",
+            str(out_file),
+        ]
+    )
+
+    assert exit_code == 0
+    assert out_file.exists()
+    with open(out_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # 1. Individual run record metrics
+    runs = data.get("runs", [])
+    assert len(runs) == 1
+    run0 = runs[0]
+    assert run0["case_id"] == "support"
+    assert run0["success"] is True
+
+    # Check structural metric types and non-negative integers
+    for metric_key in [
+        "branch_count",
+        "fan_in_count",
+        "decision_node_count",
+        "tech_options_total",
+        "nodes_with_tech_options",
+        "nodes_total",
+    ]:
+        assert metric_key in run0
+        assert isinstance(run0[metric_key], int)
+        assert run0[metric_key] >= 0
+
+    assert run0["nodes_total"] == run0["node_count"]
+
+    # 2. Aggregated summary metrics
+    summary = data.get("summary", {})
+    for summary_key in [
+        "avg_branch_count",
+        "avg_fan_in_count",
+        "avg_decision_node_count",
+        "avg_tech_options_per_node",
+        "tech_options_fill_rate",
+    ]:
+        assert summary_key in summary
+        assert isinstance(summary[summary_key], (float, int))
+        assert summary[summary_key] >= 0.0
+
+    # 3. By-case breakdown
+    case_summary = data.get("by_case", {}).get("support", {})
+    assert "avg_branch_count" in case_summary
+    assert "tech_options_fill_rate" in case_summary

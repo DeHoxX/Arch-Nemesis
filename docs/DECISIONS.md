@@ -2943,6 +2943,33 @@ If we removed it: Home page heading would remain generic Space Grotesk.
 Decided by: user approved
 Status: active
 
+### D-279 — Stage 9a — step — Structural graph metrics definitions in evals/metrics.py
+What: Define pure functions in `evals/metrics.py` to compute `branch_count` (out-degree >= 2), `fan_in_count` (in-degree >= 2), `decision_node_count` (nodes with at least one conditional outgoing edge), `tech_options_fill_rate`, and `avg_tech_options_per_node`.
+Why: Baseline evaluation lacked structural topology and technology richness tracking, preventing quantitative measurement of branching and production readiness across prompt versions.
+Alternatives considered:
+1. Computing in `compare.py`: Rejected because computing directly from the spec in `evals/run.py` and storing in `CaseRunRecord` keeps evaluation records self-contained and allows pure unit testing.
+If we removed it: Prompt v9 improvements to branching and tech options could not be benchmarked against earlier runs.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-280 — Stage 9a — step — Compact structural spec summary in evaluation run records
+What: Store per-run structural metrics (`branch_count`, `fan_in_count`, `decision_node_count`, `tech_options_total`, `nodes_with_tech_options`, `nodes_total`, `agent_count`) on `CaseRunRecord` and aggregate them across runs and cases in `CaseAggregation` and `EvalSummary`.
+Why: Allows `evals/run.py` to persist graph shape metrics without storing full node names, roles, or raw user text, preserving privacy and keeping JSON output compact.
+Alternatives considered:
+1. Storing full `ArchitectureSpec` JSON in `run.json`: Rejected to keep evaluation result files small and free of sensitive prompt payloads.
+If we removed it: Past evaluation runs could not report branching or technology coverage after the spec object is garbage collected.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-281 — Stage 9a — step — Backward-compatible structural comparison in evals/compare.py
+What: Update `evals/compare.py` to display average `branch_count`, `decision_nodes`, `fan_in_count`, `tech_options_fill_rate`, and `avg_tech_options` over successful runs, printing `"n/a"` when comparing against legacy result files lacking these fields.
+Why: Enables side-by-side comparison between v8 baseline (lacking the fields) and future v9 runs without throwing KeyErrors or inventing misleading zero values.
+Alternatives considered:
+1. Treating missing fields as 0.0: Rejected because baseline v8 had some branching and tech options that were simply unrecorded, so 0.0 would fabricate a false baseline.
+If we removed it: `compare.py` would crash when comparing new evaluation results against the 20261109-0428 baseline.
+Decided by: agent proposed, user approved
+Status: active
+
 
 ## Phase 3 Summary
 

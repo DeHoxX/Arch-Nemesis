@@ -20,23 +20,33 @@ class MetricDiff:
 
     case_id: str
     metric: str
-    val_a: float | int
-    val_b: float | int
-    diff: float
+    val_a: float | int | str
+    val_b: float | int | str
+    diff: float | int | str
     status: str  # "IMPROVED", "REGRESSION", "UNCHANGED"
 
     def format_row(self) -> str:
-        diff_str = f"{self.diff:+.2f}" if isinstance(self.diff, float) else f"{self.diff:+d}"
+        if isinstance(self.diff, (int, float)):
+            diff_str = f"{self.diff:+.2f}" if isinstance(self.diff, float) else f"{self.diff:+d}"
+        else:
+            diff_str = str(self.diff)
+
         if isinstance(self.val_a, float) and "rate" in self.metric:
             a_str = f"{self.val_a * 100:.1f}%"
-            b_str = f"{self.val_b * 100:.1f}%"
-            diff_str = f"{self.diff * 100:+.1f}%"
         elif isinstance(self.val_a, float):
             a_str = f"{self.val_a:.2f}"
-            b_str = f"{self.val_b:.2f}"
         else:
             a_str = str(self.val_a)
+
+        if isinstance(self.val_b, float) and "rate" in self.metric:
+            b_str = f"{self.val_b * 100:.1f}%"
+        elif isinstance(self.val_b, float):
+            b_str = f"{self.val_b:.2f}"
+        else:
             b_str = str(self.val_b)
+
+        if isinstance(self.diff, float) and "rate" in self.metric:
+            diff_str = f"{self.diff * 100:+.1f}%"
 
         return (
             f"{self.case_id:<12} | {self.metric:<22} | {a_str:>8} | {b_str:>8} | "
@@ -76,6 +86,52 @@ def evaluate_diff(
         val_b=val_b,
         diff=diff,
         status=status,
+    )
+
+
+def evaluate_diff_or_na(
+    case_id: str,
+    metric: str,
+    raw_a: Any,
+    raw_b: Any,
+    higher_is_better: bool = True,
+    threshold: float = 0.02,
+) -> MetricDiff:
+    """Compare two metric values, or return 'n/a' diff if either is missing."""
+    if raw_a is None or raw_b is None:
+        if raw_a is None:
+            a_val: float | int | str = "n/a"
+        elif isinstance(raw_a, float) and "rate" in metric:
+            a_val = f"{raw_a * 100:.1f}%"
+        elif isinstance(raw_a, float):
+            a_val = f"{raw_a:.2f}"
+        else:
+            a_val = str(raw_a)
+
+        if raw_b is None:
+            b_val: float | int | str = "n/a"
+        elif isinstance(raw_b, float) and "rate" in metric:
+            b_val = f"{raw_b * 100:.1f}%"
+        elif isinstance(raw_b, float):
+            b_val = f"{raw_b:.2f}"
+        else:
+            b_val = str(raw_b)
+
+        return MetricDiff(
+            case_id=case_id,
+            metric=metric,
+            val_a=a_val,
+            val_b=b_val,
+            diff="n/a",
+            status="UNCHANGED",
+        )
+    return evaluate_diff(
+        case_id=case_id,
+        metric=metric,
+        val_a=float(raw_a),
+        val_b=float(raw_b),
+        higher_is_better=higher_is_better,
+        threshold=threshold,
     )
 
 
@@ -172,6 +228,58 @@ def compare_case_metrics(
             )
         )
 
+    # 7. Structural metrics
+    diffs.append(
+        evaluate_diff_or_na(
+            case_id,
+            "avg_branch_count",
+            case_a.get("avg_branch_count"),
+            case_b.get("avg_branch_count"),
+            higher_is_better=True,
+            threshold=999.0,
+        )
+    )
+    diffs.append(
+        evaluate_diff_or_na(
+            case_id,
+            "avg_fan_in_count",
+            case_a.get("avg_fan_in_count"),
+            case_b.get("avg_fan_in_count"),
+            higher_is_better=True,
+            threshold=999.0,
+        )
+    )
+    diffs.append(
+        evaluate_diff_or_na(
+            case_id,
+            "avg_decision_nodes",
+            case_a.get("avg_decision_node_count", case_a.get("avg_decision_nodes")),
+            case_b.get("avg_decision_node_count", case_b.get("avg_decision_nodes")),
+            higher_is_better=True,
+            threshold=999.0,
+        )
+    )
+    diffs.append(
+        evaluate_diff_or_na(
+            case_id,
+            "tech_options_fill_rate",
+            case_a.get("tech_options_fill_rate"),
+            case_b.get("tech_options_fill_rate"),
+            higher_is_better=True,
+            threshold=999.0,
+        )
+    )
+    diffs.append(
+        evaluate_diff_or_na(
+            case_id,
+            "avg_tech_options",
+            case_a.get("avg_tech_options_per_node", case_a.get("avg_tech_options")),
+            case_b.get("avg_tech_options_per_node", case_b.get("avg_tech_options")),
+            higher_is_better=True,
+            threshold=999.0,
+        )
+    )
+
     return diffs
 
 
@@ -234,6 +342,46 @@ def compare_overall_summaries(
             "avg_agents",
             float(summary_a.get("avg_agents", 0.0)),
             float(summary_b.get("avg_agents", 0.0)),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
+        evaluate_diff_or_na(
+            "OVERALL",
+            "avg_branch_count",
+            summary_a.get("avg_branch_count"),
+            summary_b.get("avg_branch_count"),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
+        evaluate_diff_or_na(
+            "OVERALL",
+            "avg_fan_in_count",
+            summary_a.get("avg_fan_in_count"),
+            summary_b.get("avg_fan_in_count"),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
+        evaluate_diff_or_na(
+            "OVERALL",
+            "avg_decision_nodes",
+            summary_a.get("avg_decision_node_count", summary_a.get("avg_decision_nodes")),
+            summary_b.get("avg_decision_node_count", summary_b.get("avg_decision_nodes")),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
+        evaluate_diff_or_na(
+            "OVERALL",
+            "tech_options_fill_rate",
+            summary_a.get("tech_options_fill_rate"),
+            summary_b.get("tech_options_fill_rate"),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
+        evaluate_diff_or_na(
+            "OVERALL",
+            "avg_tech_options",
+            summary_a.get("avg_tech_options_per_node", summary_a.get("avg_tech_options")),
+            summary_b.get("avg_tech_options_per_node", summary_b.get("avg_tech_options")),
             higher_is_better=True,
             threshold=999.0,
         ),

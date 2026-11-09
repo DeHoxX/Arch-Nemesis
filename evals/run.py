@@ -33,6 +33,7 @@ import structlog
 from evals.metrics import (
     CaseRunRecord,
     aggregate_eval_runs,
+    calculate_spec_structural_metrics,
 )
 from pydantic import BaseModel
 
@@ -471,6 +472,12 @@ async def execute_eval_suite(
                                     edge_count=0,
                                     ai_node_count=0,
                                     agent_count=0,
+                                    branch_count=0,
+                                    fan_in_count=0,
+                                    decision_node_count=0,
+                                    tech_options_total=0,
+                                    nodes_with_tech_options=0,
+                                    nodes_total=0,
                                     w_merge_as_agent_count=0,
                                     w_no_ai_node_count=0,
                                     error_codes=list(exc.issues),
@@ -520,6 +527,7 @@ async def execute_eval_suite(
                             edge_count = len(spec.edges)
                             ai_nodes = sum(1 for n in spec.nodes if n.needs_model)
                             agents = sum(1 for n in spec.nodes if n.ai_role == "agent")
+                            structural_metrics = calculate_spec_structural_metrics(spec=spec)
 
                             lints = check_lints(spec)
                             w_merge = sum(1 for item in lints if item.code == "W_MERGE_AS_AGENT")
@@ -617,6 +625,14 @@ async def execute_eval_suite(
                                 edge_count=edge_count,
                                 ai_node_count=ai_nodes,
                                 agent_count=agents,
+                                branch_count=structural_metrics["branch_count"],
+                                fan_in_count=structural_metrics["fan_in_count"],
+                                decision_node_count=structural_metrics["decision_node_count"],
+                                tech_options_total=structural_metrics["tech_options_total"],
+                                nodes_with_tech_options=structural_metrics[
+                                    "nodes_with_tech_options"
+                                ],
+                                nodes_total=structural_metrics["nodes_total"],
                                 w_merge_as_agent_count=w_merge,
                                 w_no_ai_node_count=w_no_ai,
                                 other_warnings=other_warnings,
