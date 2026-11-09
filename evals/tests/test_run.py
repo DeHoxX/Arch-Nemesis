@@ -888,25 +888,51 @@ async def test_422_design_failure_captures_none_and_design_issues(
         },
     }
 
+    # Cyclic spec with critical loop entry -> node_a <-> node_b, node_a -> exit
+    # patch_cycles cannot cut node_a -> node_b (node_b loses entry reachability)
+    # nor node_b -> node_a (node_b loses exit reachability).
+    # Thus spec remains cyclic and fails with E_CYCLE across all 3 architect calls.
     cyclic_spec = {
         "nodes": [
             {
-                "id": "na",
-                "name": "Node A",
-                "type": "service",
-                "role": "A",
+                "id": "entry",
+                "name": "Entry Node",
+                "type": "gateway",
+                "role": "Entry point",
                 "inputs": [],
-                "outputs": [],
+                "outputs": ["raw_data"],
                 "needs_model": False,
                 "ai_role": "none",
                 "tools": [],
             },
             {
-                "id": "nb",
+                "id": "node_a",
+                "name": "Node A",
+                "type": "service",
+                "role": "Worker A",
+                "inputs": ["raw_data"],
+                "outputs": ["processed_data"],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "node_b",
                 "name": "Node B",
                 "type": "service",
-                "role": "B",
-                "inputs": [],
+                "role": "Worker B",
+                "inputs": ["processed_data"],
+                "outputs": ["feedback_data"],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "exit",
+                "name": "Exit Node",
+                "type": "sink",
+                "role": "Exit point",
+                "inputs": ["processed_data"],
                 "outputs": [],
                 "needs_model": False,
                 "ai_role": "none",
@@ -914,12 +940,14 @@ async def test_422_design_failure_captures_none_and_design_issues(
             },
         ],
         "edges": [
-            {"from": "na", "to": "nb", "flows": "flow1"},
-            {"from": "nb", "to": "na", "flows": "flow2"},
+            {"from": "entry", "to": "node_a", "flows": "f_in"},
+            {"from": "node_a", "to": "node_b", "flows": "f_ab"},
+            {"from": "node_b", "to": "node_a", "flows": "f_ba"},
+            {"from": "node_a", "to": "exit", "flows": "f_out"},
         ],
         "constraints": [],
-        "entry_ids": ["na"],
-        "exit_ids": ["nb"],
+        "entry_ids": ["entry"],
+        "exit_ids": ["exit"],
     }
 
     script = [valid_intake, cyclic_spec, cyclic_spec, cyclic_spec]
@@ -953,6 +981,10 @@ async def test_422_design_failure_captures_none_and_design_issues(
 
     assert "E_CYCLE" in rec.design_attempt_issues, (
         f"Expected E_CYCLE in design issues, got {rec.design_attempt_issues}"
+    )
+    assert len(rec.design_attempt_issues) > 0, "Expected non-empty design_attempt_issues"
+    assert any("E_CYCLE" in str(issue) for issue in rec.design_attempt_issues), (
+        f"Expected issue codes containing E_CYCLE, got {rec.design_attempt_issues}"
     )
 
     data = json.loads(out_file.read_text(encoding="utf-8"))
@@ -1021,25 +1053,51 @@ def test_all_spec_fixtures_pass_parse_and_validate() -> None:
 
     # Cyclic spec used in test_422_design_failure_captures_none_and_design_issues.
 
+    # Cyclic spec with critical loop entry -> node_a <-> node_b, node_a -> exit
+    # patch_cycles cannot cut node_a -> node_b (node_b loses entry reachability)
+    # nor node_b -> node_a (node_b loses exit reachability).
+    # Thus spec remains cyclic and fails with E_CYCLE across all 3 architect calls.
     cyclic_spec = {
         "nodes": [
             {
-                "id": "na",
-                "name": "Node A",
-                "type": "service",
-                "role": "A",
+                "id": "entry",
+                "name": "Entry Node",
+                "type": "gateway",
+                "role": "Entry point",
                 "inputs": [],
-                "outputs": [],
+                "outputs": ["raw_data"],
                 "needs_model": False,
                 "ai_role": "none",
                 "tools": [],
             },
             {
-                "id": "nb",
+                "id": "node_a",
+                "name": "Node A",
+                "type": "service",
+                "role": "Worker A",
+                "inputs": ["raw_data"],
+                "outputs": ["processed_data"],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "node_b",
                 "name": "Node B",
                 "type": "service",
-                "role": "B",
-                "inputs": [],
+                "role": "Worker B",
+                "inputs": ["processed_data"],
+                "outputs": ["feedback_data"],
+                "needs_model": False,
+                "ai_role": "none",
+                "tools": [],
+            },
+            {
+                "id": "exit",
+                "name": "Exit Node",
+                "type": "sink",
+                "role": "Exit point",
+                "inputs": ["processed_data"],
                 "outputs": [],
                 "needs_model": False,
                 "ai_role": "none",
@@ -1047,12 +1105,14 @@ def test_all_spec_fixtures_pass_parse_and_validate() -> None:
             },
         ],
         "edges": [
-            {"from": "na", "to": "nb", "flows": "flow1"},
-            {"from": "nb", "to": "na", "flows": "flow2"},
+            {"from": "entry", "to": "node_a", "flows": "f_in"},
+            {"from": "node_a", "to": "node_b", "flows": "f_ab"},
+            {"from": "node_b", "to": "node_a", "flows": "f_ba"},
+            {"from": "node_a", "to": "exit", "flows": "f_out"},
         ],
         "constraints": [],
-        "entry_ids": ["na"],
-        "exit_ids": ["nb"],
+        "entry_ids": ["entry"],
+        "exit_ids": ["exit"],
     }
 
     # valid_spec: must parse without schema errors (structural errors like E_CYCLE are OK).

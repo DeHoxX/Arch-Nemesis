@@ -14,7 +14,11 @@ from archnemesis.modules.validation.models import (
     ValidationIssue,
     ValidationResult,
 )
-from archnemesis.modules.validation.repair import patch_constraints, patch_dead_ends
+from archnemesis.modules.validation.repair import (
+    patch_constraints,
+    patch_cycles,
+    patch_dead_ends,
+)
 from archnemesis.modules.validation.validate import parse_and_validate, validate
 from archnemesis.prompts import load_patterns, load_prompt
 from archnemesis.settings import get_settings
@@ -57,17 +61,23 @@ def _apply_code_repair(
     brief_constraints: dict[str, str],
     limits: Limits,
 ) -> tuple[ArchitectureSpec, list[ValidationIssue]]:
-    """Apply deterministic graph repair: dead-ends and constraints."""
+    """Apply deterministic graph repair: cycles, dead-ends, and constraints."""
     patched_spec = spec
     all_warnings: list[ValidationIssue] = []
 
-    # 1. Patch dead ends if any exist
+    # 1. Break cycles FIRST to convert graph into a valid DAG
+    cycle_patched, cycle_warnings = patch_cycles(patched_spec, brief_constraints, limits)
+    if cycle_warnings:
+        patched_spec = cycle_patched
+        all_warnings.extend(cycle_warnings)
+
+    # 2. Patch dead ends if any exist
     dead_end_patched, dead_end_warnings = patch_dead_ends(patched_spec, brief_constraints, limits)
     if dead_end_warnings:
         patched_spec = dead_end_patched
         all_warnings.extend(dead_end_warnings)
 
-    # 2. Patch constraints if any violations exist
+    # 3. Patch constraints if any violations exist
     constraint_patched, constraint_warnings = patch_constraints(
         patched_spec, brief_constraints, limits
     )

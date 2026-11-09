@@ -28,6 +28,182 @@ def _make_edge(from_node: str, to: str, flows: str = FIXED_FLOW_TEXT) -> EdgeSpe
     return EdgeSpec.model_validate({"from": from_node, "to": to, "flows": flows})
 
 
+def patch_cycles(
+    spec: ArchitectureSpec,
+    brief_constraints: dict[str, str],
+    limits: Limits,
+) -> tuple[ArchitectureSpec, list[ValidationIssue]]:
+    """Attempt deterministic repair of cycles in the specification graph.
+
+    Iteratively detects directed simple cycles and removes backward feedback edges
+    using structural depth scoring, without inspecting node type, name, or role text.
+    Accepts the result only if the patched graph is an acyclic DAG that passes full
+    validation and satisfies all limits; otherwise returns the original spec unchanged.
+    """
+    from archnemesis.modules.validation.validate import validate
+
+    graph = build_graph(spec)
+    if nx.is_directed_acyclic_graph(graph):
+        return spec, []
+
+    current_edges = list(spec.edges)
+    warnings: list[ValidationIssue] = []
+
+    # Bounded by initial edge count to guarantee termination without magic constants
+    max_cuts = len(spec.edges)
+    cuts_count = 0
+
+    while not nx.is_directed_acyclic_graph(graph) and cuts_count < max_cuts:
+        try:
+            cycles = list(nx.simple_cycles(graph))
+        except nx.NetworkXNoCycle:
+            break
+
+        if not cycles:
+            break
+
+        # Deterministically select shortest cycle, breaking ties by sorted node sequence
+        cycle = min(cycles, key=lambda c: (len(c), c))
+        cycle_len = len(cycle)
+        cycle_edges = [(cycle[i], cycle[(i + 1) % cycle_len]) for i in range(cycle_len)]
+
+        # Determine node reachability before the candidate cut
+        valid_entries = set(spec.entry_ids).intersection(graph.nodes)
+        valid_exits = set(spec.exit_ids).intersection(graph.nodes)
+
+        entry_reachable_before: set[str] = set()
+        for entry in valid_entries:
+            entry_reachable_before.add(entry)
+            entry_reachable_before.update(nx.descendants(graph, entry))
+
+        exit_reachable_before: set[str] = set()
+        for exit_node in valid_exits:
+            exit_reachable_before.add(exit_node)
+            exit_reachable_before.update(nx.ancestors(graph, exit_node))
+
+        connected_before = {n for n in graph.nodes if graph.degree(n) > 0}
+
+        # Filter candidate edges by structural reachability preservation
+        safe_candidates: list[tuple[str, str]] = []
+        for u, v in cycle_edges:
+            if not graph.has_edge(u, v):
+                continue
+
+            g_test = graph.copy()
+            g_test.remove_edge(u, v)
+
+            # Invariant: every node reachable from an entry before must still be entry-reachable
+            entry_reachable_after: set[str] = set()
+            for entry in valid_entries:
+                entry_reachable_after.add(entry)
+                entry_reachable_after.update(nx.descendants(g_test, entry))
+
+            if not entry_reachable_before.issubset(entry_reachable_after):
+                continue
+
+            # Invariant: every node that reached an exit before must still reach an exit
+            exit_reachable_after: set[str] = set()
+            for exit_node in valid_exits:
+                exit_reachable_after.add(exit_node)
+                exit_reachable_after.update(nx.ancestors(g_test, exit_node))
+
+            if not exit_reachable_before.issubset(exit_reachable_after):
+                continue
+
+            # Invariant: no orphan created (every node connected before must still have degree > 0)
+            if any(g_test.degree(n) == 0 for n in connected_before):
+                continue
+
+            safe_candidates.append((u, v))
+
+        if not safe_candidates:
+            # No candidate edge can be safely cut without violating reachability
+            return spec, []
+
+        # Structural ranking: backward depth score
+        # Compute min shortest path distance from entries
+        depths: dict[str, int] = {}
+        for entry in valid_entries:
+            for target, dist in nx.single_source_shortest_path_length(graph, entry).items():
+                if target not in depths or dist < depths[target]:
+                    depths[target] = dist
+
+        scored_candidates: list[tuple[int, str, str]] = []
+        for u, v in safe_candidates:
+            if u in depths and v in depths:
+                score = depths[u] - depths[v]
+            else:
+                score = 0
+            scored_candidates.append((score, u, v))
+
+        # Tie-break: sort by (-score, u, v)
+        scored_candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
+        _, best_u, best_v = scored_candidates[0]
+
+        # Apply cut to graph
+        graph.remove_edge(best_u, best_v)
+
+        # Remove from current_edges
+        current_edges = [e for e in current_edges if not (e.from_node == best_u and e.to == best_v)]
+
+        cuts_count += 1
+        warnings.append(
+            ValidationIssue(
+                code="W_CODE_REPAIR_APPLIED",
+                severity="warning",
+                message=(
+                    f"Cycle resolved by automated graph repair: "
+                    f"removed feedback edge '{best_u}' -> '{best_v}' to establish a valid acyclic architecture."
+                ),
+                ids=[best_u, best_v],
+            )
+        )
+
+    # If graph is still not a DAG or no cuts were applied, abort
+    if not nx.is_directed_acyclic_graph(graph) or not warnings:
+        return spec, []
+
+    patched_spec = spec.model_copy(update={"edges": current_edges})
+
+    val_orig = validate(spec, brief_constraints, limits)
+    val_patched = validate(patched_spec, brief_constraints, limits)
+
+    # Collect errors from original spec (ignoring E_CYCLE since that's what was repaired)
+    orig_error_keys = {
+        (err.code, tuple(err.ids)) for err in val_orig.errors if err.code != "E_CYCLE"
+    }
+
+    # If constraints were skipped in val_orig due to graph structure errors,
+    # evaluate constraints on the original spec to know which constraint errors already existed
+    if any("constraints" in s for s in val_orig.skipped):
+        from archnemesis.modules.validation.constraints import check_constraints
+
+        for err in check_constraints(spec, build_graph(spec), brief_constraints):
+            orig_error_keys.add((err.code, tuple(err.ids)))
+
+    # Identify any new error introduced by the patch
+    new_errors = [
+        err
+        for err in val_patched.errors
+        if err.code != "E_CYCLE" and (err.code, tuple(err.ids)) not in orig_error_keys
+    ]
+
+    # Acceptance gate:
+    # 1. Patched graph is a DAG
+    # 2. No new errors introduced vs original
+    # 3. Limits still hold
+    # 4. Constraints, kinds, nodes remain untouched
+    if (
+        nx.is_directed_acyclic_graph(build_graph(patched_spec))
+        and not new_errors
+        and len(patched_spec.edges) <= limits.max_edges
+        and len(patched_spec.nodes) <= limits.max_nodes
+    ):
+        return patched_spec, warnings
+
+    return spec, []
+
+
 def patch_dead_ends(
     spec: ArchitectureSpec,
     brief_constraints: dict[str, str],
