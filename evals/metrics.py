@@ -11,6 +11,116 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
+def calculate_spec_structural_metrics(
+    nodes: list[Any] | None = None,
+    edges: list[Any] | None = None,
+    spec: Any = None,
+) -> dict[str, int | float]:
+    """Calculate structural metrics from nodes/edges or an ArchitectureSpec object/dict.
+
+    Metrics (pure function):
+    - node_count: total count of nodes
+    - edge_count: total count of edges
+    - nodes_total: alias for node_count
+    - branch_count: number of nodes with out-degree >= 2 (fan-out points)
+    - fan_in_count: number of nodes with in-degree >= 2
+    - decision_node_count: nodes with at least one outgoing edge that has a non-empty condition
+    - tech_options_total: total count of all items across tech_options lists for all nodes
+    - nodes_with_tech_options: number of nodes with at least one candidate technology
+    - tech_options_fill_rate: nodes_with_tech_options / nodes_total (0.0 if empty graph)
+    - avg_tech_options_per_node: tech_options_total / nodes_total (0.0 if empty graph)
+    - agent_count: count of nodes with ai_role == 'agent'
+    """
+    if spec is not None:
+        if isinstance(spec, dict):
+            nodes = spec.get("nodes", [])
+            edges = spec.get("edges", [])
+        else:
+            nodes = getattr(spec, "nodes", [])
+            edges = getattr(spec, "edges", [])
+
+    nodes = nodes or []
+    edges = edges or []
+
+    nodes_total = len(nodes)
+    edge_count = len(edges)
+
+    node_ids: set[str] = set()
+    agent_count = 0
+    tech_options_total = 0
+    nodes_with_tech_options = 0
+
+    for n in nodes:
+        if isinstance(n, dict):
+            nid = str(n.get("id", ""))
+            tech_opts = n.get("tech_options") or []
+            ai_role = str(n.get("ai_role", "none"))
+        else:
+            nid = str(getattr(n, "id", ""))
+            tech_opts = getattr(n, "tech_options", None) or []
+            ai_role = str(getattr(n, "ai_role", "none"))
+
+        if nid:
+            node_ids.add(nid)
+        if ai_role == "agent":
+            agent_count += 1
+        if isinstance(tech_opts, (list, tuple, set)):
+            count = len(tech_opts)
+            tech_options_total += count
+            if count > 0:
+                nodes_with_tech_options += 1
+
+    out_degrees: dict[str, int] = {nid: 0 for nid in node_ids}
+    in_degrees: dict[str, int] = {nid: 0 for nid in node_ids}
+    decision_nodes: set[str] = set()
+
+    for e in edges:
+        if isinstance(e, dict):
+            from_node = e.get("from") or e.get("from_node")
+            to_node = e.get("to")
+            condition = e.get("condition")
+        else:
+            from_node = getattr(e, "from_node", getattr(e, "from", None))
+            to_node = getattr(e, "to", None)
+            condition = getattr(e, "condition", None)
+
+        from_id = str(from_node) if from_node is not None else ""
+        to_id = str(to_node) if to_node is not None else ""
+
+        if from_id:
+            out_degrees[from_id] = out_degrees.get(from_id, 0) + 1
+        if to_id:
+            in_degrees[to_id] = in_degrees.get(to_id, 0) + 1
+
+        if condition is not None and str(condition).strip() and from_id:
+            decision_nodes.add(from_id)
+
+    branch_count = sum(1 for deg in out_degrees.values() if deg >= 2)
+    fan_in_count = sum(1 for deg in in_degrees.values() if deg >= 2)
+    decision_node_count = len(decision_nodes)
+
+    tech_options_fill_rate = (
+        round(nodes_with_tech_options / nodes_total, 4) if nodes_total > 0 else 0.0
+    )
+    avg_tech_options_per_node = (
+        round(tech_options_total / nodes_total, 2) if nodes_total > 0 else 0.0
+    )
+
+    return {
+        "node_count": nodes_total,
+        "edge_count": edge_count,
+        "nodes_total": nodes_total,
+        "branch_count": branch_count,
+        "fan_in_count": fan_in_count,
+        "decision_node_count": decision_node_count,
+        "tech_options_total": tech_options_total,
+        "nodes_with_tech_options": nodes_with_tech_options,
+        "tech_options_fill_rate": tech_options_fill_rate,
+        "avg_tech_options_per_node": avg_tech_options_per_node,
+        "agent_count": agent_count,
+    }
+
+
 @dataclass
 class CaseRunRecord:
     """Detailed metrics recorded for a single evaluation run of a case."""
@@ -29,6 +139,12 @@ class CaseRunRecord:
     agent_count: int
     w_merge_as_agent_count: int
     w_no_ai_node_count: int
+    branch_count: int = 0
+    fan_in_count: int = 0
+    decision_node_count: int = 0
+    tech_options_total: int = 0
+    nodes_with_tech_options: int = 0
+    nodes_total: int = 0
     other_warnings: list[str] = field(default_factory=list)
     error_codes: list[str] = field(default_factory=list)
     constraint_kinds_found: list[str] = field(default_factory=list)
@@ -81,6 +197,11 @@ class CaseAggregation:
     expected_constraints_rate: float
     avg_wall_clock_seconds: float
     avg_llm_calls: float
+    avg_branch_count: float = 0.0
+    avg_fan_in_count: float = 0.0
+    avg_decision_node_count: float = 0.0
+    avg_tech_options_per_node: float = 0.0
+    tech_options_fill_rate: float = 0.0
     lint_counts: dict[str, int] = field(default_factory=dict)
     issue_counts: dict[str, int] = field(default_factory=dict)
     design_issue_counts: dict[str, int] = field(default_factory=dict)
@@ -105,6 +226,11 @@ class EvalSummary:
     w_merge_as_agent_rate: float
     avg_wall_clock_seconds: float
     total_llm_calls: int
+    avg_branch_count: float = 0.0
+    avg_fan_in_count: float = 0.0
+    avg_decision_node_count: float = 0.0
+    avg_tech_options_per_node: float = 0.0
+    tech_options_fill_rate: float = 0.0
     by_case: dict[str, CaseAggregation] = field(default_factory=dict)
     design_issue_counts: dict[str, int] = field(default_factory=dict)
 
@@ -133,6 +259,11 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
             expected_constraints_rate=0.0,
             avg_wall_clock_seconds=0.0,
             avg_llm_calls=0.0,
+            avg_branch_count=0.0,
+            avg_fan_in_count=0.0,
+            avg_decision_node_count=0.0,
+            avg_tech_options_per_node=0.0,
+            tech_options_fill_rate=0.0,
             lint_counts={},
             issue_counts={},
             design_issue_counts={},
@@ -160,6 +291,25 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
     avg_agent = sum(r.agent_count for r in runs) / total
     avg_wall = sum(r.wall_clock_seconds for r in runs) / total
     avg_calls = sum(r.llm_call_count for r in runs) / total
+
+    # Structural metrics averaged over successful runs
+    successful_runs = [r for r in runs if not r.is_422 and r.success]
+    if successful_runs:
+        s_count = len(successful_runs)
+        avg_branch = sum(r.branch_count for r in successful_runs) / s_count
+        avg_fan_in = sum(r.fan_in_count for r in successful_runs) / s_count
+        avg_decision = sum(r.decision_node_count for r in successful_runs) / s_count
+        total_tech_opts = sum(r.tech_options_total for r in successful_runs)
+        total_nodes = sum(r.nodes_total for r in successful_runs)
+        total_nodes_with_tech = sum(r.nodes_with_tech_options for r in successful_runs)
+        avg_tech_opts = total_tech_opts / total_nodes if total_nodes > 0 else 0.0
+        tech_fill_rate = total_nodes_with_tech / total_nodes if total_nodes > 0 else 0.0
+    else:
+        avg_branch = 0.0
+        avg_fan_in = 0.0
+        avg_decision = 0.0
+        avg_tech_opts = 0.0
+        tech_fill_rate = 0.0
 
     lint_counts: dict[str, int] = {}
     issue_counts: dict[str, int] = {}
@@ -198,6 +348,11 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
         else 0.0,
         avg_wall_clock_seconds=round(avg_wall, 2),
         avg_llm_calls=round(avg_calls, 2),
+        avg_branch_count=round(avg_branch, 2),
+        avg_fan_in_count=round(avg_fan_in, 2),
+        avg_decision_node_count=round(avg_decision, 2),
+        avg_tech_options_per_node=round(avg_tech_opts, 2),
+        tech_options_fill_rate=round(tech_fill_rate, 4),
         lint_counts=lint_counts,
         issue_counts=issue_counts,
         design_issue_counts=design_issue_counts,
@@ -221,6 +376,11 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
             w_merge_as_agent_rate=0.0,
             avg_wall_clock_seconds=0.0,
             total_llm_calls=0,
+            avg_branch_count=0.0,
+            avg_fan_in_count=0.0,
+            avg_decision_node_count=0.0,
+            avg_tech_options_per_node=0.0,
+            tech_options_fill_rate=0.0,
             by_case={},
             design_issue_counts={},
         )
@@ -247,6 +407,24 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
     non_422_runs = [r for r in runs if not r.is_422]
     fallback_rate = round(fallbacks / len(non_422_runs), 4) if non_422_runs else 0.0
 
+    successful_runs = [r for r in runs if not r.is_422 and r.success]
+    if successful_runs:
+        s_count = len(successful_runs)
+        avg_branch = sum(r.branch_count for r in successful_runs) / s_count
+        avg_fan_in = sum(r.fan_in_count for r in successful_runs) / s_count
+        avg_decision = sum(r.decision_node_count for r in successful_runs) / s_count
+        total_tech_opts = sum(r.tech_options_total for r in successful_runs)
+        total_nodes = sum(r.nodes_total for r in successful_runs)
+        total_nodes_with_tech = sum(r.nodes_with_tech_options for r in successful_runs)
+        avg_tech_opts = total_tech_opts / total_nodes if total_nodes > 0 else 0.0
+        tech_fill_rate = total_nodes_with_tech / total_nodes if total_nodes > 0 else 0.0
+    else:
+        avg_branch = 0.0
+        avg_fan_in = 0.0
+        avg_decision = 0.0
+        avg_tech_opts = 0.0
+        tech_fill_rate = 0.0
+
     overall_design_issue_counts: dict[str, int] = {}
     for r in runs:
         for code in r.design_attempt_issues:
@@ -265,6 +443,11 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
         w_merge_as_agent_rate=round(merge_as_agent_runs / total, 4),
         avg_wall_clock_seconds=round(avg_wall, 2),
         total_llm_calls=total_calls,
+        avg_branch_count=round(avg_branch, 2),
+        avg_fan_in_count=round(avg_fan_in, 2),
+        avg_decision_node_count=round(avg_decision, 2),
+        avg_tech_options_per_node=round(avg_tech_opts, 2),
+        tech_options_fill_rate=round(tech_fill_rate, 4),
         by_case=by_case,
         design_issue_counts=overall_design_issue_counts,
     )

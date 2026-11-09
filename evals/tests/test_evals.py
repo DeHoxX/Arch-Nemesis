@@ -13,6 +13,7 @@ from evals.metrics import (
     CaseRunRecord,
     aggregate_case_runs,
     aggregate_eval_runs,
+    calculate_spec_structural_metrics,
 )
 
 
@@ -556,3 +557,305 @@ def test_compare_loads_old_file_without_design_issue_counts() -> None:
     assert "ARCH-NEMESIS EVALUATION COMPARISON" in table
     assert "DESIGN ISSUE CODES" in table
     assert "E_CONSTRAINT_VIOLATED" in table
+
+
+def test_structural_metrics_linear_chain() -> None:
+    """Verify linear chain (A -> B -> C) yields 0 branches, 0 fan-ins, and 0 decision nodes."""
+    nodes = [
+        {"id": "a", "name": "Ingress", "tech_options": ["FastAPI", "Kong"]},
+        {"id": "b", "name": "Worker", "tech_options": ["Celery"]},
+        {"id": "c", "name": "Storage", "tech_options": []},
+    ]
+    edges = [
+        {"from": "a", "to": "b", "condition": ""},
+        {"from": "b", "to": "c", "condition": None},
+    ]
+
+    metrics = calculate_spec_structural_metrics(nodes=nodes, edges=edges)
+
+    assert metrics["node_count"] == 3
+    assert metrics["edge_count"] == 2
+    assert metrics["branch_count"] == 0
+    assert metrics["fan_in_count"] == 0
+    assert metrics["decision_node_count"] == 0
+    assert metrics["tech_options_total"] == 3
+    assert metrics["nodes_with_tech_options"] == 2
+    assert metrics["nodes_total"] == 3
+
+
+def test_structural_metrics_fan_out() -> None:
+    """Verify fan-out of 3 (A -> B, A -> C, A -> D) yields exactly 1 branch node."""
+    nodes = [
+        {"id": "router", "name": "Router", "tech_options": ["Envoy"]},
+        {"id": "svc1", "name": "Auth", "tech_options": ["Go"]},
+        {"id": "svc2", "name": "Billing", "tech_options": ["NodeJS"]},
+        {"id": "svc3", "name": "Reports", "tech_options": ["Python"]},
+    ]
+    edges = [
+        {"from": "router", "to": "svc1"},
+        {"from": "router", "to": "svc2"},
+        {"from": "router", "to": "svc3"},
+    ]
+
+    metrics = calculate_spec_structural_metrics(nodes=nodes, edges=edges)
+
+    assert metrics["node_count"] == 4
+    assert metrics["edge_count"] == 3
+    assert metrics["branch_count"] == 1  # 'router' has out-degree 3 >= 2
+    assert metrics["fan_in_count"] == 0
+    assert metrics["decision_node_count"] == 0
+    assert metrics["tech_options_total"] == 4
+    assert metrics["nodes_with_tech_options"] == 4
+
+
+def test_structural_metrics_diamond_with_conditions() -> None:
+    """Verify diamond with conditions yields 1 branch, 1 fan-in, and 1 decision node."""
+    nodes = [
+        {"id": "start", "name": "Gateway", "tech_options": ["Nginx"]},
+        {"id": "fraud", "name": "Fraud Check", "tech_options": ["PyTorch"]},
+        {"id": "bypass", "name": "Fast Track", "tech_options": []},
+        {"id": "sink", "name": "Settlement", "tech_options": ["PostgreSQL"]},
+    ]
+    edges = [
+        {"from": "start", "to": "fraud", "condition": "risk_score > 0.5"},
+        {"from": "start", "to": "bypass", "condition": "risk_score <= 0.5"},
+        {"from": "fraud", "to": "sink"},
+        {"from": "bypass", "to": "sink"},
+    ]
+
+    metrics = calculate_spec_structural_metrics(nodes=nodes, edges=edges)
+
+    assert metrics["node_count"] == 4
+    assert metrics["nodes_total"] == 4
+    assert metrics["edge_count"] == 4
+    assert metrics["branch_count"] == 1  # 'start' has out-degree 2
+    assert metrics["fan_in_count"] == 1  # 'sink' has in-degree 2
+    assert metrics["decision_node_count"] == 1  # 'start' has conditional edge
+    assert metrics["tech_options_total"] == 3  # Nginx, PyTorch, PostgreSQL
+    assert metrics["nodes_with_tech_options"] == 3  # start, fraud, sink (bypass is empty)
+
+
+def test_structural_metrics_empty_tech_options() -> None:
+    """Verify nodes without tech_options or with empty tech_options lists are handled."""
+    nodes = [
+        {"id": "n1", "name": "Node 1", "tech_options": []},
+        {"id": "n2", "name": "Node 2"},  # Missing key
+    ]
+    edges = [{"from": "n1", "to": "n2"}]
+
+    metrics = calculate_spec_structural_metrics(nodes=nodes, edges=edges)
+
+    assert metrics["node_count"] == 2
+    assert metrics["nodes_total"] == 2
+    assert metrics["tech_options_total"] == 0
+    assert metrics["nodes_with_tech_options"] == 0
+    assert metrics["branch_count"] == 0
+    assert metrics["fan_in_count"] == 0
+    assert metrics["decision_node_count"] == 0
+
+
+def test_structural_metrics_empty_graph_safe() -> None:
+    """Verify empty graph handles zeros safely without division errors."""
+    metrics = calculate_spec_structural_metrics(nodes=[], edges=[])
+
+    assert metrics["node_count"] == 0
+    assert metrics["edge_count"] == 0
+    assert metrics["branch_count"] == 0
+    assert metrics["fan_in_count"] == 0
+    assert metrics["decision_node_count"] == 0
+    assert metrics["tech_options_total"] == 0
+    assert metrics["nodes_with_tech_options"] == 0
+    assert metrics["nodes_total"] == 0
+
+
+def test_structural_metrics_aggregation_math() -> None:
+    """Verify aggregate_case_runs and aggregate_eval_runs correctly compute structural averages."""
+    # Run 1 (success):
+    #   branch_count=2, fan_in_count=1, decision_node_count=1
+    #   nodes_total=4, nodes_with_tech_options=4, tech_options_total=8
+    # Run 2 (success):
+    #   branch_count=0, fan_in_count=1, decision_node_count=0
+    #   nodes_total=6, nodes_with_tech_options=3, tech_options_total=3
+    # Run 3 (422 failure, excluded from successful averages):
+    #   all metrics 0
+    # Arithmetic:
+    #   successful_runs = 2
+    #   avg_branch_count = (2 + 0) / 2 = 1.0
+    #   avg_fan_in_count = (1 + 1) / 2 = 1.0
+    #   avg_decision_node_count = (1 + 0) / 2 = 0.5
+    #   total_nodes = 4 + 6 = 10
+    #   total_tech_options = 8 + 3 = 11
+    #   nodes_with_tech = 4 + 3 = 7
+    #   tech_options_fill_rate = 7 / 10 = 0.70
+    #   avg_tech_options_per_node = 11 / 10 = 1.10
+    runs = [
+        CaseRunRecord(
+            case_id="case1",
+            run_index=1,
+            success=True,
+            attempt_1_pass=True,
+            final_pass=True,
+            is_422=False,
+            code_repair_used=False,
+            prompt_version="v9",
+            node_count=4,
+            edge_count=4,
+            ai_node_count=1,
+            agent_count=0,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            branch_count=2,
+            fan_in_count=1,
+            decision_node_count=1,
+            tech_options_total=8,
+            nodes_with_tech_options=4,
+            nodes_total=4,
+        ),
+        CaseRunRecord(
+            case_id="case1",
+            run_index=2,
+            success=True,
+            attempt_1_pass=True,
+            final_pass=True,
+            is_422=False,
+            code_repair_used=False,
+            prompt_version="v9",
+            node_count=6,
+            edge_count=5,
+            ai_node_count=2,
+            agent_count=1,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            branch_count=0,
+            fan_in_count=1,
+            decision_node_count=0,
+            tech_options_total=3,
+            nodes_with_tech_options=3,
+            nodes_total=6,
+        ),
+        # 422 run should be excluded from successful-run averages
+        CaseRunRecord(
+            case_id="case1",
+            run_index=3,
+            success=False,
+            attempt_1_pass=False,
+            final_pass=False,
+            is_422=True,
+            code_repair_used=False,
+            prompt_version="v9",
+            node_count=0,
+            edge_count=0,
+            ai_node_count=0,
+            agent_count=0,
+            w_merge_as_agent_count=0,
+            w_no_ai_node_count=0,
+            branch_count=0,
+            fan_in_count=0,
+            decision_node_count=0,
+            tech_options_total=0,
+            nodes_with_tech_options=0,
+            nodes_total=0,
+        ),
+    ]
+
+    # Non-empty guard on runs and successful runs
+    assert len(runs) == 3
+    successful_runs = [r for r in runs if not r.is_422 and r.success]
+    assert len(successful_runs) == 2
+    assert all(r.case_id == "case1" for r in runs)
+
+    agg = aggregate_case_runs("case1", runs)
+
+    assert agg.avg_branch_count == 1.0  # (2 + 0) / 2
+    assert agg.avg_fan_in_count == 1.0  # (1 + 1) / 2
+    assert agg.avg_decision_node_count == 0.5  # (1 + 0) / 2
+    # total nodes across 2 successful runs = 10
+    # tech_options_total = 11 -> 11 / 10 = 1.1
+    assert agg.avg_tech_options_per_node == 1.1
+    # nodes_with_tech_options = 7 -> 7 / 10 = 0.7
+    assert agg.tech_options_fill_rate == 0.7
+
+    eval_summary = aggregate_eval_runs(runs)
+    assert eval_summary.total_runs == 3
+    assert len(eval_summary.by_case) == 1
+    assert "case1" in eval_summary.by_case
+    assert eval_summary.avg_branch_count == 1.0
+    assert eval_summary.avg_fan_in_count == 1.0
+    assert eval_summary.avg_decision_node_count == 0.5
+    assert eval_summary.avg_tech_options_per_node == 1.1
+    assert eval_summary.tech_options_fill_rate == 0.7
+
+
+def test_compare_runs_with_legacy_and_new_formats() -> None:
+    """Verify compare_runs shows 'n/a' when comparing older result file with new result file."""
+    legacy_data = {
+        "meta": {"timestamp": "20261109-0428", "prompt_architect": "architect_v8"},
+        "summary": {
+            "total_runs": 1,
+            "attempt_1_pass_rate": 1.0,
+            "final_pass_rate": 1.0,
+            "fallback_rate": 0.0,
+            "code_repair_rate": 0.0,
+            "w_merge_as_agent_rate": 0.0,
+            "avg_node_count": 5.0,
+            "avg_edge_count": 4.0,
+            "avg_agents": 1.0,
+            # Notice: no avg_branch_count, avg_fan_in_count, etc.
+            "by_case": {
+                "support": {
+                    "attempt_1_pass_rate": 1.0,
+                    "final_pass_rate": 1.0,
+                    "fallback_rate": 0.0,
+                    "code_repair_rate": 0.0,
+                    "w_merge_as_agent_rate": 0.0,
+                    "avg_node_count": 5.0,
+                }
+            },
+        },
+    }
+
+    new_data = {
+        "meta": {"timestamp": "20261109-1200", "prompt_architect": "architect_v9"},
+        "summary": {
+            "total_runs": 1,
+            "attempt_1_pass_rate": 1.0,
+            "final_pass_rate": 1.0,
+            "fallback_rate": 0.0,
+            "code_repair_rate": 0.0,
+            "w_merge_as_agent_rate": 0.0,
+            "avg_node_count": 6.0,
+            "avg_edge_count": 7.0,
+            "avg_agents": 1.0,
+            "avg_branch_count": 2.0,
+            "avg_fan_in_count": 1.5,
+            "avg_decision_node_count": 1.0,
+            "tech_options_fill_rate": 0.85,
+            "avg_tech_options_per_node": 1.8,
+            "by_case": {
+                "support": {
+                    "attempt_1_pass_rate": 1.0,
+                    "final_pass_rate": 1.0,
+                    "fallback_rate": 0.0,
+                    "code_repair_rate": 0.0,
+                    "w_merge_as_agent_rate": 0.0,
+                    "avg_node_count": 6.0,
+                    "avg_branch_count": 2.0,
+                    "avg_fan_in_count": 1.5,
+                    "avg_decision_node_count": 1.0,
+                    "tech_options_fill_rate": 0.85,
+                    "avg_tech_options_per_node": 1.8,
+                }
+            },
+        },
+    }
+
+    table, diffs = compare_runs(legacy_data, new_data)
+
+    assert len(diffs) > 0
+    # Must format table containing 'n/a' and not raise exceptions
+    assert "n/a" in table
+    assert "avg_branch_count" in table
+    assert "avg_fan_in_count" in table
+    assert "avg_decision_nodes" in table
+    assert "tech_options_fill_rate" in table
+    assert "avg_tech_options" in table

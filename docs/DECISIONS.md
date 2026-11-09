@@ -2943,6 +2943,111 @@ If we removed it: Home page heading would remain generic Space Grotesk.
 Decided by: user approved
 Status: active
 
+### D-279 — Stage 9a — step — Structural graph metrics definitions in evals/metrics.py
+What: Define pure functions in `evals/metrics.py` to compute `branch_count` (out-degree >= 2), `fan_in_count` (in-degree >= 2), `decision_node_count` (nodes with at least one conditional outgoing edge), `tech_options_fill_rate`, and `avg_tech_options_per_node`.
+Why: Baseline evaluation lacked structural topology and technology richness tracking, preventing quantitative measurement of branching and production readiness across prompt versions.
+Alternatives considered:
+1. Computing in `compare.py`: Rejected because computing directly from the spec in `evals/run.py` and storing in `CaseRunRecord` keeps evaluation records self-contained and allows pure unit testing.
+If we removed it: Prompt v9 improvements to branching and tech options could not be benchmarked against earlier runs.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-280 — Stage 9a — step — Compact structural spec summary in evaluation run records
+What: Store per-run structural metrics (`branch_count`, `fan_in_count`, `decision_node_count`, `tech_options_total`, `nodes_with_tech_options`, `nodes_total`, `agent_count`) on `CaseRunRecord` and aggregate them across runs and cases in `CaseAggregation` and `EvalSummary`.
+Why: Allows `evals/run.py` to persist graph shape metrics without storing full node names, roles, or raw user text, preserving privacy and keeping JSON output compact.
+Alternatives considered:
+1. Storing full `ArchitectureSpec` JSON in `run.json`: Rejected to keep evaluation result files small and free of sensitive prompt payloads.
+If we removed it: Past evaluation runs could not report branching or technology coverage after the spec object is garbage collected.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-281 — Stage 9a — step — Backward-compatible structural comparison in evals/compare.py
+What: Update `evals/compare.py` to display average `branch_count`, `decision_nodes`, `fan_in_count`, `tech_options_fill_rate`, and `avg_tech_options` over successful runs, printing `"n/a"` when comparing against legacy result files lacking these fields.
+Why: Enables side-by-side comparison between v8 baseline (lacking the fields) and future v9 runs without throwing KeyErrors or inventing misleading zero values.
+Alternatives considered:
+1. Treating missing fields as 0.0: Rejected because baseline v8 had some branching and tech options that were simply unrecorded, so 0.0 would fabricate a false baseline.
+If we removed it: `compare.py` would crash when comparing new evaluation results against the 20261109-0428 baseline.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-282 — Stage 9b — step — Architect v9 prompt introduction
+What: Introduce `apps/api/src/archnemesis/prompts/architect_v9.md` building on v8 to generate branched, production-grade architectures with realistic technology options while preventing linear over-simplification.
+Why: Baseline evaluation showed architectures were overly linear (1-2 branches max) and lacked realistic technology options per component. Prompt v9 guides the LLM to fan out independent workflows, model decision points, specify concrete technologies (e.g. Kafka, Redis, pgvector), enforce that failure and audit paths never bypass required checkpoints, and prohibit retry back-edges.
+Alternatives considered:
+1. Modifying architect_v8.md in place: Rejected to maintain historical prompt immutability and regression comparisons.
+2. Generating architecture diagrams via multi-prompt pipelines: Rejected to maintain single-turn generator latency within SLA.
+If we removed it: Architecture generation would remain restricted to simple linear v8 designs lacking enterprise branching and technology suggestions.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-283 — Stage 9b — step — Architect service prompt version wiring
+What: Update `ARCHITECT_PROMPT_NAME = "architect_v9"` in `apps/api/src/archnemesis/modules/architect/service.py` while keeping `ARCHITECT_REPAIR_PROMPT_NAME = "architect_repair_v8"`.
+Why: Switches default generation to the new prompt v9, dynamically updating composite labels (`architect_v9`, `architect_v9+architect_repair_v8`, `architect_v9+code_repair`, `architect_v9+architect_repair_v8+code_repair`) without modifying the validated repair prompt.
+Alternatives considered:
+1. Creating architect_repair_v9.md immediately: Rejected because baseline eval showed architect_repair_v8 functions cleanly, and incremental prompt iteration isolates generator prompt impact.
+If we removed it: New designs would continue invoking architect_v8 despite the presence of v9.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-284 — Stage 9b — step — Production-grade technology options specification
+What: Direct the LLM in `architect_v9.md` to populate `tech_options` with 2 to 4 concrete, realistic technology candidates per component, prioritizing cloud-agnostic open-source or standard industry technologies (e.g., Kafka, RabbitMQ, Redis, Qdrant, pgvector, PostgreSQL) with at most one optional cloud-managed service.
+Why: Evaluation metrics showed near-zero technology options fill rate in v8 due to generic type descriptions. Providing explicit open-source guidance provides actionable technical evaluation for prospective leads without commercial vendor bias.
+Alternatives considered:
+1. Hardcoding vendor-specific stacks: Rejected to preserve vendor neutrality and avoid lock-in.
+2. Leaving tech_options optional or abstract: Rejected because tech candidates are a core pre-sales value driver for qualified leads.
+If we removed it: Designs would provide vague category labels instead of concrete technical candidates for evaluation.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-285 — Stage 9c-pre — step — Eval runner architect and repair prompt selector flags
+What: Support `--architect-prompt` and `--repair-prompt` CLI flags in `evals/run.py` (defaulting to `architect_service.ARCHITECT_PROMPT_NAME` and `architect_service.ARCHITECT_REPAIR_PROMPT_NAME`). Validate that specified prompt markdown files exist in `prompts/` and dynamically bind the chosen constants across `architect.service`, `designs.service`, and `evals.run`. Include `prompt_architect` and `prompt_repair` in results `meta`.
+Why: Enables running both `architect_v8` and `architect_v9` against evaluation benchmark cases within the same session/environment without altering production code defaults or schemas.
+Alternatives considered:
+1. Threading prompt parameters through `create_design` and `generate_and_validate` signatures: Rejected to keep production service contracts unchanged.
+2. Modifying production settings via env: Rejected because test prompt selection should remain tooling-scoped.
+If we removed it: Comparing prompt versions would require changing production constants and committing code changes between eval runs.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-286 — Stage 9c-pre — step — Title generation stub in eval runner
+What: In `evals/run.py`, stub `designs_service.generate_title_for_design` to return a static fallback title `("Evaluation Design", "fallback", None)` during evaluation suite runs.
+Why: Prevents 1 redundant Gemini LLM call and eliminates 3-second title timeouts on every evaluation run, saving API quota and reducing run latency without impacting architecture or explainer benchmark verification.
+Alternatives considered:
+1. Adding a `skip_title` flag to `create_design` in production: Rejected to keep production service signatures untouched.
+2. Letting title generation run: Rejected because title generation wastes LLM calls and occasionally hits timeouts during evaluation.
+If we removed it: Every evaluation run would consume extra quota and latency on title generation that is discarded by evaluation metrics.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-287 — Stage 9c-pre — step — Evaluation runner incremental flush and transient 503 retry
+What: In `evals/run.py`: (1) incrementally flush the complete results JSON payload to disk after each completed case run instead of only upon clean completion, and (2) on `LLMUnavailable` (503), pause for 15 seconds and retry the run once before setting `aborted_due_to_quota = True` and exiting with code 2.
+Why: Guarantees that partial evaluation results are safely persisted on disk if the runner process is interrupted or aborts, and prevents premature evaluation aborts caused by brief transient Gemini 503 service blips.
+Alternatives considered:
+1. Writing partial results only upon abort: Rejected because unexpected process termination (SIGINT, crash) would lose all unpersisted memory records.
+2. Aborting immediately on 503 without retry: Rejected because 503 errors on cloud LLMs are often transient and recoverable with a single pause.
+If we removed it: A single transient 503 would immediately terminate multi-case evaluation batches and unwritten runs would be lost on abrupt termination.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-288 — Stage 9d-1 — step — Architect repair v9 prompt specification for cycle and constraint remediation
+What: Create `apps/api/src/archnemesis/prompts/architect_repair_v9.md` specifically instructing the repair model to resolve `E_CYCLE` by identifying and deleting the return/feedback edge (never reversing it), expressing iteration or rejection loops strictly in node role text or forward rejection sinks, maintaining reachability to exits, and preserving nodes required by constraints. Instruct the model never to alter constraint kinds or delete constraints to resolve `E_CONSTRAINT_VIOLATED`, but instead to reroute bypass edges through required checkpoints.
+Why: Baseline evaluation data revealed `E_CYCLE` as the primary defect in complex architectures (e.g. legal and support), where `repair_v8`'s ambiguous "remove or reverse" instruction failed to break loops in subsequent repair attempts, or breaking the loop inadvertently bypassed constraints.
+Alternatives considered:
+1. Enhancing validation Python code in `checks.py` to auto-cut cycle edges: Rejected to keep validation pure and allow LLM domain reasoning to determine which edge is the feedback path.
+2. Allowing constraint-kind weakening during repair: Rejected because weakening constraints compromises business requirements from the validated brief.
+If we removed it: Repaired candidates would continue failing validation on loops or violating security and review constraints.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-289 — Stage 9d-1 — step — Architect repair v9 prompt validation and test coverage
+What: Add unit tests in `apps/api/tests/test_architect.py` (`test_architect_repair_v9_prompt_content`) verifying that `architect_repair_v9.md` exists, contains the exact untrusted-text quarantine phrasing, includes cycle back-edge deletion guidance, contains no edge reversal or constraint weakening instructions, and omits forbidden framework and cost words. Include `architect_repair_v9.md` in `test_quarantine.py`, and add `test_dry_run_custom_repair_prompt_flag` in `evals/tests/test_run.py`.
+Why: Guarantees prompt file integrity, enforces system isolation standards, and ensures the evaluator runner correctly supports `--repair-prompt architect_repair_v9`.
+Alternatives considered:
+1. Relying only on live eval runs without unit tests: Rejected because prompt regressions and missing quarantine tags must be caught deterministically without API costs.
+If we removed it: Prompt drift or missing prompt injection quarantine could be introduced undetected.
+Decided by: agent proposed, user approved
+Status: active
+
 
 ## Phase 3 Summary
 
