@@ -2970,6 +2970,35 @@ If we removed it: `compare.py` would crash when comparing new evaluation results
 Decided by: agent proposed, user approved
 Status: active
 
+### D-282 — Stage 9b — step — Architect v9 prompt introduction
+What: Introduce `apps/api/src/archnemesis/prompts/architect_v9.md` building on v8 to generate branched, production-grade architectures with realistic technology options while preventing linear over-simplification.
+Why: Baseline evaluation showed architectures were overly linear (1-2 branches max) and lacked realistic technology options per component. Prompt v9 guides the LLM to fan out independent workflows, model decision points, specify concrete technologies (e.g. Kafka, Redis, pgvector), enforce that failure and audit paths never bypass required checkpoints, and prohibit retry back-edges.
+Alternatives considered:
+1. Modifying architect_v8.md in place: Rejected to maintain historical prompt immutability and regression comparisons.
+2. Generating architecture diagrams via multi-prompt pipelines: Rejected to maintain single-turn generator latency within SLA.
+If we removed it: Architecture generation would remain restricted to simple linear v8 designs lacking enterprise branching and technology suggestions.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-283 — Stage 9b — step — Architect service prompt version wiring
+What: Update `ARCHITECT_PROMPT_NAME = "architect_v9"` in `apps/api/src/archnemesis/modules/architect/service.py` while keeping `ARCHITECT_REPAIR_PROMPT_NAME = "architect_repair_v8"`.
+Why: Switches default generation to the new prompt v9, dynamically updating composite labels (`architect_v9`, `architect_v9+architect_repair_v8`, `architect_v9+code_repair`, `architect_v9+architect_repair_v8+code_repair`) without modifying the validated repair prompt.
+Alternatives considered:
+1. Creating architect_repair_v9.md immediately: Rejected because baseline eval showed architect_repair_v8 functions cleanly, and incremental prompt iteration isolates generator prompt impact.
+If we removed it: New designs would continue invoking architect_v8 despite the presence of v9.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-284 — Stage 9b — step — Production-grade technology options specification
+What: Direct the LLM in `architect_v9.md` to populate `tech_options` with 2 to 4 concrete, realistic technology candidates per component, prioritizing cloud-agnostic open-source or standard industry technologies (e.g., Kafka, RabbitMQ, Redis, Qdrant, pgvector, PostgreSQL) with at most one optional cloud-managed service.
+Why: Evaluation metrics showed near-zero technology options fill rate in v8 due to generic type descriptions. Providing explicit open-source guidance provides actionable technical evaluation for prospective leads without commercial vendor bias.
+Alternatives considered:
+1. Hardcoding vendor-specific stacks: Rejected to preserve vendor neutrality and avoid lock-in.
+2. Leaving tech_options optional or abstract: Rejected because tech candidates are a core pre-sales value driver for qualified leads.
+If we removed it: Designs would provide vague category labels instead of concrete technical candidates for evaluation.
+Decided by: agent proposed, user approved
+Status: active
+
 
 ## Phase 3 Summary
 
