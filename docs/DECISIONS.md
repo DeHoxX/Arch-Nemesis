@@ -2999,6 +2999,36 @@ If we removed it: Designs would provide vague category labels instead of concret
 Decided by: agent proposed, user approved
 Status: active
 
+### D-285 — Stage 9c-pre — step — Eval runner architect and repair prompt selector flags
+What: Support `--architect-prompt` and `--repair-prompt` CLI flags in `evals/run.py` (defaulting to `architect_service.ARCHITECT_PROMPT_NAME` and `architect_service.ARCHITECT_REPAIR_PROMPT_NAME`). Validate that specified prompt markdown files exist in `prompts/` and dynamically bind the chosen constants across `architect.service`, `designs.service`, and `evals.run`. Include `prompt_architect` and `prompt_repair` in results `meta`.
+Why: Enables running both `architect_v8` and `architect_v9` against evaluation benchmark cases within the same session/environment without altering production code defaults or schemas.
+Alternatives considered:
+1. Threading prompt parameters through `create_design` and `generate_and_validate` signatures: Rejected to keep production service contracts unchanged.
+2. Modifying production settings via env: Rejected because test prompt selection should remain tooling-scoped.
+If we removed it: Comparing prompt versions would require changing production constants and committing code changes between eval runs.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-286 — Stage 9c-pre — step — Title generation stub in eval runner
+What: In `evals/run.py`, stub `designs_service.generate_title_for_design` to return a static fallback title `("Evaluation Design", "fallback", None)` during evaluation suite runs.
+Why: Prevents 1 redundant Gemini LLM call and eliminates 3-second title timeouts on every evaluation run, saving API quota and reducing run latency without impacting architecture or explainer benchmark verification.
+Alternatives considered:
+1. Adding a `skip_title` flag to `create_design` in production: Rejected to keep production service signatures untouched.
+2. Letting title generation run: Rejected because title generation wastes LLM calls and occasionally hits timeouts during evaluation.
+If we removed it: Every evaluation run would consume extra quota and latency on title generation that is discarded by evaluation metrics.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-287 — Stage 9c-pre — step — Evaluation runner incremental flush and transient 503 retry
+What: In `evals/run.py`: (1) incrementally flush the complete results JSON payload to disk after each completed case run instead of only upon clean completion, and (2) on `LLMUnavailable` (503), pause for 15 seconds and retry the run once before setting `aborted_due_to_quota = True` and exiting with code 2.
+Why: Guarantees that partial evaluation results are safely persisted on disk if the runner process is interrupted or aborts, and prevents premature evaluation aborts caused by brief transient Gemini 503 service blips.
+Alternatives considered:
+1. Writing partial results only upon abort: Rejected because unexpected process termination (SIGINT, crash) would lose all unpersisted memory records.
+2. Aborting immediately on 503 without retry: Rejected because 503 errors on cloud LLMs are often transient and recoverable with a single pause.
+If we removed it: A single transient 503 would immediately terminate multi-case evaluation batches and unwritten runs would be lost on abrupt termination.
+Decided by: agent proposed, user approved
+Status: active
+
 
 ## Phase 3 Summary
 

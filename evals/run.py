@@ -37,6 +37,9 @@ from evals.metrics import (
 )
 from pydantic import BaseModel
 
+import archnemesis.modules.architect.service as architect_service
+import archnemesis.modules.designs.service as designs_service
+import archnemesis.modules.designs.title as designs_title
 from archnemesis.db.engine import create_engine_and_session
 from archnemesis.db.tables import Base
 from archnemesis.errors import DesignFailedError
@@ -48,7 +51,10 @@ from archnemesis.llm.base import (
 )
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.llm.gemini import GeminiClient
-from archnemesis.modules.architect.service import ARCHITECT_PROMPT_NAME
+from archnemesis.modules.architect.service import (
+    ARCHITECT_PROMPT_NAME,
+    ARCHITECT_REPAIR_PROMPT_NAME,
+)
 from archnemesis.modules.designs.schemas import CreateDesignRequest
 from archnemesis.modules.designs.service import create_design
 from archnemesis.modules.explainer.service import (
@@ -58,7 +64,17 @@ from archnemesis.modules.explainer.service import (
 from archnemesis.modules.intake.schemas import IntakeTurnRequest
 from archnemesis.modules.intake.service import handle_turn
 from archnemesis.modules.validation.lints import check_lints
+from archnemesis.prompts import _PROMPTS_DIR
 from archnemesis.settings import get_settings
+
+
+async def _stub_generate_title_for_design(
+    design_id: str,
+    brief: Any,
+    llm: Any,
+) -> tuple[str, str, str | None]:
+    """Stub title generation for evaluation runs to eliminate redundant LLM calls and timeouts."""
+    return ("Evaluation Design", "fallback", None)
 
 
 class StructlogEventCollector:
@@ -260,13 +276,10 @@ def build_dry_run_script(cases: list[dict[str, Any]], runs_count: int) -> list[d
             "models_text": "Validator component uses a validation model.",
         }
 
-        title_output = {"title": "Synthetic Architecture Title"}
-
-        # Each run executes 1 intake, 1 architect, 1 title, 1 explainer
+        # Each run executes 1 intake, 1 architect, 1 explainer (title is stubbed)
         for _ in range(runs_count):
             script.append(intake_output)
             script.append(architect_spec)
-            script.append(title_output)
             script.append(explanation_draft)
 
     return script
@@ -302,12 +315,62 @@ async def execute_eval_suite(
     output_path: Path,
     dry_mode: bool = False,
     pause_seconds: float = 8.0,
+    architect_prompt: str | None = None,
+    repair_prompt: str | None = None,
+    unavailable_retry_delay: float = 15.0,
 ) -> tuple[int, list[CaseRunRecord]]:
     """Run the evaluation suite sequentially across cases and runs."""
     settings = get_settings()
     completed_records: list[CaseRunRecord] = []
     aborted_due_to_quota = False
     started_time = datetime.now().strftime("%Y%m%d-%H%M")
+
+    chosen_architect_prompt = architect_prompt or architect_service.ARCHITECT_PROMPT_NAME
+    chosen_repair_prompt = repair_prompt or architect_service.ARCHITECT_REPAIR_PROMPT_NAME
+
+    orig_arch_prompt = architect_service.ARCHITECT_PROMPT_NAME
+    orig_repair_prompt = architect_service.ARCHITECT_REPAIR_PROMPT_NAME
+    orig_design_arch_prompt = designs_service.ARCHITECT_PROMPT_NAME
+    orig_design_title = designs_service.generate_title_for_design
+    orig_designs_title_fn = designs_title.generate_title_for_design
+
+    # T1: Stub title generation during evaluation to eliminate redundant LLM calls and timeouts
+    designs_service.generate_title_for_design = _stub_generate_title_for_design
+    designs_title.generate_title_for_design = _stub_generate_title_for_design
+
+    # Bind chosen prompt constants across architect and design services
+    architect_service.ARCHITECT_PROMPT_NAME = chosen_architect_prompt
+    architect_service.ARCHITECT_REPAIR_PROMPT_NAME = chosen_repair_prompt
+    designs_service.ARCHITECT_PROMPT_NAME = chosen_architect_prompt
+
+    def _flush_results_to_disk(
+        current_records: list[CaseRunRecord],
+        is_aborted: bool,
+    ) -> None:
+        eval_summary = aggregate_eval_runs(current_records)
+        current_meta = {
+            "timestamp": started_time,
+            "runner_version": "1.0",
+            "prompt_architect": chosen_architect_prompt,
+            "prompt_repair": chosen_repair_prompt,
+            "prompt_writer": EXPLAINER_PROMPT_NAME,
+            "model_architect": "fake" if dry_mode else (settings.llm_model_architect or "unset"),
+            "model_intake": "fake" if dry_mode else (settings.llm_model_intake or "unset"),
+            "model_writer": "fake" if dry_mode else (settings.llm_model_writer or "unset"),
+            "runs_requested": runs_per_case,
+            "total_runs_completed": len(current_records),
+            "aborted_due_to_quota": is_aborted,
+            "pause_seconds": pause_seconds,
+        }
+        result_payload = {
+            "meta": current_meta,
+            "summary": eval_summary.to_dict(),
+            "by_case": {cid: c.to_dict() for cid, c in eval_summary.by_case.items()},
+            "runs": [r.to_dict() for r in current_records],
+        }
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        payload_str = json.dumps(result_payload, indent=2)
+        output_path.write_text(payload_str, encoding="utf-8")
 
     # Configure structlog to ensure event_collector intercepts all service events
     structlog.configure(
@@ -394,6 +457,7 @@ async def execute_eval_suite(
                                     wall_clock_seconds=round(elapsed, 2),
                                 )
                                 completed_records.append(rec)
+                                _flush_results_to_disk(completed_records, is_aborted=False)
                                 break
 
                             # 2. Design creation
@@ -467,7 +531,7 @@ async def execute_eval_suite(
                                     final_pass=False,
                                     is_422=True,
                                     code_repair_used=code_repair_used,
-                                    prompt_version=ARCHITECT_PROMPT_NAME,
+                                    prompt_version=chosen_architect_prompt,
                                     node_count=0,
                                     edge_count=0,
                                     ai_node_count=0,
@@ -491,6 +555,7 @@ async def execute_eval_suite(
                                     wall_clock_seconds=round(elapsed, 2),
                                 )
                                 completed_records.append(rec)
+                                _flush_results_to_disk(completed_records, is_aborted=False)
                                 break
 
                             # 3. Architect metrics extraction
@@ -654,6 +719,7 @@ async def execute_eval_suite(
                                 wall_clock_seconds=round(elapsed, 2),
                             )
                             completed_records.append(rec)
+                            _flush_results_to_disk(completed_records, is_aborted=False)
                             break
 
                     except LLMRateLimited as exc:
@@ -675,12 +741,21 @@ async def execute_eval_suite(
                             break
 
                     except LLMUnavailable as exc:
-                        aborted_due_to_quota = True
-                        sys.stderr.write(
-                            f"\n[QUOTA ERROR] Evaluation aborted due to {exc.__class__.__name__}: {exc}\n"
-                            f"Completed {len(completed_records)} runs before aborting.\n"
-                        )
-                        break
+                        if run_attempt == 1:
+                            sys.stderr.write(
+                                f"\n[UNAVAILABLE WARNING] 503 LLMUnavailable on case '{case_id}' run {run_idx}: {exc}\n"
+                                f"Waiting {unavailable_retry_delay:.1f}s before retrying once...\n"
+                            )
+                            await asyncio.sleep(unavailable_retry_delay)
+                            run_attempt += 1
+                            continue
+                        else:
+                            aborted_due_to_quota = True
+                            sys.stderr.write(
+                                f"\n[UNAVAILABLE ERROR] Evaluation aborted due to repeated {exc.__class__.__name__} on case '{case_id}' run {run_idx}: {exc}\n"
+                                f"Completed {len(completed_records)} runs before aborting.\n"
+                            )
+                            break
 
                 if aborted_due_to_quota:
                     break
@@ -694,36 +769,15 @@ async def execute_eval_suite(
                 break
 
     finally:
+        architect_service.ARCHITECT_PROMPT_NAME = orig_arch_prompt
+        architect_service.ARCHITECT_REPAIR_PROMPT_NAME = orig_repair_prompt
+        designs_service.ARCHITECT_PROMPT_NAME = orig_design_arch_prompt
+        designs_service.generate_title_for_design = orig_design_title
+        designs_title.generate_title_for_design = orig_designs_title_fn
         await engine.dispose()
         temp_dir.cleanup()
 
-    # Aggregate summaries
-    eval_summary = aggregate_eval_runs(completed_records)
-
-    meta = {
-        "timestamp": started_time,
-        "runner_version": "1.0",
-        "prompt_architect": ARCHITECT_PROMPT_NAME,
-        "prompt_writer": EXPLAINER_PROMPT_NAME,
-        "model_architect": "fake" if dry_mode else (settings.llm_model_architect or "unset"),
-        "model_intake": "fake" if dry_mode else (settings.llm_model_intake or "unset"),
-        "model_writer": "fake" if dry_mode else (settings.llm_model_writer or "unset"),
-        "runs_requested": runs_per_case,
-        "total_runs_completed": len(completed_records),
-        "aborted_due_to_quota": aborted_due_to_quota,
-        "pause_seconds": pause_seconds,
-    }
-
-    result_payload = {
-        "meta": meta,
-        "summary": eval_summary.to_dict(),
-        "by_case": {cid: c.to_dict() for cid, c in eval_summary.by_case.items()},
-        "runs": [r.to_dict() for r in completed_records],
-    }
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload_str = json.dumps(result_payload, indent=2)
-    await asyncio.to_thread(output_path.write_text, payload_str, encoding="utf-8")
+    _flush_results_to_disk(completed_records, is_aborted=aborted_due_to_quota)
 
     if aborted_due_to_quota:
         return 2, completed_records
@@ -753,8 +807,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--out", type=str, default=None, help="Custom output JSON path in evals/results/"
     )
+    parser.add_argument(
+        "--architect-prompt",
+        type=str,
+        default=None,
+        help=f"Architect system prompt name without extension (default: {ARCHITECT_PROMPT_NAME})",
+    )
+    parser.add_argument(
+        "--repair-prompt",
+        type=str,
+        default=None,
+        help=f"Architect repair prompt name without extension (default: {ARCHITECT_REPAIR_PROMPT_NAME})",
+    )
 
     args = parser.parse_args(argv)
+
+    architect_prompt = args.architect_prompt or architect_service.ARCHITECT_PROMPT_NAME
+    repair_prompt = args.repair_prompt or architect_service.ARCHITECT_REPAIR_PROMPT_NAME
+
+    for flag, name in [
+        ("--architect-prompt", architect_prompt),
+        ("--repair-prompt", repair_prompt),
+    ]:
+        prompt_file = _PROMPTS_DIR / f"{name}.md"
+        if not prompt_file.is_file():
+            parser.error(f"{flag}: Prompt file '{name}.md' not found in {_PROMPTS_DIR}")
 
     cases_source = args.cases if args.cases else (repo_root / "evals" / "cases")
     cases = load_eval_cases(cases_source, only_case_id=args.only)
@@ -809,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
             output_path=out_path,
             dry_mode=args.dry,
             pause_seconds=args.pause_seconds,
+            architect_prompt=architect_prompt,
+            repair_prompt=repair_prompt,
         )
     )
 

@@ -8,14 +8,17 @@ import pytest
 from evals.run import (
     InstrumentedLLMClient,
     StructlogEventCollector,
+    build_dry_run_script,
     execute_eval_suite,
     load_eval_cases,
     main,
 )
 from pydantic import BaseModel
 
-from archnemesis.llm.base import LLMClient, LLMRateLimited, LLMTask
+import archnemesis.modules.architect.service as architect_service
+from archnemesis.llm.base import LLMClient, LLMRateLimited, LLMTask, LLMUnavailable
 from archnemesis.llm.fake import FakeLLMClient
+from archnemesis.prompts import load_prompt
 
 DEFAULT_TITLE_OUTPUT: dict[str, Any] = {"title": "Support Chat Assistant"}
 
@@ -342,7 +345,6 @@ async def test_run_captures_explainer_retry_and_issue_codes(
     script = [
         valid_intake,
         valid_spec,
-        DEFAULT_TITLE_OUTPUT,
         invalid_draft_attempt_1,
         valid_draft_attempt_2,
     ]
@@ -489,7 +491,7 @@ async def test_run_explainer_attempt_1_clean_pass(tmp_path: Path, repo_root_path
         "models_text": "Uses a reviewer model.",
     }
 
-    script = [valid_intake, valid_spec, DEFAULT_TITLE_OUTPUT, valid_draft_attempt_1]
+    script = [valid_intake, valid_spec, valid_draft_attempt_1]
 
     fake_client = FakeLLMClient(script=script)
 
@@ -626,11 +628,9 @@ async def test_pause_seconds_sleeps_between_runs_only(
     script = [
         valid_intake,
         valid_spec,
-        DEFAULT_TITLE_OUTPUT,
         valid_draft,
         valid_intake,
         valid_spec,
-        DEFAULT_TITLE_OUTPUT,
         valid_draft,
     ]
 
@@ -746,9 +746,7 @@ async def test_429_retry_once_then_success(
 
             self.call_count = 0
 
-            self.inner = FakeLLMClient(
-                script=[valid_intake, valid_spec, DEFAULT_TITLE_OUTPUT, valid_draft]
-            )
+            self.inner = FakeLLMClient(script=[valid_intake, valid_spec, valid_draft])
 
         async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
 
@@ -1568,3 +1566,282 @@ def test_dry_run_records_structural_metrics(tmp_path: Path, repo_root_path: Path
     case_summary = data.get("by_case", {}).get("support", {})
     assert "avg_branch_count" in case_summary
     assert "tech_options_fill_rate" in case_summary
+
+
+def test_dry_run_custom_architect_prompt_flag(tmp_path: Path, repo_root_path: Path) -> None:
+    """Verify --architect-prompt and --repair-prompt flags update meta and run record prompt_version."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    support_case = cases_dir / "support.json"
+    out_file = tmp_path / "custom_prompt_results.json"
+
+    exit_code = main(
+        [
+            "--dry",
+            "--runs",
+            "1",
+            "--cases",
+            str(support_case),
+            "--out",
+            str(out_file),
+            "--architect-prompt",
+            "architect_v8",
+            "--repair-prompt",
+            "architect_repair_v8",
+        ]
+    )
+
+    assert exit_code == 0
+    assert out_file.exists()
+    with open(out_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert data["meta"]["prompt_architect"] == "architect_v8"
+    assert data["meta"]["prompt_repair"] == "architect_repair_v8"
+    assert len(data["runs"]) == 1
+    assert data["runs"][0]["prompt_version"] == "architect_v8"
+
+
+def test_dry_run_nonexistent_prompt_flag_exits_nonzero(capsys: pytest.CaptureFixture[str]) -> None:
+    """Verify non-existent architect or repair prompt file exits non-zero with descriptive error."""
+    with pytest.raises(SystemExit) as exc_info:
+        main(["--dry", "--architect-prompt", "nonexistent_architect_prompt_99"])
+    assert exc_info.value.code != 0
+    captured = capsys.readouterr()
+    assert "--architect-prompt" in captured.err
+    assert "nonexistent_architect_prompt_99.md" in captured.err
+
+    with pytest.raises(SystemExit) as exc_info_repair:
+        main(["--dry", "--repair-prompt", "nonexistent_repair_prompt_99"])
+    assert exc_info_repair.value.code != 0
+    captured_repair = capsys.readouterr()
+    assert "--repair-prompt" in captured_repair.err
+    assert "nonexistent_repair_prompt_99.md" in captured_repair.err
+
+
+def test_dry_run_default_prompt_equals_service_constant(
+    tmp_path: Path, repo_root_path: Path
+) -> None:
+    """Verify default architect and repair prompts in results meta equal service constants."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    support_case = cases_dir / "support.json"
+    out_file = tmp_path / "default_prompt_results.json"
+
+    exit_code = main(
+        [
+            "--dry",
+            "--runs",
+            "1",
+            "--cases",
+            str(support_case),
+            "--out",
+            str(out_file),
+        ]
+    )
+
+    assert exit_code == 0
+    assert out_file.exists()
+    with open(out_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert data["meta"]["prompt_architect"] == architect_service.ARCHITECT_PROMPT_NAME
+    assert data["meta"]["prompt_repair"] == architect_service.ARCHITECT_REPAIR_PROMPT_NAME
+    assert len(data["runs"]) == 1
+    assert data["runs"][0]["prompt_version"] == architect_service.ARCHITECT_PROMPT_NAME
+
+
+@pytest.mark.asyncio
+async def test_run_chosen_prompt_text_is_really_loaded(
+    tmp_path: Path, repo_root_path: Path
+) -> None:
+    """Verify that passing architect_prompt really loads and passes the corresponding prompt content."""
+    text_v8 = load_prompt("architect_v8.md")
+    text_v9 = load_prompt("architect_v9.md")
+    assert text_v8 != text_v9
+
+    cases = load_eval_cases(repo_root_path / "evals" / "cases", only_case_id="support")
+    assert len(cases) == 1
+
+    # Run A with architect_v8
+    fake_v8 = FakeLLMClient(script=build_dry_run_script(cases, 1))
+    collector_v8 = StructlogEventCollector()
+    out_v8 = tmp_path / "out_v8.json"
+    code_v8, _ = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake_v8),
+        event_collector=collector_v8,
+        output_path=out_v8,
+        dry_mode=True,
+        architect_prompt="architect_v8",
+    )
+    assert code_v8 == 0
+    arch_calls_v8 = [c for c in fake_v8.calls if c["task"] == LLMTask.ARCHITECT]
+    assert len(arch_calls_v8) >= 1
+    assert arch_calls_v8[0]["system"] == text_v8
+
+    # Run B with architect_v9
+    fake_v9 = FakeLLMClient(script=build_dry_run_script(cases, 1))
+    collector_v9 = StructlogEventCollector()
+    out_v9 = tmp_path / "out_v9.json"
+    code_v9, _ = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake_v9),
+        event_collector=collector_v9,
+        output_path=out_v9,
+        dry_mode=True,
+        architect_prompt="architect_v9",
+    )
+    assert code_v9 == 0
+    arch_calls_v9 = [c for c in fake_v9.calls if c["task"] == LLMTask.ARCHITECT]
+    assert len(arch_calls_v9) >= 1
+    assert arch_calls_v9[0]["system"] == text_v9
+
+    # Assert distinct prompt contents passed to LLM
+    assert arch_calls_v8[0]["system"] != arch_calls_v9[0]["system"]
+
+
+@pytest.mark.asyncio
+async def test_run_title_stub_makes_zero_title_llm_calls(
+    tmp_path: Path, repo_root_path: Path
+) -> None:
+    """Verify that title generation is stubbed during eval runs, consuming zero LLM title calls."""
+    cases = load_eval_cases(repo_root_path / "evals" / "cases", only_case_id="support")
+    assert len(cases) == 1
+
+    fake = FakeLLMClient(script=build_dry_run_script(cases, 1))
+    collector = StructlogEventCollector()
+    out_file = tmp_path / "title_stub_results.json"
+
+    exit_code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake),
+        event_collector=collector,
+        output_path=out_file,
+        dry_mode=True,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    assert records[0].success is True
+
+    # No LLM call should use title prompt or be for title generation
+    assert all(
+        "Generate a concise, distinctive, professional title" not in c["system"] for c in fake.calls
+    )
+    writer_calls = [c for c in fake.calls if c["task"] == LLMTask.WRITER]
+    assert len(writer_calls) == 1
+    assert writer_calls[0]["system"] == load_prompt("writer_v2.md")
+
+
+@pytest.mark.asyncio
+async def test_run_5a_flush_persists_valid_json_before_failure(
+    tmp_path: Path, repo_root_path: Path
+) -> None:
+    """Verify 5A: output JSON is flushed after run 1 and remains valid when run 2 crashes."""
+    cases = load_eval_cases(repo_root_path / "evals" / "cases", only_case_id="support")
+    assert len(cases) == 1
+
+    # Build script: run 1 has 3 items (intake, architect, explainer).
+    # In run 2, intake succeeds, and the architect call raises RuntimeError (not caught/swallowed).
+    script_run1 = build_dry_run_script(cases, 1)
+    assert len(script_run1) == 3
+    crash_script: list[str | dict[str, Any] | Exception] = [
+        script_run1[0],  # run 1 intake
+        script_run1[1],  # run 1 architect
+        script_run1[2],  # run 1 explainer
+        script_run1[0],  # run 2 intake (succeeds)
+        RuntimeError("Simulated unhandled runner crash on run 2 architect"),
+    ]
+
+    fake = FakeLLMClient(script=crash_script)
+    collector = StructlogEventCollector()
+    out_file = tmp_path / "flushed_on_failure.json"
+
+    with pytest.raises(RuntimeError, match="Simulated unhandled runner crash on run 2 architect"):
+        await execute_eval_suite(
+            cases=cases,
+            runs_per_case=2,
+            client=InstrumentedLLMClient(fake),
+            event_collector=collector,
+            output_path=out_file,
+            dry_mode=True,
+            pause_seconds=0.0,
+        )
+
+    assert out_file.exists(), "Output file must be written before run 2 crashed"
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["meta"]["total_runs_completed"] == 1
+    assert len(data["runs"]) == 1
+    assert data["runs"][0]["case_id"] == "support"
+    assert data["runs"][0]["run_index"] == 1
+    assert data["runs"][0]["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_run_5c_transient_503_retry_and_abort(tmp_path: Path, repo_root_path: Path) -> None:
+    """Verify 5C: one 503 LLMUnavailable retries and succeeds; consecutive 503s abort with partial results."""
+    cases = load_eval_cases(repo_root_path / "evals" / "cases", only_case_id="support")
+    assert len(cases) == 1
+
+    # Part A: transient 503 on first architect call; retry re-runs whole attempt (intake, architect, explainer)
+    normal_script = build_dry_run_script(cases, 1)
+    assert len(normal_script) == 3
+    retry_script: list[str | dict[str, Any] | Exception] = [
+        normal_script[0],  # attempt 1 intake
+        LLMUnavailable("503 Service Unavailable (transient blip)"),  # attempt 1 architect fails
+        normal_script[0],  # attempt 2 (retry) intake
+        normal_script[1],  # attempt 2 (retry) architect succeeds
+        normal_script[2],  # attempt 2 (retry) explainer
+    ]
+    fake_retry = FakeLLMClient(script=retry_script)
+    collector_a = StructlogEventCollector()
+    out_a = tmp_path / "retry_success.json"
+
+    code_a, records_a = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake_retry),
+        event_collector=collector_a,
+        output_path=out_a,
+        dry_mode=True,
+        unavailable_retry_delay=0.01,
+    )
+    assert code_a == 0
+    assert len(records_a) == 1
+    assert records_a[0].success is True
+    assert out_a.exists()
+    data_a = json.loads(out_a.read_text(encoding="utf-8"))
+    assert data_a["meta"]["total_runs_completed"] == 1
+
+    # Part B: consecutive 503 errors abort the suite
+    abort_script: list[str | dict[str, Any] | Exception] = [
+        normal_script[0],  # attempt 1 intake
+        LLMUnavailable("503 Service Unavailable (attempt 1)"),  # attempt 1 architect fails
+        normal_script[0],  # attempt 2 intake
+        LLMUnavailable("503 Service Unavailable (attempt 2)"),  # attempt 2 architect fails
+    ]
+    fake_abort = FakeLLMClient(script=abort_script)
+    collector_b = StructlogEventCollector()
+    out_b = tmp_path / "abort_results.json"
+
+    code_b, records_b = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake_abort),
+        event_collector=collector_b,
+        output_path=out_b,
+        dry_mode=True,
+        unavailable_retry_delay=0.01,
+    )
+    assert code_b == 2
+    assert len(records_b) == 0
+    assert out_b.exists()
+    data_b = json.loads(out_b.read_text(encoding="utf-8"))
+    assert data_b["meta"]["aborted_due_to_quota"] is True
+    assert data_b["meta"]["total_runs_completed"] == 0
+    assert out_b.exists()
+    data_b = json.loads(out_b.read_text(encoding="utf-8"))
+    assert data_b["meta"]["aborted_due_to_quota"] is True
+    assert data_b["meta"]["total_runs_completed"] == 0
