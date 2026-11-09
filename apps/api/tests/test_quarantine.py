@@ -92,6 +92,7 @@ def test_all_system_prompts_contain_untrusted_user_text_quarantine() -> None:
         "architect_v8.md",
         "architect_repair_v8.md",
         "architect_v9.md",
+        "architect_repair_v9.md",
         "writer_v1.md",
         "writer_v2.md",
         "refine_v1.md",

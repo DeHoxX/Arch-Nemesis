@@ -1601,6 +1601,115 @@ def test_dry_run_custom_architect_prompt_flag(tmp_path: Path, repo_root_path: Pa
     assert data["runs"][0]["prompt_version"] == "architect_v8"
 
 
+def test_dry_run_custom_repair_prompt_flag(tmp_path: Path, repo_root_path: Path) -> None:
+    """Verify --repair-prompt flag sets meta['prompt_repair'] and meta['prompt_architect']."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    support_case = cases_dir / "support.json"
+    out_file = tmp_path / "custom_repair_results.json"
+
+    exit_code = main(
+        [
+            "--dry",
+            "--runs",
+            "1",
+            "--cases",
+            str(support_case),
+            "--out",
+            str(out_file),
+            "--architect-prompt",
+            "architect_v9",
+            "--repair-prompt",
+            "architect_repair_v9",
+        ]
+    )
+
+    assert exit_code == 0
+    assert out_file.exists()
+    with open(out_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    assert data["meta"]["prompt_architect"] == "architect_v9"
+    assert data["meta"]["prompt_repair"] == "architect_repair_v9"
+
+
+@pytest.mark.asyncio
+async def test_run_custom_repair_prompt_text_loaded_on_repair_path(
+    tmp_path: Path, repo_root_path: Path
+) -> None:
+    """Verify repair prompt text is loaded and passed to the LLM on attempt 2 when a repair loop occurs."""
+    cases_dir = repo_root_path / "evals" / "cases"
+    repair_prompt_text = load_prompt("architect_repair_v9.md")
+    cases = load_eval_cases(cases_dir, only_case_id="support")
+    normal_script = build_dry_run_script(cases, 1)
+
+    # Candidate with a cycle forces attempt 1 to fail validation and trigger repair loop
+    cyclic_spec = {
+        "nodes": [
+            {
+                "id": "gw",
+                "name": "GW",
+                "type": "gateway",
+                "role": "Entry",
+                "inputs": [],
+                "outputs": ["data"],
+                "tech_options": [],
+                "needs_model": False,
+            },
+            {
+                "id": "proc",
+                "name": "Proc",
+                "type": "service",
+                "role": "Worker",
+                "inputs": ["data"],
+                "outputs": ["out"],
+                "tech_options": [],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "gw", "to": "proc", "flows": "req"},
+            {"from": "proc", "to": "gw", "flows": "loop"},
+        ],
+        "constraints": [],
+        "entry_ids": ["gw"],
+        "exit_ids": ["proc"],
+    }
+    # Script: intake, cyclic architect (attempt 1), valid architect (attempt 2 repair), explainer
+    repair_script: list[str | dict[str, Any] | Exception] = [
+        normal_script[0],  # intake
+        cyclic_spec,  # attempt 1 architect (fails validation with E_CYCLE)
+        normal_script[1],  # attempt 2 architect repair (succeeds)
+        normal_script[2],  # explainer
+    ]
+
+    fake = FakeLLMClient(script=repair_script)
+    collector = StructlogEventCollector()
+    out_repair_file = tmp_path / "repair_loop_results.json"
+
+    code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake),
+        event_collector=collector,
+        output_path=out_repair_file,
+        dry_mode=True,
+        architect_prompt="architect_v9",
+        repair_prompt="architect_repair_v9",
+        pause_seconds=0.0,
+    )
+
+    assert code == 0
+    assert len(records) == 1
+    assert records[0].success is True
+    assert records[0].prompt_version == "architect_v9+architect_repair_v9"
+
+    # The second architect call (attempt 2 repair) must use architect_repair_v9.md
+    arch_calls = [c for c in fake.calls if c["task"] == LLMTask.ARCHITECT]
+    assert len(arch_calls) == 2
+    assert arch_calls[0]["system"] == load_prompt("architect_v9.md")
+    assert arch_calls[1]["system"] == repair_prompt_text
+
+
 def test_dry_run_nonexistent_prompt_flag_exits_nonzero(capsys: pytest.CaptureFixture[str]) -> None:
     """Verify non-existent architect or repair prompt file exits non-zero with descriptive error."""
     with pytest.raises(SystemExit) as exc_info:

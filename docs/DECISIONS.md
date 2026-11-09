@@ -3029,6 +3029,25 @@ If we removed it: A single transient 503 would immediately terminate multi-case 
 Decided by: agent proposed, user approved
 Status: active
 
+### D-288 — Stage 9d-1 — step — Architect repair v9 prompt specification for cycle and constraint remediation
+What: Create `apps/api/src/archnemesis/prompts/architect_repair_v9.md` specifically instructing the repair model to resolve `E_CYCLE` by identifying and deleting the return/feedback edge (never reversing it), expressing iteration or rejection loops strictly in node role text or forward rejection sinks, maintaining reachability to exits, and preserving nodes required by constraints. Instruct the model never to alter constraint kinds or delete constraints to resolve `E_CONSTRAINT_VIOLATED`, but instead to reroute bypass edges through required checkpoints.
+Why: Baseline evaluation data revealed `E_CYCLE` as the primary defect in complex architectures (e.g. legal and support), where `repair_v8`'s ambiguous "remove or reverse" instruction failed to break loops in subsequent repair attempts, or breaking the loop inadvertently bypassed constraints.
+Alternatives considered:
+1. Enhancing validation Python code in `checks.py` to auto-cut cycle edges: Rejected to keep validation pure and allow LLM domain reasoning to determine which edge is the feedback path.
+2. Allowing constraint-kind weakening during repair: Rejected because weakening constraints compromises business requirements from the validated brief.
+If we removed it: Repaired candidates would continue failing validation on loops or violating security and review constraints.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-289 — Stage 9d-1 — step — Architect repair v9 prompt validation and test coverage
+What: Add unit tests in `apps/api/tests/test_architect.py` (`test_architect_repair_v9_prompt_content`) verifying that `architect_repair_v9.md` exists, contains the exact untrusted-text quarantine phrasing, includes cycle back-edge deletion guidance, contains no edge reversal or constraint weakening instructions, and omits forbidden framework and cost words. Include `architect_repair_v9.md` in `test_quarantine.py`, and add `test_dry_run_custom_repair_prompt_flag` in `evals/tests/test_run.py`.
+Why: Guarantees prompt file integrity, enforces system isolation standards, and ensures the evaluator runner correctly supports `--repair-prompt architect_repair_v9`.
+Alternatives considered:
+1. Relying only on live eval runs without unit tests: Rejected because prompt regressions and missing quarantine tags must be caught deterministically without API costs.
+If we removed it: Prompt drift or missing prompt injection quarantine could be introduced undetected.
+Decided by: agent proposed, user approved
+Status: active
+
 
 ## Phase 3 Summary
 
