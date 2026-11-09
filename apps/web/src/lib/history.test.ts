@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   HISTORY_MAX_ITEMS,
   HISTORY_STORAGE_KEY,
+  batchUpdateHistoryTitles,
   clearHistory,
   getHistory,
   saveHistoryEntry,
@@ -85,8 +86,8 @@ describe("History Helper Module", () => {
     expect(items[1]!.design_id).toBe("design-2");
   });
 
-  it("caps history at maximum 20 entries", () => {
-    for (let i = 1; i <= 25; i++) {
+  it("caps history at maximum 200 entries", () => {
+    for (let i = 1; i <= 210; i++) {
       saveHistoryEntry({
         design_id: `design-${i}`,
         summary: `System number ${i}`,
@@ -95,8 +96,25 @@ describe("History Helper Module", () => {
 
     const items = getHistory();
     expect(items).toHaveLength(HISTORY_MAX_ITEMS);
-    expect(items[0]!.design_id).toBe("design-25");
-    expect(items[19]!.design_id).toBe("design-6");
+    expect(items[0]!.design_id).toBe("design-210");
+    expect(items[199]!.design_id).toBe("design-11");
+  });
+
+  it("batchUpdateHistoryTitles updates changed titles only and never adds or removes entries", () => {
+    saveHistoryEntry({ design_id: "d1", summary: "Old Title One" });
+    saveHistoryEntry({ design_id: "d2", summary: "Old Title Two" });
+
+    // d1 has new title, d3 is unknown to local history, d2 is missing from response
+    batchUpdateHistoryTitles({
+      d1: "New AI Title",
+      d3: "Unknown Server Title",
+    });
+
+    const items = getHistory();
+    expect(items).toHaveLength(2);
+    expect(items.find((i) => i.design_id === "d1")?.title).toBe("New AI Title");
+    expect(items.find((i) => i.design_id === "d2")?.title).toBe("Old Title Two");
+    expect(items.find((i) => i.design_id === "d3")).toBeUndefined();
   });
 
   it("safely ignores corrupt JSON in localStorage and returns empty array", () => {

@@ -38,6 +38,7 @@ import {
   restoreVersion,
 } from "@/lib/api";
 import { buildUnionGraph } from "@/lib/diff";
+import { updateHistoryEntryTitle } from "@/lib/history";
 import type { ArchitectureSpec, PatchSummary, SuggestionItemResponse, UnionArchitectureSpec } from "@/lib/types";
 
 /**
@@ -134,6 +135,13 @@ function DesignContent(): React.ReactElement {
     queryFn: () => getDesign(id),
     enabled: Boolean(id),
   });
+
+  // Sync loaded design title into local storage history
+  useEffect(() => {
+    if (design?.id && design?.title) {
+      updateHistoryEntryTitle(design.id, design.title);
+    }
+  }, [design?.id, design?.title]);
 
   const currentVersion = design?.current_version ?? 1;
   const isViewingHistorical =

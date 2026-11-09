@@ -161,6 +161,7 @@ export const explanationSchema = z.object({
 export const designResponseSchema = z.object({
   id: z.string(),
   intake_session_id: z.string(),
+  title: z.string(),
   current_version: z.number(),
   brief: requirementBriefSchema,
   spec: architectureSpecSchema,
@@ -456,6 +457,26 @@ export async function createDesign(
 export async function getDesign(id: string): Promise<DesignResponse> {
   const res = await fetch(`/api/designs/${encodeURIComponent(id)}`);
   return handleResponse(res, designResponseSchema);
+}
+
+export const batchTitlesResponseSchema = z.object({
+  titles: z.record(z.string(), z.string()),
+});
+export type BatchTitlesResponse = z.infer<typeof batchTitlesResponseSchema>;
+
+export async function postDesignTitles(
+  ids: string[],
+): Promise<Record<string, string>> {
+  if (ids.length === 0) {
+    return {};
+  }
+  const res = await fetch("/api/designs/titles", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ids: ids.slice(0, 200) }),
+  });
+  const data = await handleResponse(res, batchTitlesResponseSchema);
+  return data.titles;
 }
 
 export async function postExplanation(

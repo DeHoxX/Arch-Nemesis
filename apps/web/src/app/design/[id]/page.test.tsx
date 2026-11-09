@@ -28,6 +28,7 @@ function renderWithClient(ui: React.ReactElement) {
 const mockValidDesign = {
   id: "design_test_123",
   intake_session_id: "session_123",
+  title: "Telemetry Pipeline",
   current_version: 1,
   brief: {
     summary: "Telemetry pipeline",

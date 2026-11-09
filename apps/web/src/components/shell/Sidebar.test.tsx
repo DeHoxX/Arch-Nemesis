@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -12,6 +12,7 @@ import {
 } from "./Sidebar";
 import { AppShell, SIDEBAR_COLLAPSE_STORAGE_KEY } from "./AppShell";
 import { HISTORY_STORAGE_KEY } from "@/lib/history";
+import { PINS_STORAGE_KEY } from "@/lib/pins";
 
 let mockPathname = "/";
 
@@ -72,6 +73,11 @@ describe("Sidebar component", () => {
     expect(designLinks[0]?.getAttribute("title")).toBe("Customer Support Assistant Architecture");
     expect(designLinks[1]?.getAttribute("href")).toBe("/design/des-002");
     expect(designLinks[1]?.getAttribute("title")).toBe("Inventory Sync Pipeline");
+
+    // Row shows title only: "Recents" heading exists and no date text appears
+    expect(screen.getByText("Recents")).toBeDefined();
+    expect(screen.queryByText(/2026/)).toBeNull();
+    expect(screen.queryByText(/\d{1,2}\/\d{1,2}/)).toBeNull();
   });
 
   it("renders desktop collapse button and fires callback", async () => {
@@ -176,6 +182,220 @@ describe("Sidebar component", () => {
 
     dispatchSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it("renders with default width 256 on initial render and settles to saved width 420 after mount", async () => {
+    window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, "420");
+
+    let initialAriaValueNow: string | null = null;
+    let initialStyleWidth: string | null = null;
+
+    function TestWatcher({ children }: { children: React.ReactNode }) {
+      React.useLayoutEffect(() => {
+        const separator = document.querySelector('[role="separator"]');
+        const aside = document.querySelector("#app-sidebar");
+        if (separator && initialAriaValueNow === null) {
+          initialAriaValueNow = separator.getAttribute("aria-valuenow");
+        }
+        if (aside && initialStyleWidth === null) {
+          initialStyleWidth = aside.getAttribute("style");
+        }
+      });
+      return <>{children}</>;
+    }
+
+    render(
+      <TestWatcher>
+        <Sidebar isMobileDrawer={false} />
+      </TestWatcher>,
+    );
+
+    // Initial render (captured in useLayoutEffect before useEffect) matches default 256
+    expect(initialAriaValueNow).toBe("256");
+    expect(initialStyleWidth).toContain("width: 256px");
+
+    // Settled render after useEffect applies saved 420 (D-275)
+    await waitFor(() => {
+      const handle = screen.getByRole("separator", { name: "Resize sidebar" });
+      expect(handle.getAttribute("aria-valuenow")).toBe("420");
+    });
+    const aside = document.querySelector("#app-sidebar");
+    expect(aside?.getAttribute("style")).toContain("width: 420px");
+  });
+
+  it("scopes action button hover visibility to row using group/row and leaves aside ungrouped", () => {
+    const historyData = [
+      { design_id: "des-1", title: "First Design", created_at: "2026-10-25T10:00:00Z" },
+      { design_id: "des-2", title: "Second Design", created_at: "2026-10-24T10:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+
+    const { container } = render(<Sidebar />);
+
+    // Aside must not have the generic 'group' class (which leaked hover to all rows)
+    const aside = container.querySelector("#app-sidebar");
+    expect(aside?.className).not.toMatch(/\bgroup\b(?!\/)/);
+
+    // Each row has group/row class
+    const rows = container.querySelectorAll("li.group\\/row");
+    expect(rows).toHaveLength(2);
+
+    // Action button containers use group-hover/row and group-focus-within/row
+    const actionContainers = container.querySelectorAll(".group-hover\\/row\\:opacity-100");
+    expect(actionContainers).toHaveLength(2);
+
+    // No action containers use unnamed group-hover:opacity-100
+    const leakyContainers = container.querySelectorAll(".group-hover\\:opacity-100");
+    expect(leakyContainers).toHaveLength(0);
+  });
+
+  it("pin moves a design to Pinned section and persists in localStorage", async () => {
+    const user = userEvent.setup();
+    const historyData = [
+      { design_id: "des-1", title: "First Design", created_at: "2026-10-25T10:00:00Z" },
+      { design_id: "des-2", title: "Second Design", created_at: "2026-10-24T10:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+
+    render(<Sidebar />);
+
+    // Initially all under Recents, no Pinned group
+    expect(screen.queryByText("Pinned")).toBeNull();
+    expect(screen.getByText("Recents")).toBeDefined();
+
+    const pinButtons = screen.getAllByRole("button", { name: "Pin design" });
+    expect(pinButtons).toHaveLength(2);
+
+    // Pin the second design
+    await user.click(pinButtons[1]!);
+
+    // Pinned section now exists with Second Design
+    expect(screen.getByText("Pinned")).toBeDefined();
+    expect(window.localStorage.getItem(PINS_STORAGE_KEY)).toBe(JSON.stringify(["des-2"]));
+  });
+
+  it("safely ignores corrupt pins in localStorage", () => {
+    const historyData = [
+      { design_id: "des-1", title: "First Design", created_at: "2026-10-25T10:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+    window.localStorage.setItem(PINS_STORAGE_KEY, "invalid-json{{{");
+
+    render(<Sidebar />);
+
+    // Renders cleanly without throwing
+    expect(screen.getByText("First Design")).toBeDefined();
+    expect(screen.queryByText("Pinned")).toBeNull();
+  });
+
+  it("remove asks confirmation, removes only after Yes, and does not call fetch", async () => {
+    const user = userEvent.setup();
+    const fetchSpy = vi.spyOn(global, "fetch");
+
+    const historyData = [
+      { design_id: "des-1", title: "First Design", created_at: "2026-10-25T10:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+    window.localStorage.setItem(PINS_STORAGE_KEY, JSON.stringify(["des-1"]));
+
+    render(<Sidebar />);
+
+    const removeBtn = screen.getByRole("button", { name: "Remove from list" });
+    await user.click(removeBtn);
+
+    // Shows confirmation prompt
+    expect(screen.getByText("Remove?")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Yes" })).toBeDefined();
+    const noBtn = screen.getByRole("button", { name: "No" });
+
+    // Clicking No cancels
+    await user.click(noBtn);
+    expect(screen.queryByText("Remove?")).toBeNull();
+    expect(screen.getByText("First Design")).toBeDefined();
+
+    // Clicking Remove again, then Yes
+    const removeBtnAgain = screen.getByRole("button", { name: "Remove from list" });
+    await user.click(removeBtnAgain);
+    await user.click(screen.getByRole("button", { name: "Yes" }));
+
+    // Item removed from history and pins, empty state rendered
+    expect(screen.getByText("No past designs yet")).toBeDefined();
+    expect(JSON.parse(window.localStorage.getItem(HISTORY_STORAGE_KEY) || "[]")).toEqual([]);
+    expect(JSON.parse(window.localStorage.getItem(PINS_STORAGE_KEY) || "[]")).toEqual([]);
+
+    // Zero backend fetch calls made
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("renders first 20 rows then appends more when sentinel intersects", async () => {
+    let triggerIntersection: ((isIntersecting: boolean) => void) | null = null;
+    const mockObserver = vi.fn().mockImplementation((callback: IntersectionObserverCallback) => {
+      triggerIntersection = (isIntersecting: boolean) => {
+        callback(
+          [
+            {
+              isIntersecting,
+              target: document.createElement("div"),
+            } as unknown as IntersectionObserverEntry,
+          ],
+          {} as IntersectionObserver,
+        );
+      };
+      return {
+        observe: vi.fn(),
+        unobserve: vi.fn(),
+        disconnect: vi.fn(),
+      };
+    });
+    vi.stubGlobal("IntersectionObserver", mockObserver);
+
+    // Create 35 items
+    const historyData = Array.from({ length: 35 }, (_, idx) => ({
+      design_id: `des-${idx + 1}`,
+      title: `Design Number ${idx + 1}`,
+      created_at: "2026-10-25T10:00:00Z",
+    }));
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+
+    render(<Sidebar />);
+
+    // Initially 20 items rendered
+    const linksInitial = screen.getAllByRole("link").filter((l) =>
+      l.getAttribute("href")?.startsWith("/design/"),
+    );
+    expect(linksInitial).toHaveLength(20);
+
+    // Trigger intersection observer callback wrapped in act()
+    act(() => {
+      if (triggerIntersection) {
+        (triggerIntersection as (isIntersecting: boolean) => void)(true);
+      }
+    });
+
+    // Now all 35 items rendered
+    await waitFor(() => {
+      const linksAfter = screen.getAllByRole("link").filter((l) =>
+        l.getAttribute("href")?.startsWith("/design/"),
+      );
+      expect(linksAfter).toHaveLength(35);
+    });
+
+    vi.unstubAllGlobals();
+  });
+
+  it("renders hostile XSS title as plain text without execution", () => {
+    const hostileTitle = "<script>alert('xss')</script> Injection";
+    const historyData = [
+      { design_id: "des-hostile", title: hostileTitle, created_at: "2026-10-25T10:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+
+    const { container } = render(<Sidebar />);
+
+    // Literal script tags present as text, not executed as script elements
+    expect(container.querySelectorAll("script")).toHaveLength(0);
+    expect(screen.getByText(/<script>alert\('xss'\)<\/script>/)).toBeDefined();
   });
 });
 
@@ -295,6 +515,33 @@ describe("AppShell component", () => {
 
     dispatchSpy.mockRestore();
     vi.useRealTimers();
+  });
+
+  it("batch syncs titles from /api/designs/titles and updates localStorage silently", async () => {
+    const historyData = [
+      { design_id: "des-1", title: "Old Title", created_at: "2026-10-25T10:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+
+    const fetchSpy = vi.spyOn(global, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        titles: { "des-1": "Updated AI Title" },
+      }),
+    } as Response);
+
+    render(
+      <AppShell>
+        <div>Content</div>
+      </AppShell>,
+    );
+
+    await vi.waitFor(() => {
+      const stored = JSON.parse(window.localStorage.getItem(HISTORY_STORAGE_KEY) || "[]");
+      expect(stored[0]?.title).toBe("Updated AI Title");
+    });
+
+    fetchSpy.mockRestore();
   });
 });
 

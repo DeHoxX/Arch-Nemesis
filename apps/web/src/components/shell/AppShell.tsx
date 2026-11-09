@@ -4,6 +4,8 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from "react
 import { usePathname } from "next/navigation";
 import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { postDesignTitles } from "@/lib/api";
+import { batchUpdateHistoryTitles, getHistory } from "@/lib/history";
 import { Sidebar } from "./Sidebar";
 
 export const SIDEBAR_COLLAPSE_STORAGE_KEY = "archnemesis.sidebar.collapsed";
@@ -61,14 +63,20 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
   const isAdmin = pathname.startsWith("/admin");
   const isDesign = pathname.startsWith("/design/");
 
-  // Collapse state management
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
-    if (isDesign) {
-      return true;
+  // Collapse state management: start with default (true for /design/*, false otherwise)
+  // to ensure identical output on server and initial client render (D-275).
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(isDesign);
+
+  // Sync saved preference after mount (D-275) to prevent hydration mismatch
+  useEffect(() => {
+    if (!isDesign && !isAdmin) {
+      const saved = loadSidebarCollapsedPreference();
+      if (saved !== null) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setIsCollapsed(saved);
+      }
     }
-    const saved = loadSidebarCollapsedPreference();
-    return saved !== null ? saved : false;
-  });
+  }, [isDesign, isAdmin]);
 
   // Mobile drawer state (< 768px)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -99,6 +107,25 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isDrawerOpen]);
+
+  // Batch sync past design titles from backend once per page load (D-274)
+  const hasSyncedTitlesRef = useRef(false);
+  useEffect(() => {
+    if (hasSyncedTitlesRef.current) return;
+    hasSyncedTitlesRef.current = true;
+
+    const entries = getHistory();
+    if (entries.length === 0) return;
+
+    const ids = entries.map((e) => e.design_id).slice(0, 200);
+    postDesignTitles(ids)
+      .then((titles) => {
+        batchUpdateHistoryTitles(titles);
+      })
+      .catch(() => {
+        // Silent on failure (no error UI, no retry loop)
+      });
+  }, []);
 
   const resizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

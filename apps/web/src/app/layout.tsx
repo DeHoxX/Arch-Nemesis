@@ -1,13 +1,20 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
+import { Anton, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppShell } from "@/components/shell/AppShell";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-space-grotesk",
+const anton = Anton({
+  weight: "400",
   subsets: ["latin"],
+  variable: "--font-anton",
+});
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  weight: ["300", "400", "600"],
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -24,9 +31,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
-      className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
+      className={`${anton.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--page-bg)] text-[#f4f4f5]">
+      <body className="min-h-full flex flex-col bg-[var(--page-bg)] text-[#ffffff]">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

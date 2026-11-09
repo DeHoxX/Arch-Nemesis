@@ -2,9 +2,11 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Clock, PanelLeftClose, Plus, X } from "lucide-react";
+import { PanelLeftClose, Pin, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useHistory } from "@/lib/history";
+import { removeHistoryEntry, useHistory } from "@/lib/history";
+import { removePin, togglePin, usePins } from "@/lib/pins";
+import type { HistoryEntry } from "@/lib/types";
 
 export const SIDEBAR_WIDTH_STORAGE_KEY = "archnemesis.sidebar.width";
 export const SIDEBAR_MIN_WIDTH = 200;
@@ -107,11 +109,68 @@ export function Sidebar({
   isMobileDrawer = false,
 }: SidebarProps): React.ReactElement {
   const history = useHistory();
+  const pins = usePins();
 
-  // Desktop width state
-  const [width, setWidth] = useState<number>(() => {
-    return isMobileDrawer ? SIDEBAR_DEFAULT_WIDTH : loadSidebarWidthPreference();
-  });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // Group into Pinned and Recents (D-270, D-271)
+  // Pinned order = most recently pinned first (order in pins array)
+  const historyMap = new Map(history.map((item) => [item.design_id, item]));
+  const pinnedEntries = pins
+    .map((id) => historyMap.get(id))
+    .filter((item): item is HistoryEntry => Boolean(item));
+  const pinnedIdsSet = new Set(pins);
+  const recentEntries = history.filter((item) => !pinnedIdsSet.has(item.design_id));
+
+  // Combined ordered entries for infinite scroll
+  const allOrderedEntries = [...pinnedEntries, ...recentEntries];
+
+  // Infinite scroll: 20 rows first, +20 on sentinel (D-272)
+  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
+
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") {
+      return;
+    }
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + PAGE_SIZE, allOrderedEntries.length));
+        }
+      },
+      { rootMargin: "100px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [allOrderedEntries.length]);
+
+  const isIntersectionSupported = typeof IntersectionObserver !== "undefined";
+  const visibleEntriesSet = isIntersectionSupported
+    ? new Set(allOrderedEntries.slice(0, visibleCount))
+    : new Set(allOrderedEntries);
+  const displayedPinned = pinnedEntries.filter((item) => visibleEntriesSet.has(item));
+  const displayedRecent = recentEntries.filter((item) => visibleEntriesSet.has(item));
+
+  // Desktop width state: start with SIDEBAR_DEFAULT_WIDTH on first render to match SSR (D-275)
+  const [width, setWidth] = useState<number>(SIDEBAR_DEFAULT_WIDTH);
+
+  // Sync saved preference after mount (D-275) to prevent hydration mismatch
+  useEffect(() => {
+    if (!isMobileDrawer) {
+      const saved = loadSidebarWidthPreference();
+      if (saved !== SIDEBAR_DEFAULT_WIDTH) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setWidth(saved);
+      }
+    }
+  }, [isMobileDrawer]);
 
   const [isDragging, setIsDragging] = useState(false);
   const dragStartXRef = useRef(0);
@@ -206,6 +265,93 @@ export function Sidebar({
     }
   };
 
+  const renderRow = (entry: HistoryEntry, isPinned: boolean) => {
+    const isConfirming = confirmDeleteId === entry.design_id;
+
+    if (isConfirming) {
+      return (
+        <li key={entry.design_id} className="relative">
+          <div className="flex items-center justify-between rounded-lg px-2.5 py-1.5 text-xs bg-muted/60">
+            <span className="text-muted-foreground text-xs">Remove?</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  removePin(entry.design_id);
+                  removeHistoryEntry(entry.design_id);
+                  setConfirmDeleteId(null);
+                }}
+                className="px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/10 rounded transition-colors"
+              >
+                Yes
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setConfirmDeleteId(null);
+                }}
+                className="px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted rounded transition-colors"
+              >
+                No
+              </button>
+            </div>
+          </div>
+        </li>
+      );
+    }
+
+    return (
+      <li key={entry.design_id} className="relative group/row">
+        <div className="flex items-center rounded-lg text-xs hover:bg-muted/50 focus-within:bg-muted/50 transition-colors">
+          <Link
+            href={`/design/${encodeURIComponent(entry.design_id)}`}
+            onClick={handleNavigate}
+            title={entry.title}
+            className="flex-1 min-w-0 py-1.5 pl-2.5 pr-14 text-foreground/85 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-lg"
+          >
+            <span className="truncate block font-normal">
+              {shortTitle(entry.title)}
+            </span>
+          </Link>
+          <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                togglePin(entry.design_id);
+              }}
+              aria-label={isPinned ? "Unpin design" : "Pin design"}
+              title={isPinned ? "Unpin design" : "Pin design"}
+              className={`p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors ${
+                isPinned ? "text-foreground" : ""
+              }`}
+            >
+              <Pin className={`size-3.5 ${isPinned ? "fill-current" : ""}`} />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setConfirmDeleteId(entry.design_id);
+              }}
+              aria-label="Remove from list"
+              title="Remove from list"
+              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      </li>
+    );
+  };
+
   const content = (
     <div className="flex h-full w-full flex-col bg-[var(--sidebar-bg)] p-3 text-foreground select-none">
       {/* Top Header Row */}
@@ -256,42 +402,40 @@ export function Sidebar({
         </Button>
       </div>
 
-      {/* Past Designs Section Header */}
-      <div className="mb-2 flex items-center gap-1.5 px-1 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-        <Clock className="size-3" aria-hidden="true" />
-        <span>Past designs</span>
-      </div>
-
       {/* Past Designs List */}
       <div className="flex-1 overflow-y-auto pr-1 sidebar-scrollbar">
-        {history.length === 0 ? (
+        {allOrderedEntries.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
             No past designs yet
           </div>
         ) : (
-          <ul className="space-y-1" role="list" aria-label="Past designs">
-            {history.map((entry) => (
-              <li key={entry.design_id}>
-                <Link
-                  href={`/design/${encodeURIComponent(entry.design_id)}`}
-                  onClick={handleNavigate}
-                  title={entry.title}
-                  className="group flex flex-col rounded-lg px-2.5 py-2 text-xs text-muted-foreground transition-colors hover:bg-card/60 hover:text-foreground"
-                >
-                  <span className="truncate font-medium text-foreground/90 group-hover:text-foreground">
-                    {shortTitle(entry.title)}
-                  </span>
-                  <span className="text-[10px] font-mono text-muted-foreground/60">
-                    {entry.created_at
-                      ? new Date(entry.created_at).toLocaleDateString(undefined, {
-                          dateStyle: "short",
-                        })
-                      : "Recent"}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <div className="space-y-4">
+            {displayedPinned.length > 0 && (
+              <div>
+                <div className="mb-1.5 px-2 text-[11px] font-medium text-muted-foreground/80 tracking-wide">
+                  Pinned
+                </div>
+                <ul className="space-y-0.5" role="list" aria-label="Pinned designs">
+                  {displayedPinned.map((entry) => renderRow(entry, true))}
+                </ul>
+              </div>
+            )}
+
+            {displayedRecent.length > 0 && (
+              <div>
+                <div className="mb-1.5 px-2 text-[11px] font-medium text-muted-foreground/80 tracking-wide">
+                  Recents
+                </div>
+                <ul className="space-y-0.5" role="list" aria-label="Recent designs">
+                  {displayedRecent.map((entry) => renderRow(entry, false))}
+                </ul>
+              </div>
+            )}
+
+            {visibleCount < allOrderedEntries.length && (
+              <div ref={sentinelRef} className="h-4 w-full" aria-hidden="true" />
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -326,7 +470,7 @@ export function Sidebar({
   return (
     <aside
       id="app-sidebar"
-      className="sticky top-0 h-screen shrink-0 border-r border-border/40 relative group"
+      className="sticky top-0 h-screen shrink-0 border-r border-border/40 relative"
       style={{ width: `${width}px` }}
     >
       {content}

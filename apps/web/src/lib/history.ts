@@ -3,17 +3,23 @@ import { historyListSchema } from "./api";
 import type { HistoryEntry } from "./types";
 
 export const HISTORY_STORAGE_KEY = "archnemesis.history.v1";
-export const HISTORY_MAX_ITEMS = 20;
+export const HISTORY_MAX_ITEMS = 200;
 export const HISTORY_TITLE_MAX_CHARS = 60;
 
 const emptyHistory: HistoryEntry[] = [];
 let cachedRaw: string | null = null;
 let cachedEntries: HistoryEntry[] = [];
 
+function notifyHistoryChange(): void {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("storage"));
+  }
+}
+
 /**
  * Retrieve saved past designs from localStorage.
  *
- * Rules (BUILD_PLAN.md:506 & Stage 6C1):
+ * Rules (BUILD_PLAN.md:506, Stage 6C1 & D-273):
  * - Key: archnemesis.history.v1
  * - Validated with Zod schema (historyListSchema)
  * - Corrupt data or storage errors return an empty array without crashing
@@ -44,17 +50,18 @@ export function getHistory(): HistoryEntry[] {
 
 export interface SaveHistoryInput {
   design_id: string;
-  summary: string;
+  summary?: string;
+  title?: string;
   created_at?: string;
 }
 
 /**
  * Save a newly created design to localStorage history.
  *
- * Rules (BUILD_PLAN.md:506 & Stage 6C1):
- * - Title is the first 60 characters of the brief summary
+ * Rules (BUILD_PLAN.md:506, Stage 6C1 & D-273):
+ * - Title is the given title or first 60 characters of the brief summary
  * - Newest first (prepended to the list)
- * - Maximum 20 entries
+ * - Maximum 200 entries (D-273)
  * - Deduplicates by design_id (replaces existing entry and moves to head)
  * - Guarded with try/catch against QuotaExceededError and SecurityError
  */
@@ -65,7 +72,8 @@ export function saveHistoryEntry(input: SaveHistoryInput): void {
 
   try {
     const current = getHistory();
-    const cleanTitle = (input.summary || "").trim().slice(0, HISTORY_TITLE_MAX_CHARS);
+    const rawTitle = input.title || input.summary || "";
+    const cleanTitle = rawTitle.trim().slice(0, HISTORY_TITLE_MAX_CHARS);
     const entry: HistoryEntry = {
       design_id: input.design_id,
       title: cleanTitle || "Untitled Architecture Design",
@@ -80,8 +88,102 @@ export function saveHistoryEntry(input: SaveHistoryInput): void {
     window.localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
     cachedRaw = serialized;
     cachedEntries = updated;
+    notifyHistoryChange();
   } catch {
     // Gracefully ignore storage quota or access errors in restricted modes
+  }
+}
+
+/**
+ * Remove an entry from history by design_id.
+ */
+export function removeHistoryEntry(designId: string): void {
+  if (typeof window === "undefined" || !designId) {
+    return;
+  }
+
+  try {
+    const current = getHistory();
+    const updated = current.filter((item) => item.design_id !== designId);
+    const serialized = JSON.stringify(updated);
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
+    cachedRaw = serialized;
+    cachedEntries = updated;
+    notifyHistoryChange();
+  } catch {
+    // Gracefully ignore
+  }
+}
+
+/**
+ * Update the title of an existing history entry.
+ */
+export function updateHistoryEntryTitle(designId: string, newTitle: string): void {
+  if (typeof window === "undefined" || !designId || !newTitle) {
+    return;
+  }
+
+  try {
+    const current = getHistory();
+    const clean = newTitle.trim().slice(0, HISTORY_TITLE_MAX_CHARS);
+    let changed = false;
+    const updated = current.map((item) => {
+      if (item.design_id === designId && item.title !== clean) {
+        changed = true;
+        return { ...item, title: clean };
+      }
+      return item;
+    });
+
+    if (changed) {
+      const serialized = JSON.stringify(updated);
+      window.localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
+      cachedRaw = serialized;
+      cachedEntries = updated;
+      notifyHistoryChange();
+    }
+  } catch {
+    // Gracefully ignore
+  }
+}
+
+/**
+ * Update multiple history entry titles from a batch mapping.
+ *
+ * Rules (D-274):
+ * - Never adds missing entries
+ * - Never removes entries missing from the titles map
+ * - Only updates when the returned title is non-empty and differs
+ */
+export function batchUpdateHistoryTitles(titles: Record<string, string>): void {
+  if (typeof window === "undefined" || !titles || Object.keys(titles).length === 0) {
+    return;
+  }
+
+  try {
+    const current = getHistory();
+    let changed = false;
+    const updated = current.map((item) => {
+      const serverTitle = titles[item.design_id];
+      if (serverTitle && serverTitle.trim() && serverTitle.trim() !== item.title) {
+        changed = true;
+        return {
+          ...item,
+          title: serverTitle.trim().slice(0, HISTORY_TITLE_MAX_CHARS),
+        };
+      }
+      return item;
+    });
+
+    if (changed) {
+      const serialized = JSON.stringify(updated);
+      window.localStorage.setItem(HISTORY_STORAGE_KEY, serialized);
+      cachedRaw = serialized;
+      cachedEntries = updated;
+      notifyHistoryChange();
+    }
+  } catch {
+    // Gracefully ignore
   }
 }
 
@@ -96,6 +198,7 @@ export function clearHistory(): void {
     window.localStorage.removeItem(HISTORY_STORAGE_KEY);
     cachedRaw = null;
     cachedEntries = emptyHistory;
+    notifyHistoryChange();
   } catch {
     // Gracefully ignore
   }

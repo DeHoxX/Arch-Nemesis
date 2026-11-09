@@ -224,6 +224,7 @@ describe("HomePage Component", () => {
           json: async () => ({
             id: "design_abc_123",
             intake_session_id: "session_gen_success",
+            title: "Telemetry Pipeline",
             current_version: 1,
             brief: {
               summary: "Telemetry Pipeline",
@@ -622,6 +623,7 @@ describe("HomePage Component", () => {
           json: async () => ({
             id: "design_existing_456",
             intake_session_id: "session_ready_existing",
+            title: "Pre-existing Claim Architecture",
             current_version: 1,
             brief: {
               summary: "Pre-existing Claim Architecture",

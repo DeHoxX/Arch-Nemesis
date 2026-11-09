@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-space-grotesk);
+  --font-sans: var(--font-plus-jakarta);
   --font-mono: var(--font-jetbrains-mono);
-  --font-heading: var(--font-space-grotesk);
+  --font-heading: var(--font-plus-jakarta);
+  --font-anton: var(--font-anton);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,9 +50,19 @@
 }
 
 :root {
-  --page-bg: #1f1f23;
-  --sidebar-bg: #18181b;
-  --card-bg: #26262b;
+  --navy-bg: #171e19;
+  --navy-sidebar: #131915;
+  --sage-accent: #b7c6c2;
+  --sage-hover: #a3b5b0;
+  --charcoal-surface: #302b2f;
+  --taupe-muted: #9f8d8b;
+  --soft-cyan: #d5f4f9;
+  --soft-blue: #bbe2f5;
+  --soft-beige: #d7c5b2;
+
+  --page-bg: #171e19;
+  --sidebar-bg: #131915;
+  --card-bg: #302b2f;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -87,9 +98,19 @@
 }
 
 .dark {
-  --page-bg: #1f1f23;
-  --sidebar-bg: #18181b;
-  --card-bg: #26262b;
+  --navy-bg: #171e19;
+  --navy-sidebar: #131915;
+  --sage-accent: #b7c6c2;
+  --sage-hover: #a3b5b0;
+  --charcoal-surface: #302b2f;
+  --taupe-muted: #9f8d8b;
+  --soft-cyan: #d5f4f9;
+  --soft-blue: #bbe2f5;
+  --soft-beige: #d7c5b2;
+
+  --page-bg: #171e19;
+  --sidebar-bg: #131915;
+  --card-bg: #302b2f;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

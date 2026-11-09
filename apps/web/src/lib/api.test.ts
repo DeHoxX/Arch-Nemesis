@@ -27,6 +27,7 @@ import {
 const VALID_DESIGN_FIXTURE = {
   id: "d-test-12345",
   intake_session_id: "s-test-67890",
+  title: "Legal Contract Processing",
   current_version: 1,
   brief: {
     summary: "Automated legal contract processing and human review system.",

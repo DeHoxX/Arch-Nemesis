@@ -116,6 +116,7 @@ export interface Explanation {
 export interface DesignResponse {
   id: string;
   intake_session_id: string;
+  title: string;
   current_version: number;
   brief: RequirementBrief;
   spec: ArchitectureSpec;
