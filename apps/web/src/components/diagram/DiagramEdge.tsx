@@ -3,7 +3,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   type EdgeProps,
-  getBezierPath,
+  getSmoothStepPath,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { MAX_LABEL_TEXT_WIDTH } from "./layout";
@@ -23,9 +23,9 @@ export type DiagramEdgeData = {
 /**
  * Custom Diagram Edge with truncated label (max 40 chars), condition badge, and hover/focus disclosure.
  *
- * Requirements (Stage B4e2, D-189):
+ * Requirements (Stage B4e2, D-189; Stage B1a, D-295):
  * - Uses pure layout pathD and labelX/labelY when computed by computeEdgeLabelLayout.
- * - Falls back cleanly to getBezierPath if custom layout data is missing.
+ * - Falls back cleanly to getSmoothStepPath if custom layout data is missing.
  * - Condition badge rendered above flows label (plain text, max 40 chars truncated, full on hover/focus).
  * - Edge label truncated to 40 chars when longer.
  * - Shows full text on hover and keyboard focus (tabIndex={0}).
@@ -60,13 +60,14 @@ export function DiagramEdge({
     labelY = data.labelY!;
   } else {
     // Fallback for legacy specs or standalone test rendering
-    const [fallbackPath, fallbackX, fallbackY] = getBezierPath({
+    const [fallbackPath, fallbackX, fallbackY] = getSmoothStepPath({
       sourceX,
       sourceY,
       sourcePosition,
       targetX,
       targetY,
       targetPosition,
+      borderRadius: 5,
     });
     edgePath = fallbackPath;
     labelX = fallbackX;

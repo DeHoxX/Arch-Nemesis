@@ -1,10 +1,11 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Position, ReactFlowProvider } from "@xyflow/react";
 import { describe, expect, it } from "vitest";
 import type { UnionArchitectureSpec } from "@/lib/types";
 import { normalizeColorToHex } from "@/test/helpers";
-import { type DiagramEdgeData } from "./DiagramEdge";
+import { DiagramEdge, type DiagramEdgeData } from "./DiagramEdge";
 import { DiagramView } from "./DiagramView";
 
 function renderEdge(data: DiagramEdgeData) {
@@ -98,6 +99,34 @@ describe("DiagramEdge component", () => {
     expect(conditionNote.getAttribute("aria-label")).toBe(
       `Condition: ${longCondition}`,
     );
+  });
+
+  it("falls back to getSmoothStepPath with borderRadius 5 when custom layout pathD is absent", () => {
+    const { container } = render(
+      <ReactFlowProvider>
+        <svg>
+          <DiagramEdge
+            id="fallback_edge"
+            source="src"
+            target="tgt"
+            sourceX={100}
+            sourceY={50}
+            targetX={200}
+            targetY={150}
+            sourcePosition={Position.Bottom}
+            targetPosition={Position.Top}
+            data={{ flows: "fallback stream" }}
+          />
+        </svg>
+      </ReactFlowProvider>,
+    );
+
+    const pathEl = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+    expect(pathEl).not.toBeNull();
+    const pathD = pathEl.getAttribute("d") || "";
+    expect(pathD.length).toBeGreaterThan(0);
+    expect(pathD).not.toContain(" C");
+    expect(pathD).toMatch(/^M\s*100\s*50/);
   });
 
   describe("DiagramEdge diff styling (Phase 7C3a)", () => {

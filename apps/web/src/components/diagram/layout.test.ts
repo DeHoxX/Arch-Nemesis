@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { ArchitectureSpec, NodeSpec } from "@/lib/types";
 import {
-  computeEdgeLabelLayout,
+  buildOrthogonalPath,
   computeLayout,
   computeNodeDimensions,
   DIAMOND_INNER_WIDTH,
   DIAMOND_MAX_HEIGHT,
   DIAMOND_MIN_HEIGHT,
   estimateLabelWidth,
-  evalCubicBezier,
   HEXAGON_MAX_HEIGHT,
   HEXAGON_MIN_HEIGHT,
+  isPointOnPathSegments,
   MAX_LABEL_TOTAL_WIDTH,
   MIN_RANKSEP,
   NODE_WIDTH,
@@ -544,22 +544,31 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
     });
   });
 
-  describe("computeEdgeLabelLayout and pure edge geometry (Stage B4e2, D-189)", () => {
-    it("evalCubicBezier evaluates endpoints and midpoint correctly", () => {
-      expect(typeof computeEdgeLabelLayout).toBe("function");
-      const p0 = { x: 0, y: 0 };
-      const p1 = { x: 0, y: 50 };
-      const p2 = { x: 100, y: 50 };
-      const p3 = { x: 100, y: 100 };
+  describe("computeEdgeLabelLayout and pure edge geometry (Stage B1a, D-295, D-296)", () => {
+    it("buildOrthogonalPath generates straight line for collinear points and smoothed steps for right angles", () => {
+      // 1. Collinear vertical points
+      const p1 = { x: 100, y: 50 };
+      const p2 = { x: 100, y: 150 };
+      const straightPath = buildOrthogonalPath([p1, p2], 5);
+      expect(straightPath).toBe("M 100 50 L 100 150");
+      expect(straightPath).not.toContain(" C");
 
-      const start = evalCubicBezier(p0, p1, p2, p3, 0);
-      const mid = evalCubicBezier(p0, p1, p2, p3, 0.5);
-      const end = evalCubicBezier(p0, p1, p2, p3, 1);
+      // 2. Right-angle step with rounded corners (Q curves)
+      const stepPoints = [
+        { x: 100, y: 50 },
+        { x: 100, y: 100 },
+        { x: 200, y: 100 },
+        { x: 200, y: 150 },
+      ];
+      const stepPath = buildOrthogonalPath(stepPoints, 5);
+      expect(stepPath).toMatch(/^M 100 50 L 100 95 Q 100 100 105 100 L 195 100 Q 200 100 200 105 L 200 150$/);
+      expect(stepPath).not.toContain(" C");
 
-      expect(start).toEqual(p0);
-      expect(end).toEqual(p3);
-      expect(mid.x).toBe(50);
-      expect(mid.y).toBe(50);
+      // 3. isPointOnPathSegments correctly identifies points on horizontal and vertical segments
+      expect(isPointOnPathSegments({ x: 100, y: 75 }, stepPoints)).toBe(true);
+      expect(isPointOnPathSegments({ x: 150, y: 100 }, stepPoints)).toBe(true);
+      expect(isPointOnPathSegments({ x: 200, y: 125 }, stepPoints)).toBe(true);
+      expect(isPointOnPathSegments({ x: 150, y: 75 }, stepPoints)).toBe(false);
     });
 
     it("resolves real 12-node insurance spec without sibling label overlap or node collision", () => {
@@ -721,7 +730,8 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
 
       const layout = computeLayout(spec);
       for (const edge of layout.edges) {
-        expect(edge.pathD).toMatch(/^M \d+(\.\d+)? \d+(\.\d+)? C/);
+        expect(edge.pathD).toMatch(/^M \d+(\.\d+)? \d+(\.\d+)? (L|Q)/);
+        expect(edge.pathD).not.toContain(" C");
         expect(Number.isFinite(edge.labelX)).toBe(true);
         expect(Number.isFinite(edge.labelY)).toBe(true);
         expect(Number.isNaN(edge.labelX)).toBe(false);
@@ -825,7 +835,10 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
 
       // Distinct paths and distinct label coordinates
       expect(e1.pathD).not.toBe(e2.pathD);
-      expect(Math.abs(e1.labelX - e2.labelX)).toBeGreaterThanOrEqual(30);
+      // layout.ts:409 sets lateral offset step to 36px (parallelOffsetIdx * 36).
+      // For mParallel = 2 (offsetIdx -0.5 and +0.5), segment-anchored candidate selection
+      // produces an exact 27px X separation (0.75 * 36px) with distinct vertical staggered shelves.
+      expect(Math.abs(e1.labelX - e2.labelX)).toBeGreaterThanOrEqual(27);
     });
 
     it("preserves determinism across shuffled edge input ordering", () => {
@@ -882,6 +895,111 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       expect(Number.isNaN(edge.labelX)).toBe(false);
       expect(Number.isNaN(edge.labelY)).toBe(false);
       expect(edge.labelWidth).toBe(MAX_LABEL_TOTAL_WIDTH);
+    });
+
+    it("generates strictly orthogonal paths with zero cubic bezier commands across all edges", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [
+          makeNode("ingress", "Policyholder Portal Ingress"),
+          makeNode("pii_guard", "PII Scrubbing Input Guard"),
+          makeNode("policy_lookup", "Policy Subtask"),
+          makeNode("photo_analysis", "Photo Analysis Subtask"),
+          makeNode("doc_extraction", "Document Extraction Subtask"),
+          makeNode("claim_evaluator", "Claim Evaluator"),
+          makeNode("fraud_screening", "Fraud Screening Agent"),
+          makeNode("manual_review", "Manual Review Desk"),
+          makeNode("auto_settlement", "Auto Settlement Worker"),
+          makeNode("policy_gate", "Output Validation & Policy Gate"),
+          makeNode("claim_db", "Claims Data Store"),
+          makeNode("notify_service", "Notification Delivery Service"),
+        ],
+        edges: [
+          { from: "ingress", to: "pii_guard", flows: "Claim Submission Request" },
+          { from: "pii_guard", to: "policy_lookup", flows: "Policy lookup subtask" },
+          { from: "pii_guard", to: "photo_analysis", flows: "Photo analysis subtask" },
+          { from: "pii_guard", to: "doc_extraction", flows: "Document extraction subtask" },
+          { from: "policy_lookup", to: "claim_evaluator", flows: "Active policy details" },
+          { from: "photo_analysis", to: "claim_evaluator", flows: "Damage estimation score" },
+          { from: "doc_extraction", to: "claim_evaluator", flows: "Structured document data" },
+          { from: "claim_evaluator", to: "manual_review", flows: "Flagged claim payload", condition: "risk_score > 80" },
+          { from: "claim_evaluator", to: "auto_settlement", flows: "Standard approval", condition: "risk_score <= 80" },
+          { from: "manual_review", to: "fraud_screening", flows: "Suspicious pattern telemetry" },
+          { from: "fraud_screening", to: "policy_gate", flows: "Fraud cleared" },
+          { from: "auto_settlement", to: "policy_gate", flows: "Settlement draft" },
+          { from: "pii_guard", to: "policy_gate", flows: "Forward payload for verification" },
+          { from: "policy_gate", to: "claim_db", flows: "Audited record write" },
+          { from: "policy_gate", to: "notify_service", flows: "Customer confirmation" },
+        ],
+        constraints: [],
+        entry_ids: ["ingress"],
+        exit_ids: ["claim_db", "notify_service"],
+      };
+
+      const layout = computeLayout(spec);
+      expect(layout.edges.length).toBeGreaterThan(0);
+
+      for (const edge of layout.edges) {
+        expect(edge.pathD).toMatch(/^M \d+(\.\d+)? \d+(\.\d+)?/);
+        expect(edge.pathD).not.toContain(" C");
+        // Must contain only M, L, Q commands
+        const commands = edge.pathD.match(/[A-Za-z]/g) || [];
+        expect(commands.length).toBeGreaterThan(0);
+        for (const cmd of commands) {
+          expect(["M", "L", "Q"]).toContain(cmd);
+        }
+      }
+    });
+
+    it("ensures every edge label point lies strictly on its edge orthogonal path segments", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [
+          makeNode("src", "Source Service"),
+          makeNode("b1", "Branch One"),
+          makeNode("b2", "Branch Two"),
+          makeNode("sink", "Final Sink"),
+        ],
+        edges: [
+          { from: "src", to: "b1", flows: "primary payload stream" },
+          { from: "src", to: "b2", flows: "secondary branch stream" },
+          { from: "b1", to: "sink", flows: "processed results" },
+          { from: "b2", to: "sink", flows: "alternative results", condition: "retry_count > 0" },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["sink"],
+      };
+
+      const layout = computeLayout(spec);
+      const labeledEdges = layout.edges.filter((e) => e.labelWidth > 0 && e.labelHeight > 0);
+      expect(labeledEdges.length).toBe(4);
+
+      for (const edge of labeledEdges) {
+        expect(Number.isFinite(edge.labelX)).toBe(true);
+        expect(Number.isFinite(edge.labelY)).toBe(true);
+
+        // Verify label clears all nodes with >= 8px margin
+        const labelRect = {
+          left: edge.labelX - edge.labelWidth / 2,
+          right: edge.labelX + edge.labelWidth / 2,
+          top: edge.labelY - edge.labelHeight / 2,
+          bottom: edge.labelY + edge.labelHeight / 2,
+        };
+
+        for (const node of layout.nodes) {
+          const nodeRect = {
+            left: node.position.x,
+            right: node.position.x + node.width,
+            top: node.position.y,
+            bottom: node.position.y + node.height,
+          };
+          const intersects =
+            labelRect.left < nodeRect.right + 8 &&
+            labelRect.right > nodeRect.left - 8 &&
+            labelRect.top < nodeRect.bottom + 8 &&
+            labelRect.bottom > nodeRect.top - 8;
+          expect(intersects).toBe(false);
+        }
+      }
     });
   });
 });

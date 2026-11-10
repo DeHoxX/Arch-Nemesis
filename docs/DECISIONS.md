@@ -3048,6 +3048,78 @@ If we removed it: Prompt drift or missing prompt injection quarantine could be i
 Decided by: agent proposed, user approved
 Status: active
 
+<<<<<<< HEAD
+=======
+### D-290 — Stage 9d-2 — step — Rejection of architect_repair_v9 prompt as production default
+What: Retain `ARCHITECT_REPAIR_PROMPT_NAME = "architect_repair_v8"` in `apps/api/src/archnemesis/modules/architect/service.py:27` as the production default. Retain `architect_repair_v9.md` in the repository solely for evaluation and research comparison via the `--repair-prompt` CLI selector.
+Why: Live 10-run evaluation against Gemini 3.5 Flash Lite with `architect_v9` demonstrated that `architect_repair_v9` degraded pass rates and increased errors compared to `architect_repair_v8`:
+- Legal: final pass rate dropped from 80% to 70%, with `E_CONSTRAINT_VIOLATED` increasing from 9 to 21 instances, though `E_CYCLE` decreased from 5 to 3.
+- Support: final pass rate dropped from 100% to 60%, with `E_CYCLE` increasing sharply from 5 to 14 instances and `E_CONSTRAINT_VIOLATED` increasing from 6 to 9.
+Alternatives considered:
+1. Adopting `architect_repair_v9` despite lower benchmark scores: Rejected because production prompt defaults must improve or maintain pass rates.
+2. Deleting `architect_repair_v9.md`: Rejected to preserve prompt comparative research tooling.
+If we removed it: Attempting to use `architect_repair_v9` as the production default would significantly degrade system reliability and constraint satisfaction in production.
+Decided by: user instructed, based on benchmark evaluation data
+Status: active
+
+### D-291 — Stage 9d-2 — step — Pure deterministic cycle repair algorithm (patch_cycles) in validation/repair.py
+What: Implement `patch_cycles(spec, brief_constraints, limits) -> tuple[ArchitectureSpec, list[ValidationIssue]]` in `apps/api/src/archnemesis/modules/validation/repair.py`. Iteratively detects directed simple cycles in the specification graph and deterministically cuts candidate feedback edges until the graph becomes a directed acyclic graph (DAG) or no safe edge cut exists.
+Why: Cyclic graphs fail v1 DAG validation (`E_CYCLE`) and cause immediate aborts in `patch_dead_ends` and `patch_constraints`. Deterministic code repair resolves common cycle patterns (such as query/response feedback edges) without consuming LLM calls, increasing pass rates and reducing latency.
+Alternatives considered:
+1. Relying exclusively on LLM repair prompts (`architect_repair_v8`/`v9`): Rejected because benchmarks showed repair prompts frequently fail to break cycles (or break constraints when attempting to do so).
+2. Modifying limits or validation contracts to permit cycles: Rejected because v1 acyclic graph invariants are non-negotiable.
+If we removed it: Cycle errors would remain dependent entirely on LLM repair prompts, causing 422 design failures on recurring cycle archetypes.
+Decided by: user instructed, agent proposed
+Status: active
+
+### D-292 — Stage 9d-2 — design — Structure-only edge cut ranking without node type or name inspection
+What: In `patch_cycles`, rank candidate cycle edges strictly using graph-topological structural properties: backward topological depth relative to entry nodes ($\text{depth}(u) - \text{depth}(v)$), breaking ties with deterministic lexicographical ordering (`-score, u, v`). Never inspect or branch on node `type`, `name`, `role`, or metadata text.
+Why: Rule 3 and validation module purity dictate that node types are free text invented per use case and code must never branch on or hardcode domain semantics. Edge removal decisions must remain purely structural, robust to domain phrasing, and invariant to node renaming.
+Alternatives considered:
+1. Prioritizing cuts on edges connected to nodes with specific type keywords (e.g. `store`, `database`): Rejected to preserve Rule 3 and avoid domain bias or semantic fragility in pure validation code.
+If we removed it: Pure validation would violate architectural layer separation by inspecting unconstrained free-text strings.
+Decided by: user instructed
+Status: active
+
+### D-293 — Stage 9d-2 — design — Bounding cycle repair iterations by initial edge count without new constants
+What: Terminate the cycle detection and removal loop when the graph becomes acyclic, when no safe candidate cut exists, or when the number of edge removals reaches the graph's initial edge count (`len(spec.edges)`). Introduce no new configuration constants or `Limits` fields.
+Why: A graph cannot contain more cycles than its edge count without revisiting already-evaluated structures. Bounding by initial edge count guarantees termination on arbitrary cyclic inputs without adding arbitrary magic numbers or altering the public API/Limits schemas.
+Alternatives considered:
+1. Adding a `MAX_CYCLE_CUTS` constant or a new field on `Limits`: Rejected to prevent unnecessary public API expansion and keep limits configuration untouched.
+If we removed it: Graph repairs on complex cyclic graphs could risk non-termination or require artificial configuration overhead.
+Decided by: user instructed
+Status: active
+
+### D-294 — Stage 9d-2 — deviation — Non-regressive error preservation gate for patch_cycles
+What: In `patch_cycles`, change the acceptance condition from `validate(patched).ok` to: the patched graph is a DAG (`nx.is_directed_acyclic_graph`), no new validation errors `(code, ids)` are introduced that were not already present in the original spec (ignoring removed `E_CYCLE` errors), and edge/node limits hold. Never alter constraints, kinds, or nodes.
+Why: Requiring `validate(patched).ok` in `patch_cycles` caused legitimate cycle repairs to be rejected when the specification also contained dead-end sinks or constraint bypasses that subsequent deterministic repairers (`patch_dead_ends`, `patch_constraints`) are designed to fix. Because `patch_dead_ends` and `patch_constraints` abort on cyclic graphs, requiring `patch_cycles` to produce an error-free spec created a deadlock where neither repairer could run. Softening the gate to non-regressive error preservation allows `patch_cycles` to resolve the cycle so subsequent pipeline stages can heal the remaining issues, while the existing final `validate()` check in `architect/service.py` continues to guarantee that only completely valid specs are accepted into production.
+Alternatives considered:
+1. Retaining `validate(patched).ok` in `patch_cycles`: Rejected because it deadlocks multi-issue specs (e.g. cycle + dead end).
+2. Merging all repair functions into a single monolithic loop: Rejected to preserve modular, testable pipeline stages.
+If we removed it: Specs with both a cycle and a dead end would fail code repair completely and consume repair LLM calls or fail with 422.
+Decided by: user instructed deviation from earlier acceptance gate instruction
+Status: active
+
+### D-295 — Stage B1a — deviation — Right-angle orthogonal edge routing in layout.ts and DiagramEdge.tsx
+What: Replace cubic Bézier curve paths (`M ... C ...`) in `computeEdgeLabelLayout` with right-angle (orthogonal) edge routing with 5px corner rounding (using `getSmoothStepPath` semantics for single-rank transitions and Dagre waypoint polyline decomposition for multi-rank edges), and update `DiagramEdge.tsx` fallback to invoke `getSmoothStepPath`.
+Why: Bézier curves cause crossing edges and multi-rank skip edges to curve awkwardly across diagrams, obscuring node boundaries. Orthogonal routing provides clean right-angle corridors with vertical entry/exit stubs aligned to centered Top/Bottom handles. Single-rank transitions leverage standard smooth-step routing (default borderRadius = 5px), while multi-rank transitions construct orthogonal staircases through Dagre waypoints avoiding intermediate node collisions.
+Alternatives considered:
+1. Retaining cubic Bézier curves (D-189): Rejected per Phase B1 specification for orthogonal routing.
+2. Sharp 90-degree corners (borderRadius: 0): Rejected in favor of subtle 5px rounding matching React Flow smooth-step defaults.
+If we removed it: Diagram edges would continue rendering as Bézier curves with awkward diagonal overlaps.
+Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
+Status: active
+
+### D-296 — Stage B1a — design — Segment-anchored edge label placement and lateral multi-rank parallel offsets
+What: Replace `evalCubicBezier` label midpoint calculations with pure segment-anchored placement where `(labelX, labelY)` coordinates strictly lie on the orthogonal SVG path segments. Fan-out labels are anchored to target vertical stubs, fan-in labels to source vertical stubs, and multi-rank bypasses to the first unobstructed vertical segment. Remove `evalCubicBezier` from `layout.ts`.
+Why: Because orthogonal paths follow vertical and horizontal stubs rather than a continuous curve, evaluating cubic Bézier equations at parameter `t` yields coordinates that float in empty space off the orthogonal lines. Anchoring labels to actual path segments guarantees that label pills align with the edge path and sit centered over vertical columns where horizontal node spacing (290px) prevents label overlap.
+Alternatives considered:
+1. Retaining `evalCubicBezier` alongside orthogonal paths: Rejected because it calculates points off the orthogonal line.
+If we removed it: Edge label pills would visually detach from right-angle connector paths.
+Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
+Status: active
+
+>>>>>>> b0ef38a (phase B1a: orthogonal edge routing and path-anchored labels)
 
 ## Phase 3 Summary
 
