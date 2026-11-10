@@ -3326,6 +3326,36 @@ If we removed it: Fallback titles will continue to generate awkward inverted dom
 Decided by: user approved (Second Small Fix Round)
 Status: active
 
+### D-318 — Stage Phase 8 — diagnostics — Inline failed candidate spec JSON on DESIGN_FAILED attempts in eval results
+What: In `evals/run.py`, update `InstrumentedLLMClient` to record candidate spec dictionaries returned by `generate_json` during `LLMTask.ARCHITECT` invocations. When a run fails with 422 `DesignFailedError`, populate `"spec"` inside each corresponding entry of `runs[].design_attempts[]` with the un-mutated copy of the failed candidate spec JSON. Omit `"spec"` on passing runs.
+Why: When an evaluation run fails validation after 3 attempts, operators previously had no way to inspect what the model actually produced or why code repair could not patch it. Inlining the candidate spec JSON directly into the failed run record preserves the complete structural failure artifact in the single eval result file without emitting full LLM outputs to structlog logs (honoring Rule 6).
+Alternatives considered:
+1. Writing separate sidecar JSON files per attempt: Rejected per user selection to keep eval result files self-contained.
+2. Inlining specs on passing runs: Rejected to avoid inflating result file sizes when designs pass.
+If we removed it: Debugging benchmark 422 failures would require rerunning cases manually outside the eval suite.
+Decided by: user approved (Eval diagnostics plan)
+Status: active
+
+### D-319 — Stage Phase 8 — diagnostics — Uncapped validator issue codes and messages across all failed attempts
+What: In `evals/run.py`, populate `issue_codes` and `issue_messages` for every failed attempt across all runs (both 422 failures and runs that required 2 or 3 attempts to pass). Determine issues by replaying pure `parse_and_validate` on each recorded attempt candidate spec using the run's `RequirementBrief` and settings limits, sanitize issue messages via `sanitize_validator_message`, and do not cap the issue list at 5.
+Why: Previously, `design_attempts` set `issue_messages: []` for all intermediate attempts (`attempts < last`), and the final attempt only took `DesignFailedError.issues` which was truncated to 5 items by `archnemesis.errors.DesignFailedError`. Capturing all validator codes and sanitized messages across every attempt reveals how the repair prompt corrected or failed to correct specific issues across repair iterations.
+Alternatives considered:
+1. Only capturing messages on the final attempt: Rejected because diagnostic visibility across repair iterations is lost.
+2. Logging raw validator messages without sanitization: Rejected to preserve brief constraint text sanitization.
+If we removed it: Intermediate validation failures would continue to show blank `issue_messages: []`.
+Decided by: user approved (Eval diagnostics plan)
+Status: active
+
+### D-320 — Stage Phase 8 — resilience — In-place single retry and clean partial-results abort with metadata on explainer 503/429
+What: In `evals/run.py`, isolate explainer generation (`get_or_generate_explanation`) with in-place retry: if `LLMUnavailable` (503) or `LLMRateLimited` (429) (or their `archnemesis.errors` equivalents `LLMUnavailableError` and `LLMRateLimitedError`) occurs, wait `unavailable_retry_delay` or `parse_retry_delay` and retry `get_or_generate_explanation` exactly once without re-running intake or architect generation. If the retry fails, abort the evaluation suite cleanly, flush partial results to disk in `finally`, record `"aborted": "<reason string>"` (and `null` on normal completion) alongside `"aborted_due_to_quota": true` in `meta`, and preserve all previously completed runs without skewing metrics with an incomplete run.
+Why: When the explainer hits transient provider rate limits or service unavailability, retrying the entire case from intake burns intake and architect quota, risks `FakeScriptExhausted` crashes in tests, and creates duplicate intake sessions. Retrying explainer in-place and aborting cleanly guarantees that completed runs are never lost, result files document the exact abort cause, and the process exits with a clean non-zero exit code (2).
+Alternatives considered:
+1. Retrying the entire case from intake: Rejected because it wastes quota and risks test crashes.
+2. Swallowing explainer 503/429 and falling back: Rejected because transient network errors must not inflate the explainer fallback rate.
+If we removed it: Explainer rate limits would crash the test runner or corrupt partial evaluation results.
+Decided by: user approved (Eval diagnostics plan)
+Status: active
+
 
 ## Phase 3 Summary
 

@@ -2,7 +2,9 @@
 
 import json
 from pathlib import Path
+from typing import Any
 
+import pytest
 from evals.compare import (
     compare_case_metrics,
     compare_overall_summaries,
@@ -15,6 +17,10 @@ from evals.metrics import (
     aggregate_eval_runs,
     calculate_spec_structural_metrics,
 )
+from evals.run import InstrumentedLLMClient, StructlogEventCollector, execute_eval_suite
+
+from archnemesis.llm.base import LLMRateLimited, LLMUnavailable
+from archnemesis.llm.fake import FakeLLMClient
 
 
 def test_eval_cases_load_and_validate() -> None:
@@ -859,3 +865,770 @@ def test_compare_runs_with_legacy_and_new_formats() -> None:
     assert "avg_decision_nodes" in table
     assert "tech_options_fill_rate" in table
     assert "avg_tech_options" in table
+
+
+@pytest.mark.asyncio
+async def test_execute_eval_suite_design_failed_attempts_diagnostics(tmp_path: Path) -> None:
+    """Verify on DESIGN_FAILED (422) failed spec JSONs and issue messages are preserved per attempt."""
+    case = {
+        "id": "diagnostics_case",
+        "need_text": "We need an automated verification system.",
+        "followup_answers": [],
+        "expect": {
+            "min_nodes": 3,
+            "max_nodes": 25,
+            "must_have_constraint_kinds": ["must_pass_through"],
+        },
+    }
+    intake_output = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Automated verification system",
+            "users": "Operators",
+            "data_involved": ["transactions"],
+            "domain_hint": "finance",
+            "stated_constraints": ["Must pass through validator"],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+    spec_attempt_1 = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "node_b", "flows": "request"},
+            {"from": "node_b", "to": "node_a", "flows": "loop"},
+        ],
+        "constraints": [],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+    spec_attempt_2 = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_c",
+                "name": "Node C",
+                "type": "orphan",
+                "role": "Isolated",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "node_b", "flows": "request"},
+        ],
+        "constraints": [],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+    spec_attempt_3 = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "node_b", "flows": "request"},
+        ],
+        "constraints": [],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+
+    out_file = tmp_path / "test_diag.json"
+    fake = FakeLLMClient(script=[intake_output, spec_attempt_1, spec_attempt_2, spec_attempt_3])
+    client = InstrumentedLLMClient(fake)
+    collector = StructlogEventCollector()
+
+    exit_code, records = await execute_eval_suite(
+        cases=[case],
+        runs_per_case=1,
+        client=client,
+        event_collector=collector,
+        output_path=out_file,
+        dry_mode=True,
+        pause_seconds=0.0,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    rec = records[0]
+    assert rec.is_422 is True
+    assert rec.success is False
+    assert rec.final_pass is False
+    assert len(rec.design_attempts) == 3
+
+    # Attempt 1 has cycle error, non-empty issue message, and inline spec
+    att1 = rec.design_attempts[0]
+    assert att1["attempt"] == 1
+    assert "E_CYCLE" in att1["issue_codes"]
+    assert len(att1["issue_messages"]) > 0
+    assert att1["spec"]["nodes"][0]["id"] == "node_a"
+
+    # Attempt 2 has orphan node error, non-empty issue message, and inline spec
+    att2 = rec.design_attempts[1]
+    assert att2["attempt"] == 2
+    assert "E_ORPHAN" in att2["issue_codes"]
+    assert len(att2["issue_messages"]) > 0
+    assert att2["spec"]["nodes"][2]["id"] == "node_c"
+
+    # Attempt 3 has uncovered brief constraint error, non-empty issue message, and inline spec
+    att3 = rec.design_attempts[2]
+    assert att3["attempt"] == 3
+    assert "E_BRIEF_CONSTRAINT_UNCOVERED" in att3["issue_codes"]
+    assert len(att3["issue_messages"]) > 0
+    assert att3["spec"]["nodes"][0]["id"] == "node_a"
+
+    # Verify on-disk written JSON preserves attempt specs and null abort metadata
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+    assert data["meta"]["aborted"] is None
+    assert data["meta"]["aborted_due_to_quota"] is False
+    assert data["runs"][0]["design_attempts"][0]["spec"]["nodes"][0]["id"] == "node_a"
+
+
+@pytest.mark.asyncio
+async def test_execute_eval_suite_passing_run_attempts_omits_spec(tmp_path: Path) -> None:
+    """Verify passing runs record attempt issue codes/messages but omit the 'spec' dictionary."""
+    case = {
+        "id": "passing_repair_case",
+        "need_text": "We need an automated verification system.",
+        "followup_answers": [],
+        "expect": {
+            "min_nodes": 3,
+            "max_nodes": 25,
+            "must_have_constraint_kinds": ["must_pass_through"],
+        },
+    }
+    intake_output = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Automated verification system",
+            "users": "Operators",
+            "data_involved": ["transactions"],
+            "domain_hint": "finance",
+            "stated_constraints": ["Must pass through validator"],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+    spec_attempt_1 = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "node_b", "flows": "request"},
+            {"from": "node_b", "to": "node_a", "flows": "loop"},
+        ],
+        "constraints": [],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+    valid_spec = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "val_node",
+                "name": "Validator",
+                "type": "val",
+                "role": "Validates requests",
+                "needs_model": True,
+                "ai_role": "model",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "val_node", "flows": "request"},
+            {"from": "val_node", "to": "node_b", "flows": "valid"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Must pass through validator",
+                "kind": "must_pass_through",
+                "node_id": "val_node",
+                "covers": ["bc1"],
+            }
+        ],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+    valid_expl = {
+        "overview": "Synthetic overview.",
+        "flow_steps": [
+            {"node_id": "node_a", "text": "Gateway receives request."},
+            {"node_id": "val_node", "text": "Validator verifies payload."},
+            {"node_id": "node_b", "text": "Database saves verified data."},
+        ],
+        "parts": [
+            {"node_id": "node_a", "text": "Entry interface."},
+            {"node_id": "val_node", "text": "Validation processor."},
+            {"node_id": "node_b", "text": "Persistent storage."},
+        ],
+        "checks": [{"constraint_id": "c1", "text": "Validator check."}],
+        "models_text": "Uses a validation model.",
+    }
+
+    out_file = tmp_path / "test_passing.json"
+    fake = FakeLLMClient(script=[intake_output, spec_attempt_1, valid_spec, valid_expl])
+    client = InstrumentedLLMClient(fake)
+    collector = StructlogEventCollector()
+
+    exit_code, records = await execute_eval_suite(
+        cases=[case],
+        runs_per_case=1,
+        client=client,
+        event_collector=collector,
+        output_path=out_file,
+        dry_mode=True,
+        pause_seconds=0.0,
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    rec = records[0]
+    assert rec.is_422 is False
+    assert rec.success is True
+    assert rec.final_pass is True
+    assert len(rec.design_attempts) == 2
+
+    # Attempt 1: Failed attempt populated with issue code and message, but spec omitted
+    att1 = rec.design_attempts[0]
+    assert att1["attempt"] == 1
+    assert "E_CYCLE" in att1["issue_codes"]
+    assert len(att1["issue_messages"]) > 0
+    assert "spec" not in att1
+
+    # Attempt 2: Passing attempt has empty issue codes and messages, and spec omitted
+    att2 = rec.design_attempts[1]
+    assert att2["attempt"] == 2
+    assert att2["issue_codes"] == []
+    assert att2["issue_messages"] == []
+    assert "spec" not in att2
+
+
+@pytest.mark.asyncio
+async def test_execute_eval_suite_explainer_503_in_place_single_retry_clean_abort(
+    tmp_path: Path,
+) -> None:
+    """Verify explainer 503 retries once in-place and aborts cleanly without losing finished cases."""
+    case = {
+        "id": "expl_503_case",
+        "need_text": "We need an automated verification system.",
+        "followup_answers": [],
+        "expect": {
+            "min_nodes": 3,
+            "max_nodes": 25,
+            "must_have_constraint_kinds": ["must_pass_through"],
+        },
+    }
+    intake_output = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Automated verification system",
+            "users": "Operators",
+            "data_involved": ["transactions"],
+            "domain_hint": "finance",
+            "stated_constraints": ["Must pass through validator"],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+    valid_spec = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "val_node",
+                "name": "Validator",
+                "type": "val",
+                "role": "Validates requests",
+                "needs_model": True,
+                "ai_role": "model",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "val_node", "flows": "request"},
+            {"from": "val_node", "to": "node_b", "flows": "valid"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Must pass through validator",
+                "kind": "must_pass_through",
+                "node_id": "val_node",
+                "covers": ["bc1"],
+            }
+        ],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+    valid_expl = {
+        "overview": "Synthetic overview.",
+        "flow_steps": [
+            {"node_id": "node_a", "text": "Gateway receives request."},
+            {"node_id": "val_node", "text": "Validator verifies payload."},
+            {"node_id": "node_b", "text": "Database saves verified data."},
+        ],
+        "parts": [
+            {"node_id": "node_a", "text": "Entry interface."},
+            {"node_id": "val_node", "text": "Validation processor."},
+            {"node_id": "node_b", "text": "Persistent storage."},
+        ],
+        "checks": [{"constraint_id": "c1", "text": "Validator check."}],
+        "models_text": "Uses a validation model.",
+    }
+
+    # Run 1 completes; Run 2 fails in explainer twice (initial call + 1 in-place retry)
+    script: list[Any] = [
+        intake_output,
+        valid_spec,
+        valid_expl,  # Run 1
+        intake_output,
+        valid_spec,  # Run 2
+        LLMUnavailable("Gemini service unavailable: 503 first attempt"),
+        LLMUnavailable("Gemini service unavailable: 503 retry attempt"),
+    ]
+
+    out_file = tmp_path / "test_503_abort.json"
+    fake = FakeLLMClient(script=script)
+    client = InstrumentedLLMClient(fake)
+    collector = StructlogEventCollector()
+
+    exit_code, records = await execute_eval_suite(
+        cases=[case],
+        runs_per_case=2,
+        client=client,
+        event_collector=collector,
+        output_path=out_file,
+        dry_mode=True,
+        pause_seconds=0.0,
+        unavailable_retry_delay=0.0,
+    )
+
+    assert exit_code == 2
+    assert len(records) == 1
+    assert records[0].run_index == 1
+    assert records[0].success is True
+
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+
+    assert data["meta"]["total_runs_completed"] == 1
+    assert data["meta"]["aborted_due_to_quota"] is True
+    assert isinstance(data["meta"]["aborted"], str)
+    assert (
+        "LLM_UNAVAILABLE (503) during explainer on case 'expl_503_case' run 2"
+        in data["meta"]["aborted"]
+    )
+    assert len(data["runs"]) == 1
+    assert data["runs"][0]["run_index"] == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_eval_suite_explainer_429_clean_abort_zero_runs(tmp_path: Path) -> None:
+    """Verify explainer 429 clean abort with 0 completed runs writes valid partial file and exit code 2."""
+    case = {
+        "id": "expl_429_case",
+        "need_text": "We need an automated verification system.",
+        "followup_answers": [],
+        "expect": {
+            "min_nodes": 3,
+            "max_nodes": 25,
+            "must_have_constraint_kinds": ["must_pass_through"],
+        },
+    }
+    intake_output = {
+        "action": "ready",
+        "questions": [],
+        "brief": {
+            "summary": "Automated verification system",
+            "users": "Operators",
+            "data_involved": ["transactions"],
+            "domain_hint": "finance",
+            "stated_constraints": ["Must pass through validator"],
+            "unverifiable_requirements": [],
+            "numbers_given": [],
+            "assumptions": [],
+        },
+    }
+    valid_spec = {
+        "nodes": [
+            {
+                "id": "node_a",
+                "name": "Node A",
+                "type": "gw",
+                "role": "Ingress",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "val_node",
+                "name": "Validator",
+                "type": "val",
+                "role": "Validates requests",
+                "needs_model": True,
+                "ai_role": "model",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+            {
+                "id": "node_b",
+                "name": "Node B",
+                "type": "proc",
+                "role": "Worker",
+                "needs_model": False,
+                "ai_role": "none",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": [],
+                "tools": [],
+            },
+        ],
+        "edges": [
+            {"from": "node_a", "to": "val_node", "flows": "request"},
+            {"from": "val_node", "to": "node_b", "flows": "valid"},
+        ],
+        "constraints": [
+            {
+                "id": "c1",
+                "text": "Must pass through validator",
+                "kind": "must_pass_through",
+                "node_id": "val_node",
+                "covers": ["bc1"],
+            }
+        ],
+        "entry_ids": ["node_a"],
+        "exit_ids": ["node_b"],
+    }
+
+    # Run 1 fails in explainer twice (initial call + 1 in-place retry)
+    script: list[Any] = [
+        intake_output,
+        valid_spec,
+        LLMRateLimited("Quota exceeded: 429 rate limited"),
+        LLMRateLimited("Quota exceeded: 429 rate limited retry"),
+    ]
+
+    out_file = tmp_path / "test_429_abort.json"
+    fake = FakeLLMClient(script=script)
+    client = InstrumentedLLMClient(fake)
+    collector = StructlogEventCollector()
+
+    exit_code, records = await execute_eval_suite(
+        cases=[case],
+        runs_per_case=1,
+        client=client,
+        event_collector=collector,
+        output_path=out_file,
+        dry_mode=True,
+        pause_seconds=0.0,
+    )
+
+    assert exit_code == 2
+    assert len(records) == 0
+
+    data = json.loads(out_file.read_text(encoding="utf-8"))
+
+    assert data["meta"]["total_runs_completed"] == 0
+    assert data["meta"]["aborted_due_to_quota"] is True
+    assert isinstance(data["meta"]["aborted"], str)
+    assert (
+        "LLM_RATE_LIMITED (429) during explainer on case 'expl_429_case' run 1"
+        in data["meta"]["aborted"]
+    )
+    assert len(data["runs"]) == 0
+
+
+def test_backward_compatibility_old_result_without_aborted_or_spec() -> None:
+    """Verify legacy result files lacking 'aborted' or attempt 'spec' compare and deserialize cleanly."""
+    legacy_data = {
+        "meta": {
+            "timestamp": "20261109-1200",
+            "prompt_architect": "architect_v9",
+            "aborted_due_to_quota": True,
+            # No "aborted" field in legacy meta
+        },
+        "summary": {
+            "total_runs": 1,
+            "attempt_1_pass_rate": 0.0,
+            "final_pass_rate": 0.0,
+            "failure_422_rate": 1.0,
+            "code_repair_rate": 0.0,
+            "fallback_rate": 0.0,
+            "avg_node_count": 0.0,
+            "avg_edge_count": 0.0,
+            "avg_agents": 0.0,
+            "w_merge_as_agent_rate": 0.0,
+            "avg_wall_clock_seconds": 12.0,
+            "total_llm_calls": 3,
+            "by_case": {
+                "diagnostics_case": {
+                    "attempt_1_pass_rate": 0.0,
+                    "final_pass_rate": 0.0,
+                    "fallback_rate": 0.0,
+                    "code_repair_rate": 0.0,
+                    "w_merge_as_agent_rate": 0.0,
+                    "avg_node_count": 0.0,
+                }
+            },
+        },
+        "runs": [
+            {
+                "case_id": "diagnostics_case",
+                "run_index": 1,
+                "success": False,
+                "attempt_1_pass": False,
+                "final_pass": False,
+                "is_422": True,
+                "code_repair_used": False,
+                "prompt_version": "architect_v9",
+                "node_count": 0,
+                "edge_count": 0,
+                "ai_node_count": 0,
+                "agent_count": 0,
+                "w_merge_as_agent_count": 0,
+                "w_no_ai_node_count": 0,
+                "error_codes": ["E_CYCLE"],
+                "design_attempts": [
+                    {
+                        "attempt": 1,
+                        "issue_codes": ["E_CYCLE"],
+                        "constraint_kinds": [],
+                        "issue_messages": [],
+                        # No "spec" field
+                    }
+                ],
+            }
+        ],
+    }
+
+    new_data = {
+        "meta": {
+            "timestamp": "20261111-0200",
+            "prompt_architect": "architect_v9",
+            "aborted_due_to_quota": False,
+            "aborted": None,
+        },
+        "summary": {
+            "total_runs": 1,
+            "attempt_1_pass_rate": 1.0,
+            "final_pass_rate": 1.0,
+            "failure_422_rate": 0.0,
+            "code_repair_rate": 0.0,
+            "fallback_rate": 0.0,
+            "avg_node_count": 5.0,
+            "avg_edge_count": 6.0,
+            "avg_agents": 1.0,
+            "w_merge_as_agent_rate": 0.0,
+            "avg_wall_clock_seconds": 15.0,
+            "total_llm_calls": 3,
+            "by_case": {
+                "diagnostics_case": {
+                    "attempt_1_pass_rate": 1.0,
+                    "final_pass_rate": 1.0,
+                    "fallback_rate": 0.0,
+                    "code_repair_rate": 0.0,
+                    "w_merge_as_agent_rate": 0.0,
+                    "avg_node_count": 5.0,
+                }
+            },
+        },
+        "runs": [
+            {
+                "case_id": "diagnostics_case",
+                "run_index": 1,
+                "success": True,
+                "attempt_1_pass": True,
+                "final_pass": True,
+                "is_422": False,
+                "code_repair_used": False,
+                "prompt_version": "architect_v9",
+                "node_count": 5,
+                "edge_count": 6,
+                "ai_node_count": 1,
+                "agent_count": 1,
+                "w_merge_as_agent_count": 0,
+                "w_no_ai_node_count": 0,
+                "error_codes": [],
+                "design_attempts": [
+                    {
+                        "attempt": 1,
+                        "issue_codes": [],
+                        "constraint_kinds": [],
+                        "issue_messages": [],
+                    }
+                ],
+            }
+        ],
+    }
+
+    # Deserializing legacy run record using from_dict must succeed
+    rec_legacy = CaseRunRecord.from_dict(legacy_data["runs"][0])
+    assert rec_legacy.case_id == "diagnostics_case"
+    assert rec_legacy.is_422 is True
+    assert rec_legacy.design_attempts[0]["attempt"] == 1
+
+    # compare_runs must execute without KeyError or missing field exceptions
+    table, diffs = compare_runs(legacy_data, new_data)
+    assert len(diffs) > 0
+    assert "ARCH-NEMESIS EVALUATION COMPARISON" in table
+    assert "diagnostics_case" in table
