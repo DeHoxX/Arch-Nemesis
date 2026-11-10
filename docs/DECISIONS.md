@@ -1,4 +1,4 @@
-# How to read this file
+﻿# How to read this file
 
 This file is the living record of every technical, architectural, and design choice in Arch-Nemesis. It exists to help learners and developers understand not just what code was written, but why it was written that way.
 
@@ -3048,8 +3048,7 @@ If we removed it: Prompt drift or missing prompt injection quarantine could be i
 Decided by: agent proposed, user approved
 Status: active
 
-<<<<<<< HEAD
-=======
+
 ### D-290 — Stage 9d-2 — step — Rejection of architect_repair_v9 prompt as production default
 What: Retain `ARCHITECT_REPAIR_PROMPT_NAME = "architect_repair_v8"` in `apps/api/src/archnemesis/modules/architect/service.py:27` as the production default. Retain `architect_repair_v9.md` in the repository solely for evaluation and research comparison via the `--repair-prompt` CLI selector.
 Why: Live 10-run evaluation against Gemini 3.5 Flash Lite with `architect_v9` demonstrated that `architect_repair_v9` degraded pass rates and increased errors compared to `architect_repair_v8`:
@@ -3119,9 +3118,6 @@ If we removed it: Edge label pills would visually detach from right-angle connec
 Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
 Status: active
 
-<<<<<<< HEAD
->>>>>>> b0ef38a (phase B1a: orthogonal edge routing and path-anchored labels)
-=======
 ### D-297 — Stage B1b — design — Soft pill edge labels with zIndex 1001 using existing palette tokens
 What: Style edge flow labels as soft pills (`rounded-xl`) using existing palette classes (`border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm`), keeping `zIndex: 1001` (D-123), plain text rendering with 40-character truncation (`…`), and full text disclosure on hover and keyboard focus (`tabIndex={0}`, `role="note"`). Keep condition labels as distinct stacked pills above flows using existing amber tokens (`border-amber-500/40`, `text-amber-500`, `bg-background/95`) with plain text and zero prefix.
 Why: Soft pill styling (`rounded-xl`) provides visual consistency with the application's card and badge geometry while maintaining high legibility over crossing orthogonal edge segments. Opaque background and positive z-index prevent edge strokes or background artifacts from bleeding through text.
@@ -3152,7 +3148,6 @@ If we removed it: Conditional logic would look identical to standard uncondition
 Decided by: user approved (Stage B1b+B1c merged instructions)
 Status: active
 
->>>>>>> ca69714 (phase B1a: orthogonal edge routing and path-anchored labels)
 
 ## Phase 3 Summary
 
