@@ -84,6 +84,11 @@ export function DiagramEdge({
 
   const hasLabel = Boolean(flows || condition);
   const isRemoved = data?.diffStatus === "removed";
+  const hasCondition = condition.length > 0;
+
+  const strokeDasharray = isRemoved ? "6 6" : hasCondition ? "5 4" : undefined;
+  const strokeColor = isRemoved ? "#f43f5e" : "var(--border, #64748b)";
+  const strokeOpacity = isRemoved ? 0.6 : 1;
 
   return (
     <>
@@ -93,9 +98,9 @@ export function DiagramEdge({
         markerEnd={markerEnd}
         style={{
           strokeWidth: 1.5,
-          stroke: isRemoved ? "#f43f5e" : "var(--border, #64748b)",
-          strokeDasharray: isRemoved ? "6 6" : undefined,
-          opacity: isRemoved ? 0.6 : 1,
+          stroke: strokeColor,
+          strokeDasharray,
+          opacity: strokeOpacity,
           ...style,
         }}
       />
@@ -147,7 +152,7 @@ export function DiagramEdge({
                 aria-label={`Flow: ${flows}`}
                 title={flows}
                 className={cn(
-                  "group relative cursor-help rounded-md border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm transition-colors",
+                  "group relative cursor-help rounded-xl border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm transition-colors",
                   "hover:border-foreground/50 hover:text-foreground",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:text-foreground",
                 )}

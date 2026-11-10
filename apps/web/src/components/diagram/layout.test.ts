@@ -11,6 +11,9 @@ import {
   HEXAGON_MAX_HEIGHT,
   HEXAGON_MIN_HEIGHT,
   isPointOnPathSegments,
+  LABEL_BORDER_X,
+  LABEL_CHAR_WIDTH_PX,
+  LABEL_PADDING_X,
   MAX_LABEL_TOTAL_WIDTH,
   MIN_RANKSEP,
   NODE_WIDTH,
@@ -998,6 +1001,235 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
             labelRect.top < nodeRect.bottom + 8 &&
             labelRect.bottom > nodeRect.top - 8;
           expect(intersects).toBe(false);
+        }
+      }
+    });
+
+    it("estimates labelWidth as max(flows, condition) in computeEdgeLabelLayout (Stage B1b, D-298)", () => {
+      const longConditionText = "claim_amount > 10000 and customer_status == 'vip'";
+      const specShortFlowLongCond: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          {
+            from: "src",
+            to: "tgt",
+            flows: "ok",
+            condition: longConditionText,
+          },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      const layout1 = computeLayout(specShortFlowLongCond);
+      expect(layout1.edges).toHaveLength(1);
+      const edge1 = layout1.edges[0]!;
+      const expectedCondWidth = estimateLabelWidth(longConditionText);
+      const expectedFlowWidth = estimateLabelWidth("ok");
+      expect(expectedCondWidth).toBeGreaterThan(expectedFlowWidth);
+      expect(edge1.labelWidth).toBe(expectedCondWidth);
+      expect(edge1.labelWidth).toBe(MAX_LABEL_TOTAL_WIDTH);
+
+      // Long flow, short condition
+      const longFlowText = "draft summary with full precedent citations and statutory references";
+      const specLongFlowShortCond: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          {
+            from: "src",
+            to: "tgt",
+            flows: longFlowText,
+            condition: "ok",
+          },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      const layout2 = computeLayout(specLongFlowShortCond);
+      expect(layout2.edges).toHaveLength(1);
+      const edge2 = layout2.edges[0]!;
+      expect(edge2.labelWidth).toBe(MAX_LABEL_TOTAL_WIDTH);
+
+      // Short flow, empty condition
+      const specShortFlowEmptyCond: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          {
+            from: "src",
+            to: "tgt",
+            flows: "ok",
+            condition: "",
+          },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      const layout3 = computeLayout(specShortFlowEmptyCond);
+      expect(layout3.edges).toHaveLength(1);
+      const edge3 = layout3.edges[0]!;
+      const expectedOkWidth = 2 * LABEL_CHAR_WIDTH_PX + LABEL_PADDING_X + LABEL_BORDER_X;
+      expect(expectedFlowWidth).toBe(expectedOkWidth);
+      expect(edge3.labelWidth).toBe(expectedOkWidth);
+    });
+
+    it("enforces all-pairs label non-overlap (>= 4px) and node clearance (>= 8px) on 12-node spec", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [
+          makeNode("ingress", "Policyholder Portal Ingress"),
+          makeNode("pii_guard", "PII Scrubbing Input Guard"),
+          makeNode("policy_lookup", "Policy Subtask"),
+          makeNode("photo_analysis", "Photo Analysis Subtask"),
+          makeNode("doc_extraction", "Document Extraction Subtask"),
+          makeNode("claim_evaluator", "Claim Evaluator"),
+          makeNode("fraud_screening", "Fraud Screening Agent"),
+          makeNode("manual_review", "Manual Review Desk"),
+          makeNode("auto_settlement", "Auto Settlement Worker"),
+          makeNode("policy_gate", "Output Validation & Policy Gate"),
+          makeNode("claim_db", "Claims Data Store"),
+          makeNode("notify_service", "Notification Delivery Service"),
+        ],
+        edges: [
+          { from: "ingress", to: "pii_guard", flows: "Claim Submission Request" },
+          { from: "pii_guard", to: "policy_lookup", flows: "Policy lookup subtask" },
+          { from: "pii_guard", to: "photo_analysis", flows: "Photo analysis subtask" },
+          { from: "pii_guard", to: "doc_extraction", flows: "Document extraction subtask" },
+          { from: "policy_lookup", to: "claim_evaluator", flows: "Active policy details" },
+          { from: "photo_analysis", to: "claim_evaluator", flows: "Damage estimation score" },
+          { from: "doc_extraction", to: "claim_evaluator", flows: "Structured document data" },
+          { from: "claim_evaluator", to: "manual_review", flows: "Flagged claim payload", condition: "risk_score > 80" },
+          { from: "claim_evaluator", to: "auto_settlement", flows: "Standard approval", condition: "risk_score <= 80" },
+          { from: "manual_review", to: "fraud_screening", flows: "Suspicious pattern telemetry" },
+          { from: "fraud_screening", to: "policy_gate", flows: "Fraud cleared" },
+          { from: "auto_settlement", to: "policy_gate", flows: "Settlement draft" },
+          { from: "pii_guard", to: "policy_gate", flows: "Forward payload for verification" },
+          { from: "policy_gate", to: "claim_db", flows: "Audited record write" },
+          { from: "policy_gate", to: "notify_service", flows: "Customer confirmation" },
+        ],
+        constraints: [],
+        entry_ids: ["ingress"],
+        exit_ids: ["claim_db", "notify_service"],
+      };
+
+      const layout = computeLayout(spec);
+      const labeled = layout.edges.filter((e) => e.labelWidth > 0 && e.labelHeight > 0);
+      expect(labeled.length).toBeGreaterThan(1);
+
+      // Check all-pairs label clearance >= 4px
+      for (let i = 0; i < labeled.length; i++) {
+        for (let j = i + 1; j < labeled.length; j++) {
+          const a = labeled[i]!;
+          const b = labeled[j]!;
+          const aRect = {
+            left: a.labelX - a.labelWidth / 2,
+            right: a.labelX + a.labelWidth / 2,
+            top: a.labelY - a.labelHeight / 2,
+            bottom: a.labelY + a.labelHeight / 2,
+          };
+          const bRect = {
+            left: b.labelX - b.labelWidth / 2,
+            right: b.labelX + b.labelWidth / 2,
+            top: b.labelY - b.labelHeight / 2,
+            bottom: b.labelY + b.labelHeight / 2,
+          };
+
+          const overlapX = aRect.left < bRect.right + 4 && aRect.right > bRect.left - 4;
+          const overlapY = aRect.top < bRect.bottom + 4 && aRect.bottom > bRect.top - 4;
+          expect(
+            overlapX && overlapY,
+            `Labels '${a.id}' and '${b.id}' violate 4px clearance margin!`,
+          ).toBe(false);
+        }
+      }
+
+      // Check all labels clear all nodes >= 8px
+      for (const edge of labeled) {
+        const lRect = {
+          left: edge.labelX - edge.labelWidth / 2,
+          right: edge.labelX + edge.labelWidth / 2,
+          top: edge.labelY - edge.labelHeight / 2,
+          bottom: edge.labelY + edge.labelHeight / 2,
+        };
+        for (const node of layout.nodes) {
+          const nRect = {
+            left: node.position.x,
+            right: node.position.x + node.width,
+            top: node.position.y,
+            bottom: node.position.y + node.height,
+          };
+          const intersects =
+            lRect.left < nRect.right + 8 &&
+            lRect.right > nRect.left - 8 &&
+            lRect.top < nRect.bottom + 8 &&
+            lRect.bottom > nRect.top - 8;
+          expect(intersects).toBe(false);
+        }
+      }
+    });
+
+    it("enforces all-pairs label non-overlap (>= 4px) and node clearance (>= 8px) on 25-node spec", () => {
+      const nodes: NodeSpec[] = [];
+      const edges: ArchitectureSpec["edges"] = [];
+
+      for (let i = 0; i < 25; i++) {
+        nodes.push(makeNode(`node_${i}`, `Microservice Component ${i}`));
+      }
+
+      for (let i = 0; i < 20; i++) {
+        edges.push({
+          from: `node_${i}`,
+          to: `node_${i + 1}`,
+          flows: `Flow step ${i}`,
+        });
+        if (i % 3 === 0 && i + 3 < 25) {
+          edges.push({
+            from: `node_${i}`,
+            to: `node_${i + 3}`,
+            flows: `Branch ${i}`,
+            condition: `condition_${i} == true`,
+          });
+        }
+      }
+
+      const spec: ArchitectureSpec = {
+        nodes,
+        edges,
+        constraints: [],
+        entry_ids: ["node_0"],
+        exit_ids: ["node_24"],
+      };
+
+      const layout = computeLayout(spec);
+      const labeled = layout.edges.filter((e) => e.labelWidth > 0 && e.labelHeight > 0);
+      expect(labeled.length).toBeGreaterThan(1);
+
+      for (let i = 0; i < labeled.length; i++) {
+        for (let j = i + 1; j < labeled.length; j++) {
+          const a = labeled[i]!;
+          const b = labeled[j]!;
+          const aRect = {
+            left: a.labelX - a.labelWidth / 2,
+            right: a.labelX + a.labelWidth / 2,
+            top: a.labelY - a.labelHeight / 2,
+            bottom: a.labelY + a.labelHeight / 2,
+          };
+          const bRect = {
+            left: b.labelX - b.labelWidth / 2,
+            right: b.labelX + b.labelWidth / 2,
+            top: b.labelY - b.labelHeight / 2,
+            bottom: b.labelY + b.labelHeight / 2,
+          };
+
+          const overlapX = aRect.left < bRect.right + 4 && aRect.right > bRect.left - 4;
+          const overlapY = aRect.top < bRect.bottom + 4 && aRect.bottom > bRect.top - 4;
+          expect(
+            overlapX && overlapY,
+            `25-node labels '${a.id}' and '${b.id}' collide!`,
+          ).toBe(false);
         }
       }
     });

@@ -111,13 +111,29 @@ export function DiagramView({
 
   // Transform layout edges to React Flow Edge structure
   const edges: Edge[] = useMemo(() => {
+    const nodeNameMap = new Map<string, string>(spec.nodes.map((n) => [n.id, n.name]));
     return layout.edges.map((pe) => {
       const isRemoved = (pe.data as { diffStatus?: string })?.diffStatus === "removed";
+      const srcName = nodeNameMap.get(pe.source) ?? pe.source;
+      const tgtName = nodeNameMap.get(pe.target) ?? pe.target;
+      const flows = pe.data.flows || "";
+      const condition = (pe.data.condition || "").trim();
+      const hasCondition = condition.length > 0;
+
+      const ariaLabel = flows
+        ? hasCondition
+          ? `Flow from ${srcName} to ${tgtName}: ${flows}, condition: ${condition}`
+          : `Flow from ${srcName} to ${tgtName}: ${flows}`
+        : hasCondition
+          ? `Flow from ${srcName} to ${tgtName}, condition: ${condition}`
+          : `Flow from ${srcName} to ${tgtName}`;
+
       return {
         id: pe.id,
         source: pe.source,
         target: pe.target,
         type: "customEdge",
+        ariaLabel,
         zIndex: isRemoved ? 0 : 1,
         data: {
           flows: pe.data.flows,
@@ -131,7 +147,7 @@ export function DiagramView({
         },
       };
     });
-  }, [layout.edges]);
+  }, [layout.edges, spec.nodes]);
 
   // Keyboard navigation: Escape key clears selection
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {

@@ -577,12 +577,10 @@ export function computeEdgeLabelLayout(
         }
       }
 
-      // Check sibling label clearance (min 4px)
+      // Check all-pairs label clearance (min 4px)
       for (const prev of placedLabels) {
-        if (prev.source === edge.source || prev.target === edge.target) {
-          if (rectsIntersect(candRect, prev.rect, 4)) {
-            totalOverlap += computeOverlapArea(candRect, prev.rect) + 500;
-          }
+        if (rectsIntersect(candRect, prev.rect, 4)) {
+          totalOverlap += computeOverlapArea(candRect, prev.rect) + 500;
         }
       }
 
