@@ -17,6 +17,7 @@ export type DiagramEdgeData = {
   labelWidth?: number;
   labelHeight?: number;
   diffStatus?: "added" | "removed" | "edited" | "unchanged";
+  dimmed?: boolean;
   [key: string]: unknown;
 };
 
@@ -87,7 +88,7 @@ export function DiagramEdge({
   const hasCondition = condition.length > 0;
 
   const strokeDasharray = isRemoved ? "6 6" : hasCondition ? "5 4" : undefined;
-  const strokeColor = isRemoved ? "#f43f5e" : "var(--border, #64748b)";
+  const strokeColor = isRemoved ? "#f43f5e" : "var(--muted-foreground, #94a3b8)";
   const strokeOpacity = isRemoved ? 0.6 : 1;
 
   return (
@@ -100,7 +101,7 @@ export function DiagramEdge({
           strokeWidth: 1.5,
           stroke: strokeColor,
           strokeDasharray,
-          opacity: strokeOpacity,
+          opacity: data?.dimmed ? 0.25 : strokeOpacity,
           ...style,
         }}
       />
@@ -113,7 +114,10 @@ export function DiagramEdge({
               pointerEvents: "all",
               zIndex: 1001,
             }}
-            className="nodrag nopan flex flex-col items-center gap-1.5"
+            className={cn(
+              "nodrag nopan flex flex-col items-center gap-1.5 transition-opacity",
+              data?.dimmed && "opacity-30 focus-within:opacity-100",
+            )}
           >
             {condition && (
               <div

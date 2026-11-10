@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { ConstraintSpec, NodeSpec } from "@/lib/types";
-import { classifyNode, classifyNodeShape } from "./classify";
+import {
+  BADGE_LEGEND_ITEMS,
+  BORDER_LEGEND_ITEMS,
+  CONSTRAINT_LOCK_LEGEND,
+  EDGE_LEGEND_ITEMS,
+  SHAPE_LEGEND_ITEMS,
+  classifyNode,
+  classifyNodeShape,
+} from "./classify";
 
 function createMockNode(overrides: Partial<NodeSpec> = {}): NodeSpec {
   return {
@@ -307,6 +315,33 @@ describe("classifyNode structural classifier", () => {
       expect(res.badges).toContain("Agent");
       expect(res.borderColor).toBe("amber");
       expect(res.shape).toBe("hexagon");
+    });
+  });
+
+  describe("legend metadata exports", () => {
+    it("exports frozen, non-empty arrays with unique IDs", () => {
+      expect(Object.isFrozen(BORDER_LEGEND_ITEMS)).toBe(true);
+      expect(BORDER_LEGEND_ITEMS.length).toBe(4);
+      const borderIds = BORDER_LEGEND_ITEMS.map((i) => i.id);
+      expect(new Set(borderIds).size).toBe(borderIds.length);
+
+      expect(Object.isFrozen(SHAPE_LEGEND_ITEMS)).toBe(true);
+      expect(SHAPE_LEGEND_ITEMS.length).toBe(4);
+      const shapeIds = SHAPE_LEGEND_ITEMS.map((i) => i.id);
+      expect(new Set(shapeIds).size).toBe(shapeIds.length);
+
+      expect(Object.isFrozen(BADGE_LEGEND_ITEMS)).toBe(true);
+      expect(BADGE_LEGEND_ITEMS.length).toBe(4);
+      const badgeIds = BADGE_LEGEND_ITEMS.map((i) => i.id);
+      expect(new Set(badgeIds).size).toBe(badgeIds.length);
+
+      expect(Object.isFrozen(CONSTRAINT_LOCK_LEGEND)).toBe(true);
+      expect(CONSTRAINT_LOCK_LEGEND.id).toBe("constraint-lock");
+
+      expect(Object.isFrozen(EDGE_LEGEND_ITEMS)).toBe(true);
+      expect(EDGE_LEGEND_ITEMS.length).toBe(2);
+      const edgeIds = EDGE_LEGEND_ITEMS.map((i) => i.id);
+      expect(new Set(edgeIds).size).toBe(edgeIds.length);
     });
   });
 });

@@ -1,4 +1,4 @@
-﻿# How to read this file
+# How to read this file
 
 This file is the living record of every technical, architectural, and design choice in Arch-Nemesis. It exists to help learners and developers understand not just what code was written, but why it was written that way.
 
@@ -3146,6 +3146,65 @@ Alternatives considered:
 2. Showing condition text only on hover: Rejected because conditional branches must be visually apparent on first view.
 If we removed it: Conditional logic would look identical to standard unconditional flows, and edge accessibility would announce raw technical IDs.
 Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+### D-300 — Stage 9d-2 — docs — Status note on Stage 9d-2 and branch prompt-v9-production-arch
+What: Document status of Stage 9d-2 (`patch_cycles` cycle repair and 422 gate changes). These changes were developed and verified on branch `prompt-v9-production-arch` and recorded in entries D-290 through D-294. Branch `prompt-v9-production-arch` has not yet been merged into `main` or `phase-b-diagram-panel`.
+Why: Entries D-291 through D-294 document backend repair functions and tests that exist on `prompt-v9-production-arch` but are absent on `main` and `phase-b-diagram-panel`. This note prevents confusion for anyone inspecting the current branch, and confirms that when `prompt-v9-production-arch` is merged, no decision log renumbering is required.
+Alternatives considered:
+1. Removing D-290..D-294 until branch merge: Rejected because decisions must remain monotonic and append-only.
+If we removed it: Developers inspecting `main` or `phase-b-diagram-panel` might suspect missing commits or dangling decision records.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-301 — Stage B2 — design — Centralized legend metadata exports in classify.ts
+What: Expose typed, frozen arrays of metadata (`BORDER_LEGEND_ITEMS`, `SHAPE_LEGEND_ITEMS`, `BADGE_LEGEND_ITEMS`, `CONSTRAINT_LOCK_LEGEND`, `EDGE_LEGEND_ITEMS`) in `apps/web/src/components/diagram/classify.ts` describing diagram visual semantics (border colors, node shapes, badge semantics, constraint lock indicator, and edge dash patterns).
+Why: The diagram legend must strictly match the visual language produced by `classifyNode` and `classifyNodeShape` without inventing hardcoded node-type taxonomies (enforcing Rule 3). Centralizing legend metadata in `classify.ts` guarantees that legend descriptions and node/edge rendering remain in perfect lockstep.
+Alternatives considered:
+1. Hardcoding legend text and classes directly in `DiagramLegend.tsx`: Rejected because visual classification logic would be duplicated across two files.
+2. Generating legend items dynamically from the current spec: Rejected because an empty or partial spec would show an incomplete legend; users need to know what all visual cues mean regardless of whether the current design uses them.
+If we removed it: The legend would risk drifting out of sync with actual node and edge styling.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-302 — Stage B3 — design — Pure cycle-safe lineage computation in focus.ts
+What: Implement pure, cycle-safe upstream and downstream lineage computation in `apps/web/src/components/diagram/focus.ts` via `computeFocusLineage(spec, selectedNodeId)`. Focused nodes are computed via BFS traversals over reverse adjacency (ancestors) and forward adjacency (descendants), yielding `focusedNodeIds = ancestorsAndSelf ∪ descendantsAndSelf`. Focused edges are evaluated via `isEdgeInFocus(lineage, source, target)` which returns `true` if and only if BOTH ends are in `ancestorsAndSelf` OR BOTH ends are in `descendantsAndSelf`.
+Why: When a user selects a node, they need to trace the upstream causes and downstream effects of that component without visual clutter from unrelated nodes or cross-cutting branches. Requiring both ends of an edge to belong to the ancestor set or both ends to belong to the descendant set ensures cross-branch shortcuts and lateral edges between sibling branches remain dimmed. Cycle-safe BFS with visited sets guarantees termination even on malformed or cyclic specs.
+Alternatives considered:
+1. Either-end edge focus (`focusedNodeIds.has(source) || focusedNodeIds.has(target)`): Rejected because edges to/from unrelated dimmed nodes would be illuminated, creating visual confusion.
+2. One-end focus (`focusedNodeIds.has(source) && focusedNodeIds.has(target)` without partition check): Rejected because a direct edge between an upstream ancestor and a downstream descendant that skips the selected node would be illuminated even though it doesn't pass through the selection.
+If we removed it: Users inspecting complex architectures would be unable to isolate critical flow paths.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-303 — Stage B2 — file — Collapsible accessible DiagramLegend component
+What: Implement floating `DiagramLegend` component in `apps/web/src/components/diagram/DiagramLegend.tsx`, mounted top-right inside `DiagramView.tsx` (`absolute top-3 right-3 z-20`, outside `.react-flow__viewport`). Collapsed by default, toggled via a native `<button type="button" aria-expanded={isOpen} aria-controls="diagram-legend-panel">` element with `aria-label="Toggle diagram legend"`. Hidden on screens `< 768px` (`hidden md:block`), omitted entirely from `BlockDiagramView.tsx`, and rendered using plain text and existing Tailwind utility classes.
+Why: Users need an accessible, on-demand reference for diagram styling conventions without cluttering the canvas or interfering with viewport pan/zoom transformations. Floating the legend outside the React Flow viewport prevents zoom scaling distortion, and collapsing it by default keeps the canvas clear for architecture viewing.
+Alternatives considered:
+1. Persistent non-collapsible drawer or side-panel: Rejected because canvas real estate is limited on medium viewports.
+2. Rendering inside React Flow viewport: Rejected because panning or zooming the diagram would shift or scale the legend.
+If we removed it: Users unfamiliar with the diagram conventions would not know what hexagonal nodes, badge labels, or dashed borders represent.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-304 — Stage B3 — fix — Pre-export selection clear hook for clean PNG export
+What: Add optional `onBeforeExportPng?: () => Promise<void> | void` prop to `ExportButtons.tsx`. In `apps/web/src/app/design/[id]/page.tsx`, pass an export handler that clears `selectedNodeId` (`setSelectedNodeId(null)`) and awaits two consecutive `requestAnimationFrame` ticks when a node is selected prior to running `exportDiagramToPng`. Leave `export.ts` completely untouched.
+Why: When a diagram node is selected, non-lineage nodes and edges are dimmed to `0.30` and `0.25` opacity respectively. Exporting a PNG in this state would capture a dimmed diagram. Clearing selection and waiting two frames allows React to commit the cleared selection and the browser to paint full-opacity elements before `html-to-image` rasterizes the viewport.
+Alternatives considered:
+1. Temporarily overriding DOM element opacities inside `export.ts`: Rejected per user instruction to keep `export.ts` untouched and maintain pure separation of export concerns.
+2. Disabling the export button while a node is selected: Rejected because forcing users to manually deselect before exporting is frustrating UX.
+If we removed it: Exported architecture PNGs would contain dimmed nodes and faded edge connections whenever a user exported while a node was selected.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-305 — Stage B4 — design — High-contrast edge stroke and dark theme React Flow controls
+What: Update diagram edge stroke color from `var(--border, #64748b)` to `var(--muted-foreground, #94a3b8)` in `apps/web/src/components/diagram/DiagramEdge.tsx`. In `apps/web/src/app/globals.css`, add scoped CSS styling for `.react-flow .react-flow__controls` and `.react-flow .react-flow__controls-button` using existing dark design tokens (`var(--card)` background, `var(--foreground)` text/icon fill, `var(--border)` border dividers, `var(--muted)` on hover, and `var(--ring)` on focus-visible).
+Why: In dark theme, `--border` resolves to `oklch(1 0 0 / 10%)`, making solid and dashed conditional edges nearly indistinguishable from the near-black canvas background (`oklch(0.145 0 0)`), as well as in exported PNGs (`#0a0a0a` background). Using `--muted-foreground` (`oklch(0.708 0 0)`) delivers clear, accessible contrast for all diagram edges while leaving conditional dash patterns ("5 4"), removed-diff precedence (`#f43f5e`, "6 6"), and focus dimming (0.25 opacity) intact. Furthermore, default React Flow controls buttons render with unstyled white backgrounds in dark theme; scoping control styles to `.react-flow` ensures zoom and fit-view buttons integrate seamlessly with dark tokens without waiting for the full theme work in Phase C.
+Alternatives considered:
+1. Bright colored edge strokes (e.g., cyan or emerald): Rejected to avoid confusing edge types with node border semantic classification.
+2. Global redesign of React Flow themes: Rejected because complete theming is reserved for Phase C.
+If we removed it: Diagram edges would remain difficult to perceive against dark canvases, and the bottom-left zoom controls would remain a jarring bright white block.
+Decided by: user approved (Phase B4 Small Fix)
 Status: active
 
 

@@ -217,6 +217,22 @@ function DesignContent(): React.ReactElement {
       ? activeDesign.spec.nodes.find((n) => n.id === selectedNodeId) ?? null
       : null;
 
+  // Clear diagram selection before PNG capture so exported image is at full opacity
+  const handleBeforeExportPng = async () => {
+    if (selectedNodeId !== null) {
+      setSelectedNodeId(null);
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+        await new Promise((resolve) => {
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(resolve);
+          });
+        });
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 32));
+      }
+    }
+  };
+
   // Union graph feeding diagrams during pending patch review
   const displaySpec: ArchitectureSpec | UnionArchitectureSpec = useMemo(() => {
     if (!activeDesign) {
@@ -545,6 +561,7 @@ function DesignContent(): React.ReactElement {
               versionNo={activeDesign?.current_version ?? currentVersion}
               explanation={activeDesign?.explanation || null}
               diagramContainerRef={diagramContainerRef}
+              onBeforeExportPng={handleBeforeExportPng}
             />
             <Button asChild variant="outline" size="sm" className="text-xs font-mono">
               <Link href="/?new=1">New design</Link>

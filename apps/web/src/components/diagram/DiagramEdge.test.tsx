@@ -8,7 +8,11 @@ import { normalizeColorToHex } from "@/test/helpers";
 import { DiagramEdge, type DiagramEdgeData } from "./DiagramEdge";
 import { DiagramView } from "./DiagramView";
 
-function renderEdge(data: DiagramEdgeData) {
+function renderEdge(
+  data: DiagramEdgeData,
+  selectedNodeId?: string | null,
+  extraNodes?: UnionArchitectureSpec["nodes"],
+) {
   const spec: UnionArchitectureSpec = {
     nodes: [
       {
@@ -33,6 +37,7 @@ function renderEdge(data: DiagramEdgeData) {
         needs_model: false,
         diffStatus: "unchanged",
       },
+      ...(extraNodes || []),
     ],
     edges: [
       {
@@ -48,7 +53,7 @@ function renderEdge(data: DiagramEdgeData) {
     exit_ids: ["target_node"],
   };
 
-  return render(<DiagramView spec={spec} />);
+  return render(<DiagramView spec={spec} selectedNodeId={selectedNodeId} />);
 }
 
 describe("DiagramEdge component", () => {
@@ -190,8 +195,8 @@ describe("DiagramEdge component", () => {
     });
   });
 
-  describe("Conditional dashed edge stroke styling (Stage B1c, D-299)", () => {
-    it("renders non-empty trimmed condition with dashed stroke '5 4' and neutral border color", () => {
+  describe("Conditional dashed edge stroke styling (Stage B1c, D-299; Stage B4, D-305)", () => {
+    it("renders non-empty trimmed condition with dashed stroke '5 4' and high-contrast stroke color", () => {
       const { container } = renderEdge({
         flows: "decision branch",
         condition: "status == 'approved'",
@@ -201,6 +206,7 @@ describe("DiagramEdge component", () => {
       expect(edgePath).not.toBeNull();
       expect(edgePath.style.strokeDasharray).toBe("5 4");
       expect(edgePath.style.opacity).toBe("1");
+      expect(edgePath.style.stroke).toContain("var(--muted-foreground");
     });
 
     const solidConditions = [
@@ -308,6 +314,44 @@ describe("DiagramEdge component", () => {
         expect(normalizeColorToHex(edgePath.style.stroke)).toBe("#f43f5e");
         expect(edgePath.style.strokeDasharray).toBe("6 6");
         expect(edgePath.style.opacity).toBe("0.6");
+      });
+    });
+
+    describe("dimmed focus state", () => {
+      it("renders dimmed edge with 0.25 path opacity and opacity-30 label container", () => {
+        const { container } = renderEdge(
+          { flows: "dimmed flow" },
+          "other_node",
+          [
+            {
+              id: "other_node",
+              name: "Other Service",
+              type: "service",
+              role: "Unrelated service",
+              inputs: [],
+              outputs: [],
+              tech_options: [],
+              needs_model: false,
+              diffStatus: "unchanged",
+            },
+          ],
+        );
+
+        // Path stroke opacity check
+        const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+        expect(edgePath).not.toBeNull();
+        expect(edgePath.style.opacity).toBe("0.25");
+
+        // Find flow label pill via its role note (matching other passing label tests)
+        const flowNote = screen.getByRole("note", { name: "Flow: dimmed flow" });
+        expect(flowNote).toBeDefined();
+
+        // Locate wrapper container that carries opacity-30 from real DOM
+        const labelWrapper = (flowNote.closest(".react-flow__edgelabel-renderer > div") ||
+          flowNote.parentElement) as HTMLElement;
+        expect(labelWrapper).not.toBeNull();
+        expect(labelWrapper.className).toContain("opacity-30");
+        expect(labelWrapper.className).toContain("focus-within:opacity-100");
       });
     });
   });

@@ -11,6 +11,46 @@ export interface ClassifiedNode {
   shape: NodeShape;
 }
 
+export interface LegendItem {
+  id: string;
+  label: string;
+  description: string;
+  swatchClass?: string;
+  badgeVariant?: "emerald" | "violet" | "amber" | "outline";
+}
+
+export const BORDER_LEGEND_ITEMS: readonly LegendItem[] = Object.freeze([
+  { id: "border-emerald", label: "Entry border", description: "Flow entry point", swatchClass: "border-emerald-500" },
+  { id: "border-violet", label: "Exit border", description: "Flow exit point", swatchClass: "border-violet-500" },
+  { id: "border-amber", label: "AI border", description: "Calls an AI model", swatchClass: "border-amber-500" },
+  { id: "border-slate", label: "Standard border", description: "Standard component", swatchClass: "border-border" },
+]);
+
+export const SHAPE_LEGEND_ITEMS: readonly LegendItem[] = Object.freeze([
+  { id: "shape-rectangle", label: "Rectangle", description: "Standard component", swatchClass: "rounded-md" },
+  { id: "shape-pill", label: "Pill", description: "Entry or exit component", swatchClass: "rounded-full" },
+  { id: "shape-hexagon", label: "Hexagon", description: "AI model or agent component" },
+  { id: "shape-diamond", label: "Diamond", description: "Decision branch (2+ outgoing conditional flows)" },
+]);
+
+export const BADGE_LEGEND_ITEMS: readonly LegendItem[] = Object.freeze([
+  { id: "badge-entry", label: "Entry", description: "Flow entry point", badgeVariant: "emerald" },
+  { id: "badge-exit", label: "Exit", description: "Flow termination", badgeVariant: "violet" },
+  { id: "badge-model", label: "AI model", description: "Calls an AI model", badgeVariant: "amber" },
+  { id: "badge-agent", label: "Agent", description: "Autonomous agent with tools", badgeVariant: "amber" },
+]);
+
+export const CONSTRAINT_LOCK_LEGEND: LegendItem = Object.freeze({
+  id: "constraint-lock",
+  label: "Lock icon",
+  description: "Named in a checked constraint",
+});
+
+export const EDGE_LEGEND_ITEMS: readonly LegendItem[] = Object.freeze([
+  { id: "edge-solid", label: "Solid edge", description: "Unconditional flow" },
+  { id: "edge-dashed", label: "Dashed edge", description: "Conditional flow (5px dash, 4px gap)" },
+]);
+
 /**
  * Pure structural classifier for a node's geometric shape.
  *
