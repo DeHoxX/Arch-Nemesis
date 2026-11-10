@@ -3098,6 +3098,25 @@ If we removed it: Specs with both a cycle and a dead end would fail code repair 
 Decided by: user instructed deviation from earlier acceptance gate instruction
 Status: active
 
+### D-295 — Stage B1a — deviation — Right-angle orthogonal edge routing in layout.ts and DiagramEdge.tsx
+What: Replace cubic Bézier curve paths (`M ... C ...`) in `computeEdgeLabelLayout` with right-angle (orthogonal) edge routing with 5px corner rounding (using `getSmoothStepPath` semantics for single-rank transitions and Dagre waypoint polyline decomposition for multi-rank edges), and update `DiagramEdge.tsx` fallback to invoke `getSmoothStepPath`.
+Why: Bézier curves cause crossing edges and multi-rank skip edges to curve awkwardly across diagrams, obscuring node boundaries. Orthogonal routing provides clean right-angle corridors with vertical entry/exit stubs aligned to centered Top/Bottom handles. Single-rank transitions leverage standard smooth-step routing (default borderRadius = 5px), while multi-rank transitions construct orthogonal staircases through Dagre waypoints avoiding intermediate node collisions.
+Alternatives considered:
+1. Retaining cubic Bézier curves (D-189): Rejected per Phase B1 specification for orthogonal routing.
+2. Sharp 90-degree corners (borderRadius: 0): Rejected in favor of subtle 5px rounding matching React Flow smooth-step defaults.
+If we removed it: Diagram edges would continue rendering as Bézier curves with awkward diagonal overlaps.
+Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
+Status: active
+
+### D-296 — Stage B1a — design — Segment-anchored edge label placement and lateral multi-rank parallel offsets
+What: Replace `evalCubicBezier` label midpoint calculations with pure segment-anchored placement where `(labelX, labelY)` coordinates strictly lie on the orthogonal SVG path segments. Fan-out labels are anchored to target vertical stubs, fan-in labels to source vertical stubs, and multi-rank bypasses to the first unobstructed vertical segment. Remove `evalCubicBezier` from `layout.ts`.
+Why: Because orthogonal paths follow vertical and horizontal stubs rather than a continuous curve, evaluating cubic Bézier equations at parameter `t` yields coordinates that float in empty space off the orthogonal lines. Anchoring labels to actual path segments guarantees that label pills align with the edge path and sit centered over vertical columns where horizontal node spacing (290px) prevents label overlap.
+Alternatives considered:
+1. Retaining `evalCubicBezier` alongside orthogonal paths: Rejected because it calculates points off the orthogonal line.
+If we removed it: Edge label pills would visually detach from right-angle connector paths.
+Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
+Status: active
+
 
 ## Phase 3 Summary
 
