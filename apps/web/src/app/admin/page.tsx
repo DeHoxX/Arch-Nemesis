@@ -120,10 +120,10 @@ export default function AdminLeadsPage(): React.ReactElement {
           : null);
 
   return (
-    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-12 md:py-16">
+    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-12 md:py-16">
       {/* Background static grid */}
       <div
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#27272a15_1px,transparent_1px),linear-gradient(to_bottom,#27272a15_1px,transparent_1px)] bg-[size:32px_32px]"
+        className="pointer-events-none absolute inset-0 page-grid-bg"
         aria-hidden="true"
       />
 
@@ -156,7 +156,7 @@ export default function AdminLeadsPage(): React.ReactElement {
           <div className="mx-auto w-full max-w-md space-y-6 pt-12">
             <div className="text-center space-y-2">
               <div className="mx-auto size-12 rounded-full border border-border/80 bg-card/60 flex items-center justify-center backdrop-blur-md">
-                <KeyRound className="size-6 text-[#ccff00]" />
+                <KeyRound className="size-6 text-brand-accent" />
               </div>
               <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
                 Admin Authentication
@@ -222,7 +222,7 @@ export default function AdminLeadsPage(): React.ReactElement {
               <Button
                 type="submit"
                 disabled={isLoading || !inputToken.trim()}
-                className="w-full bg-[#ccff00] text-black hover:bg-[#b8e600] font-semibold text-xs h-9 gap-2 transition-colors"
+                className="w-full bg-brand-accent text-brand-accent-ink hover:bg-brand-accent-hover font-semibold text-xs h-9 gap-2 transition-colors"
               >
                 {isLoading && <RefreshCw className="size-3.5 animate-spin" />}
                 {isLoading ? "Verifying..." : "View Leads"}
@@ -235,7 +235,7 @@ export default function AdminLeadsPage(): React.ReactElement {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/40 pb-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <Users className="size-5 text-[#ccff00]" />
+                  <Users className="size-5 text-brand-accent" />
                   <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
                     Client Leads
                   </h1>
@@ -306,7 +306,7 @@ export default function AdminLeadsPage(): React.ReactElement {
                         <TableCell className="text-right">
                           <Link
                             href={`/admin/designs/${encodeURIComponent(lead.design_id)}/${encodeURIComponent(lead.version_no)}`}
-                            className="inline-flex items-center text-xs font-mono font-semibold text-[#ccff00] hover:underline"
+                            className="inline-flex items-center text-xs font-mono font-semibold text-brand-accent hover:underline"
                           >
                             v{lead.version_no} ({lead.design_id.slice(0, 6)})
                           </Link>

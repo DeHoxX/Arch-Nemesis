@@ -17,10 +17,10 @@ export default function HistoryPage(): React.ReactElement {
   );
 
   return (
-    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-12 md:py-16">
+    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-12 md:py-16">
       {/* Background subtle static grid */}
       <div
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#27272a15_1px,transparent_1px),linear-gradient(to_bottom,#27272a15_1px,transparent_1px)] bg-[size:32px_32px]"
+        className="pointer-events-none absolute inset-0 page-grid-bg"
         aria-hidden="true"
       />
 
@@ -68,7 +68,7 @@ export default function HistoryPage(): React.ReactElement {
                 Designs you generate on the home page are saved to your browser history for quick reference.
               </p>
             </div>
-            <Button asChild size="sm" className="bg-[#ccff00] text-black hover:bg-[#b8e600] font-semibold text-xs">
+            <Button asChild size="sm" className="bg-brand-accent text-brand-accent-ink hover:bg-brand-accent-hover font-semibold text-xs">
               <Link href="/">Create a Design</Link>
             </Button>
           </div>
@@ -77,14 +77,14 @@ export default function HistoryPage(): React.ReactElement {
             {history.map((entry) => (
               <li
                 key={entry.design_id}
-                className="group rounded-xl border border-border/60 bg-card/60 p-4 transition-all hover:border-[#ccff00]/60 hover:bg-card/90"
+                className="group rounded-xl border border-border/60 bg-card/60 p-4 transition-all hover:border-brand-accent/60 hover:bg-card/90"
               >
                 <Link
                   href={`/design/${encodeURIComponent(entry.design_id)}`}
                   className="flex items-start justify-between gap-4"
                 >
                   <div className="space-y-1 min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-foreground group-hover:text-[#ccff00] transition-colors truncate">
+                    <p className="text-sm font-semibold text-foreground group-hover:text-brand-accent transition-colors truncate">
                       {entry.title}
                     </p>
                     <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
@@ -93,7 +93,7 @@ export default function HistoryPage(): React.ReactElement {
                       <span>{new Date(entry.created_at).toLocaleDateString(undefined, { dateStyle: "medium" })}</span>
                     </div>
                   </div>
-                  <ExternalLink className="size-4 shrink-0 text-muted-foreground group-hover:text-[#ccff00] transition-colors mt-0.5" />
+                  <ExternalLink className="size-4 shrink-0 text-muted-foreground group-hover:text-brand-accent transition-colors mt-0.5" />
                 </Link>
               </li>
             ))}

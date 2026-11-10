@@ -132,7 +132,7 @@ export function RefinePanel({
       <CardHeader className="border-b border-border/40 pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <MessageSquare className="size-4 text-[#ccff00]" aria-hidden="true" />
+            <MessageSquare className="size-4 text-brand-accent" aria-hidden="true" />
             <CardTitle className="text-sm font-semibold tracking-tight">
               Refine this design
             </CardTitle>
@@ -294,7 +294,7 @@ export function RefinePanel({
                 </>
               ) : (
                 <>
-                  <Sparkles className="size-3 text-[#ccff00]" aria-hidden="true" />
+                  <Sparkles className="size-3 text-brand-accent" aria-hidden="true" />
                   <span>What can we add or remove?</span>
                 </>
               )}
@@ -363,7 +363,7 @@ export function RefinePanel({
               variant="default"
               onClick={handleSend}
               disabled={isInputDisabled || inputText.trim().length === 0}
-              className="size-7 bg-[#ccff00] text-black hover:bg-[#b8e600] disabled:bg-muted disabled:text-muted-foreground"
+              className="size-7 bg-brand-accent text-brand-accent-ink hover:bg-brand-accent-hover disabled:bg-muted disabled:text-muted-foreground"
               aria-label="Send refinement request"
             >
               <Send className="size-3.5" />

@@ -28,7 +28,7 @@ function HomeLoading(): React.ReactElement {
     <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground selection:bg-brand-accent selection:text-brand-accent-ink home-hero-bg">
       <div className="flex flex-1 flex-col items-center justify-center p-4 text-center pb-24 md:pb-32">
         <div className="mx-auto flex w-full max-w-2xl flex-col items-center space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
             <span className="size-2 rounded-full bg-brand-accent" />
             Arch-Nemesis System Architect
           </div>
@@ -254,7 +254,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
           /* Empty State Hero (exact BUILD_PLAN.md:446 copy) */
           <div className="my-auto flex flex-1 flex-col items-center justify-center text-center pb-24 md:pb-32">
             <div className="mx-auto flex w-full max-w-2xl flex-col items-center space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
                 <span className="size-2 rounded-full bg-brand-accent" />
                 Arch-Nemesis System Architect
               </div>
@@ -271,7 +271,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
           <div className="mx-auto w-full max-w-2xl space-y-6 pb-4">
             {/* Header pill when messages are active */}
             <div className="flex justify-center pt-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
                 <span className="size-1.5 rounded-full bg-brand-accent" />
                 System Architect Session
               </div>
@@ -387,7 +387,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
             </Alert>
           )}
 
-          <div className="relative w-full rounded-2xl border border-border bg-card p-2.5 shadow-xl transition-all focus-within:border-brand-accent/60 focus-within:ring-1 focus-within:ring-brand-accent/60">
+          <div className="relative w-full rounded-2xl border border-white/16 bg-card-elevated p-2.5 shadow-xl transition-all focus-within:border-brand-accent/60 focus-within:ring-1 focus-within:ring-brand-accent/60">
             <Textarea
               ref={textareaRef}
               value={inputText}
@@ -408,7 +408,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                 type="button"
                 onClick={handleSend}
                 disabled={intakeMutation.isPending || !inputText.trim()}
-                className="h-8 gap-1.5 bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-50"
+                className="h-8 gap-1.5 bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60"
               >
                 Send
                 <ArrowUp className="size-3.5" />

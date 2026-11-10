@@ -3269,6 +3269,27 @@ Decided by: user approved (Phase C2 prompt)
 Status: active
 
 
+### D-312 — Stage C3 — design — Unified semantic tokens on Results, History, and Admin pages
+What: In `apps/web/src/app/design/[id]/page.tsx`, `apps/web/src/app/history/page.tsx`, `apps/web/src/app/admin/page.tsx`, `apps/web/src/app/admin/designs/[id]/[n]/page.tsx`, `apps/web/src/components/refine/RefinePanel.tsx`, and `apps/web/src/components/refine/VersionsPanel.tsx`, replace all remaining hardcoded color literals (`#f4f4f5`, `#ccff00`, `#b8e600`, and `#27272a15`) with centralized semantic design tokens from `globals.css` (`--page-bg`, `--card-bg`, `--muted`, `--foreground`, `--muted-foreground`, `--border`, and `--brand-accent`). Add a subtle CSS-only background token grid (`.page-grid-bg`) across Results, History, and Admin pages that honors `prefers-reduced-motion`.
+Why: Eliminates the legacy lime (`#ccff00`) and off-white (`#f4f4f5`) hex literals left over from Phase 1/D-100 across secondary views, unifying all route backgrounds and interactive elements under the Sage accent and soft-dark palette established in D-307. Scoping the subtle grid via CSS classes eliminates redundant inline SVG/linear-gradient style strings while ensuring accessibility for users with motion preferences.
+Alternatives considered:
+1. Keeping lime highlights on admin action buttons: Rejected to ensure uniform product styling and avoid visual dissonance across routes.
+2. Generating background grids via SVG image assets: Rejected to avoid unnecessary static assets and network requests.
+If we removed it: Results, history, and admin panels would display conflicting lime badges, off-white text, and inconsistent background gradients compared to the home page.
+Decided by: user approved (Phase C3 prompt)
+Status: active
+
+### D-313 — Stage C3 — design — Elevated surface token and composer contrast adjustments
+What: In `apps/web/src/app/globals.css`, introduce an elevated surface token `--card-elevated: #1f1f23` (with matching `@theme inline` `--color-card-elevated`) and an elevated border treatment (`rgba(255, 255, 255, 0.16)`). Apply `--card-elevated` and the high-contrast border to the Home page hero pill ("Arch-Nemesis System Architect") and the docked chat composer bar in `apps/web/src/app/page.tsx`. In the composer Send button, use Sage accent (`--brand-accent`) with an explicit disabled state styling (`disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60`) ensuring the button remains distinct from the card background even when inactive.
+Why: Feedback on the soft-dark palette indicated that the intake composer bar, status pill, and Send button blended too closely into `--page-bg` (`#111111`) and standard `--card` (`#18181b`). Adding a stepped `#1f1f23` elevated surface with `0.16` alpha borders establishes clear visual affordance and depth without altering core background or card tokens.
+Alternatives considered:
+1. Brightening `--page-bg` or `--card`: Rejected to preserve dark palette contrast and canvas stability.
+2. Increasing Send button opacity to 100% when disabled: Rejected because disabled inputs must visibly indicate inactive status to users.
+If we removed it: Key home intake interactive controls would lack visual distinction from the dark canvas backdrop.
+Decided by: user approved (Phase C3 prompt)
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
