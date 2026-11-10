@@ -40,18 +40,17 @@ copy .env.example .env
 ```
 Open `apps/api/.env` and configure the following variables:
 - `GEMINI_API_KEY`: Your Google Gemini API key.
-- `LLM_MODEL_INTAKE`: Gemini model ID for intake discovery (e.g. `gemini-2.5-flash`).
-- `LLM_MODEL_ARCHITECT`: Gemini model ID for architecture generation (e.g. `gemini-2.5-pro`).
-- `LLM_MODEL_WRITER`: Gemini model ID for explanation and refinement tasks (e.g. `gemini-2.5-flash`).
-- `ADMIN_TOKEN` *(optional)*: Bearer token for accessing protected `/api/leads` admin endpoints.
+- `LLM_MODEL_INTAKE`: Model ID for intake discovery (configured via environment).
+- `LLM_MODEL_ARCHITECT`: Model ID for architecture generation (configured via environment).
+- `LLM_MODEL_WRITER`: Model ID for explanation, title, and refinement tasks (configured via environment).
+- `ADMIN_TOKEN` *(optional)*: Secret token sent in the `X-Admin-Token` header for accessing protected `/api/admin/leads` and `/api/admin/designs/{id}/versions/{n}` admin endpoints.
 
 ### 4. Run Database Migrations
-Apply the database schema up to the latest migration head:
+Ensure your terminal is in `apps\api` (already there if continuing from Step 3; from repository root run `cd apps\api`), then apply the database schema up to the latest migration head:
 ```powershell
-cd apps\api
 uv run alembic upgrade head
 ```
-> **Note:** Run `uv run alembic upgrade head` whenever pulling changes that introduce new database migrations.
+> **Note:** Always run `uv run alembic upgrade head` inside `apps\api` after creating or pulling any database migration.
 
 ---
 

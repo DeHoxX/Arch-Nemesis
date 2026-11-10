@@ -3207,6 +3207,16 @@ If we removed it: Diagram edges would remain difficult to perceive against dark 
 Decided by: user approved (Phase B4 Small Fix)
 Status: active
 
+### D-306 — Stage Phase D — deviation — Deterministic title backfill, backup guard, and README accuracy
+What: Update the operational title backfill script (`archnemesis.modules.designs.backfill` and `scripts/backfill_titles.py`) to: (1) use deterministic `fallback_title(brief.summary, brief.domain_hint)` ONLY (zero Gemini calls, no `get_llm_client` import), (2) target rows with `title IS NULL` only, never modifying existing titles, (3) in dry-run mode, print candidate `design_id`, current title (`<NULL>`), and `proposed_title` (never printing `brief.summary` or brief text), superseding the stdout-title restriction of D-266 for dry-run inspection output only, and (4) in `--apply` mode, require an explicit `--backup-path <file>` parameter and refuse to run (non-zero exit, database untouched) if the backup file is missing, empty, or resolves to the same path as the live database. In `README.md`, correct the clean-clone setup guide (Step 4 working directory, `X-Admin-Token` header, `/api/admin/leads` route, environment-only model variables without concrete model names per Rule 13, and migration upgrade reminder).
+Why: Ensures existing designs lacking titles are safely and deterministically populated without API quota consumption, runtime latency, or risk of data loss. Requiring an explicit, validated backup copy before apply prevents accidental irreversible corruption of `arch_nemesis.db`. Printing candidate IDs and proposed titles in dry-run provides operators with deterministic visibility into proposed changes before committing, while keeping untrusted user brief text out of logs and terminal stdout. Correcting `README.md` prevents operator errors when following the setup guide from scratch.
+Alternatives considered:
+1. Calling Gemini during backfill: Rejected to avoid quota consumption, rate limits, and non-deterministic title updates.
+2. Wildcard guessing for database backups: Rejected in favor of strict, deterministic validation of an explicit backup file path.
+If we removed it: Un-titled designs would remain NULL or require LLM quota to backfill, backfill apply would risk data loss without database backup verification, and the README setup guide would contain misleading paths and header names.
+Decided by: user approved (Phase D instructions)
+Status: active
+
 
 ## Phase 3 Summary
 

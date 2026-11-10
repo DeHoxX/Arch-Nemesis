@@ -1,7 +1,8 @@
-"""Operational CLI script to backfill concise AI titles for architecture designs.
+"""Operational CLI script to backfill concise deterministic titles for architecture designs.
 
-Defaults to --dry-run. Pass --apply to execute generation and update records.
-Never logs or prints brief text, generated titles, or secrets.
+Defaults to --dry-run. Pass --apply with an explicit --backup-path <file> to execute.
+Never calls Gemini; uses pure deterministic fallback_title from brief fields.
+Never logs or prints brief summary or brief text.
 """
 
 import argparse
@@ -18,17 +19,17 @@ from archnemesis.modules.designs.backfill import run_backfill
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Backfill concise AI titles for past designs.")
+    parser = argparse.ArgumentParser(description="Backfill concise deterministic titles for past designs.")
     parser.add_argument(
         "--apply",
         action="store_true",
         help="Execute title generation and persist to database (default is dry-run)",
     )
     parser.add_argument(
-        "--pause-seconds",
-        type=float,
-        default=4.0,
-        help="Pause interval between LLM calls in seconds (default: 4.0)",
+        "--backup-path",
+        type=Path,
+        default=None,
+        help="Path to database backup copy (mandatory for --apply)",
     )
     parser.add_argument(
         "--limit",
@@ -38,14 +39,22 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    asyncio.run(
-        run_backfill(
-            apply=args.apply,
-            pause_seconds=args.pause_seconds,
-            limit=args.limit,
+    if args.apply and not args.backup_path:
+        print("Error: --backup-path is required when --apply is set.", file=sys.stderr)
+        return 1
+
+    try:
+        asyncio.run(
+            run_backfill(
+                apply=args.apply,
+                backup_path=args.backup_path,
+                limit=args.limit,
+            )
         )
-    )
-    return 0
+        return 0
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
