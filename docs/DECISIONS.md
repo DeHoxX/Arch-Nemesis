@@ -3119,7 +3119,40 @@ If we removed it: Edge label pills would visually detach from right-angle connec
 Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
 Status: active
 
+<<<<<<< HEAD
 >>>>>>> b0ef38a (phase B1a: orthogonal edge routing and path-anchored labels)
+=======
+### D-297 — Stage B1b — design — Soft pill edge labels with zIndex 1001 using existing palette tokens
+What: Style edge flow labels as soft pills (`rounded-xl`) using existing palette classes (`border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm`), keeping `zIndex: 1001` (D-123), plain text rendering with 40-character truncation (`…`), and full text disclosure on hover and keyboard focus (`tabIndex={0}`, `role="note"`). Keep condition labels as distinct stacked pills above flows using existing amber tokens (`border-amber-500/40`, `text-amber-500`, `bg-background/95`) with plain text and zero prefix.
+Why: Soft pill styling (`rounded-xl`) provides visual consistency with the application's card and badge geometry while maintaining high legibility over crossing orthogonal edge segments. Opaque background and positive z-index prevent edge strokes or background artifacts from bleeding through text.
+Alternatives considered:
+1. True pill (`rounded-full`): Rejected per user preference for soft pill (`rounded-xl`).
+2. Prefixing condition text with "when:": Rejected to preserve raw condition text cleanly.
+If we removed it: Edge labels would retain square/box appearance and lack visual cohesion with diagram components.
+Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+### D-298 — Stage B1b — fix — All-pairs edge label collision checking and max(flows, condition) width estimation
+What: In `computeEdgeLabelLayout`, expand candidate label collision detection from sibling-only checks to ALL previously placed labels in the graph (`>= 4px` clearance margin) and ALL node rectangles (`>= 8px` clearance margin). Set `labelWidth = Math.max(estimateLabelWidth(flows), estimateLabelWidth(condition))` so the candidate bounding box accounts for the widest element in the label stack. Keep `computeLayout` Dagre inputs identical so `BlockDiagramView` coordinates never shift.
+Why: In dense diagrams (12 to 25 nodes), non-sibling edge labels crossing through the same rank gap or corridor previously lacked collision avoidance because the filter checked only `prev.source === edge.source || prev.target === edge.target`. Furthermore, when an edge had a short flow label but a long condition, the bounding box was severely underestimated, causing overlap with neighboring elements. All-pairs collision checking with full stack width estimation guarantees no two labels collide anywhere in the graph.
+Alternatives considered:
+1. Retaining sibling-only collision checking: Rejected because non-sibling edges crossing in shared rank bands could collide.
+2. Passing condition width to Dagre in `computeLayout`: Rejected per user instruction to preserve identical coordinates on the Block diagram tab.
+If we removed it: Complex multi-branch architectures would suffer edge label collisions between non-sibling edges.
+Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+### D-299 — Stage B1c — design — Dashed condition edge strokes and accessible edge labels in DiagramView
+What: Render edges carrying a non-empty trimmed `condition` with a neutral dashed stroke (`strokeDasharray: "5 4"`, `stroke: "var(--border, #64748b)"`) in `DiagramEdge.tsx`. Retain absolute precedence for `diffStatus === "removed"` (`stroke: "#f43f5e"`, `strokeDasharray: "6 6"`, `opacity: 0.6`). In `DiagramView.tsx`, populate descriptive `ariaLabel` on each React Flow edge (`Flow from <source_name> to <target_name>: <flows>` and append `, condition: <condition>` when present), replacing React Flow's default `"Edge from <id> to <id>"`. Leave `BlockDiagramView` edges untouched with `type: "default"`.
+Why: Distinguishing conditional branches with dashed lines provides immediate visual understanding of branching logic in the architecture DAG without introducing new color themes. Accessible `ariaLabel` attributes allow screen-reader and keyboard users to announce human-readable node names and flow/condition semantics when navigating between edges.
+Alternatives considered:
+1. Colored condition stroke (e.g. amber): Rejected per user instruction in favor of neutral border stroke with dash pattern.
+2. Showing condition text only on hover: Rejected because conditional branches must be visually apparent on first view.
+If we removed it: Conditional logic would look identical to standard unconditional flows, and edge accessibility would announce raw technical IDs.
+Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+>>>>>>> ca69714 (phase B1a: orthogonal edge routing and path-anchored labels)
 
 ## Phase 3 Summary
 
