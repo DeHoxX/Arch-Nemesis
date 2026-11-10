@@ -18,6 +18,7 @@ export interface ExportButtonsProps {
   versionNo: number;
   explanation: Explanation | null;
   diagramContainerRef?: React.RefObject<HTMLDivElement | null>;
+  onBeforeExportPng?: () => Promise<void> | void;
 }
 
 /**
@@ -36,6 +37,7 @@ export function ExportButtons({
   versionNo,
   explanation,
   diagramContainerRef,
+  onBeforeExportPng,
 }: ExportButtonsProps): React.ReactElement {
   const [isExportingPng, setIsExportingPng] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -45,6 +47,10 @@ export function ExportButtons({
     setIsExportingPng(true);
 
     try {
+      if (onBeforeExportPng) {
+        await onBeforeExportPng();
+      }
+
       const container =
         diagramContainerRef?.current ||
         (document.querySelector(".react-flow") as HTMLElement | null);

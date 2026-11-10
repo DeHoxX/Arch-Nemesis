@@ -76,7 +76,7 @@ function useMediaQuery(query: string, serverFallback = true): boolean {
 
 function DesignPageLoading(): React.ReactElement {
   return (
-    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-8 md:py-12">
+    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-8 md:py-12">
       <div className="relative mx-auto w-full max-w-7xl space-y-6">
         <div className="flex items-center justify-between border-b border-border/40 pb-4">
           <Skeleton className="h-6 w-32" />
@@ -216,6 +216,22 @@ function DesignContent(): React.ReactElement {
     selectedNodeId && activeDesign?.spec?.nodes
       ? activeDesign.spec.nodes.find((n) => n.id === selectedNodeId) ?? null
       : null;
+
+  // Clear diagram selection before PNG capture so exported image is at full opacity
+  const handleBeforeExportPng = async () => {
+    if (selectedNodeId !== null) {
+      setSelectedNodeId(null);
+      if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+        await new Promise((resolve) => {
+          window.requestAnimationFrame(() => {
+            window.requestAnimationFrame(resolve);
+          });
+        });
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 32));
+      }
+    }
+  };
 
   // Union graph feeding diagrams during pending patch review
   const displaySpec: ArchitectureSpec | UnionArchitectureSpec = useMemo(() => {
@@ -465,7 +481,7 @@ function DesignContent(): React.ReactElement {
       (error.status === 404 || error.code === "NOT_FOUND");
 
     return (
-      <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-12 md:py-16 selection:bg-[#ccff00] selection:text-black">
+      <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-12 md:py-16 selection:bg-brand-accent selection:text-brand-accent-ink">
         <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center">
           <header className="mb-8 text-center space-y-2">
             <Link
@@ -517,10 +533,10 @@ function DesignContent(): React.ReactElement {
   }
 
   return (
-    <main className="relative min-h-screen w-full bg-[var(--page-bg)] text-[#f4f4f5] px-4 py-8 md:py-12 selection:bg-[#ccff00] selection:text-black">
+    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-8 md:py-12 selection:bg-brand-accent selection:text-brand-accent-ink">
       {/* Background subtle static grid pattern, no animated grid, no grain */}
       <div
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#27272a15_1px,transparent_1px),linear-gradient(to_bottom,#27272a15_1px,transparent_1px)] bg-[size:32px_32px]"
+        className="pointer-events-none absolute inset-0 page-grid-bg"
         aria-hidden="true"
       />
 
@@ -545,6 +561,7 @@ function DesignContent(): React.ReactElement {
               versionNo={activeDesign?.current_version ?? currentVersion}
               explanation={activeDesign?.explanation || null}
               diagramContainerRef={diagramContainerRef}
+              onBeforeExportPng={handleBeforeExportPng}
             />
             <Button asChild variant="outline" size="sm" className="text-xs font-mono">
               <Link href="/?new=1">New design</Link>
@@ -559,7 +576,7 @@ function DesignContent(): React.ReactElement {
               Contact our team
             </Button>
             <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
-              <span className="size-2 rounded-full bg-[#ccff00]" />
+              <span className="size-2 rounded-full bg-brand-accent" />
               v{activeDesign?.current_version ?? currentVersion}
               {isViewingHistorical ? " (historical view)" : ` (${design.prompt_version})`}
             </div>

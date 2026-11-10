@@ -16,6 +16,7 @@ export type DiagramNodeData = NodeSpec & {
   height?: number;
   onSelect?: (id: string) => void;
   diffStatus?: "added" | "removed" | "edited" | "unchanged";
+  dimmed?: boolean;
   [key: string]: unknown;
 };
 
@@ -106,8 +107,10 @@ export function DiagramNode({
         !isHexagon && !isDiamond && borderClassMap[borderColor],
         isHexagon && "px-7 py-2.5",
         data.diffStatus === "added" && "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
-        data.diffStatus === "removed" && "border-dashed ring-2 ring-rose-500 ring-offset-2 ring-offset-background opacity-70",
+        data.diffStatus === "removed" && "border-dashed ring-2 ring-rose-500 ring-offset-2 ring-offset-background",
+        !data.dimmed && data.diffStatus === "removed" && "opacity-70",
         data.diffStatus === "edited" && "ring-2 ring-sky-500 ring-offset-2 ring-offset-background",
+        data.dimmed && "opacity-30",
         selected
           ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
           : "hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
@@ -99,9 +99,12 @@ describe("DiagramView component", () => {
   it("renders standard controls without interactive lock toggling", () => {
     const { container } = render(<DiagramView spec={mockLegalSpec} />);
 
-    // Controls container
+    // Controls container and buttons
     const controls = container.querySelector(".react-flow__controls");
     expect(controls).not.toBeNull();
+
+    const buttons = container.querySelectorAll(".react-flow__controls-button");
+    expect(buttons.length).toBeGreaterThan(0);
   });
 
   it("clears selection when Escape key is pressed on the diagram container", async () => {
@@ -227,5 +230,178 @@ describe("DiagramView component", () => {
     );
 
     expect(screen.getByText("Client Portal")).toBeDefined();
+  });
+
+  it("sets descriptive aria-label on edges including human node names, flows, and condition (Stage B1c, D-299)", () => {
+    const specWithCond: ArchitectureSpec = {
+      nodes: [
+        {
+          id: "client_portal",
+          name: "Client Portal",
+          type: "web app",
+          role: "Ingress",
+          inputs: [],
+          outputs: ["intake"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "intake_validator",
+          name: "Intake Validator",
+          type: "service",
+          role: "Validation",
+          inputs: ["intake"],
+          outputs: ["verified"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "attorney_review",
+          name: "Attorney Review Desk",
+          type: "dashboard",
+          role: "Review",
+          inputs: ["verified"],
+          outputs: [],
+          tech_options: [],
+          needs_model: false,
+        },
+      ],
+      edges: [
+        { from: "client_portal", to: "intake_validator", flows: "intake payload" },
+        { from: "intake_validator", to: "attorney_review", flows: "verified case file", condition: "risk_score > 50" },
+      ],
+      constraints: [],
+      entry_ids: ["client_portal"],
+      exit_ids: ["attorney_review"],
+    };
+
+    const { container } = render(<DiagramView spec={specWithCond} />);
+
+    const edges = Array.from(container.querySelectorAll<SVGElement>(".react-flow__edge"));
+    expect(edges.length).toBe(2);
+
+    // Unconditional edge SVG group aria-label
+    const expectedEdge1Label = "Flow from Client Portal to Intake Validator: intake payload";
+    const edge1 = edges.find((el) => el.getAttribute("aria-label") === expectedEdge1Label);
+    expect(edge1).toBeDefined();
+    expect(edge1?.getAttribute("aria-label")).toBe(expectedEdge1Label);
+
+    // Conditional edge SVG group aria-label
+    const expectedEdge2Label =
+      "Flow from Intake Validator to Attorney Review Desk: verified case file, condition: risk_score > 50";
+    const edge2 = edges.find((el) => el.getAttribute("aria-label") === expectedEdge2Label);
+    expect(edge2).toBeDefined();
+    expect(edge2?.getAttribute("aria-label")).toBe(expectedEdge2Label);
+  });
+
+  describe("DiagramLegend mounting and Focus highlight dimming (Phase B2+B3)", () => {
+    it("mounts DiagramLegend inside the DiagramView container", () => {
+      render(<DiagramView spec={mockLegalSpec} />);
+      const legendButton = screen.getByRole("button", { name: /toggle diagram legend/i });
+      expect(legendButton).toBeDefined();
+    });
+
+    const branchingSpec: ArchitectureSpec = {
+      nodes: [
+        {
+          id: "entry_node",
+          name: "Entry Service",
+          type: "service",
+          role: "Ingests data",
+          inputs: [],
+          outputs: ["stream"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "branch_b",
+          name: "Service B",
+          type: "service",
+          role: "Processes branch B",
+          inputs: ["stream"],
+          outputs: ["out_b"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "branch_c",
+          name: "Service C",
+          type: "service",
+          role: "Processes branch C",
+          inputs: ["stream"],
+          outputs: ["out_c"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "exit_node",
+          name: "Exit Service",
+          type: "service",
+          role: "Terminal sink",
+          inputs: ["out_b", "out_c"],
+          outputs: [],
+          tech_options: [],
+          needs_model: false,
+        },
+      ],
+      edges: [
+        { from: "entry_node", to: "branch_b", flows: "flow_to_b" },
+        { from: "branch_b", to: "exit_node", flows: "flow_b_to_exit" },
+        { from: "entry_node", to: "branch_c", flows: "flow_to_c" },
+        { from: "branch_c", to: "exit_node", flows: "flow_c_to_exit" },
+      ],
+      constraints: [],
+      entry_ids: ["entry_node"],
+      exit_ids: ["exit_node"],
+    };
+
+    it("dims non-lineage nodes with opacity-30 and non-lineage edges when selectedNodeId is set", () => {
+      const { container } = render(<DiagramView spec={branchingSpec} selectedNodeId="branch_b" />);
+
+      const nodeB = screen.getByRole("button", { name: "Node: Service B, service" });
+      const nodeC = screen.getByRole("button", { name: "Node: Service C, service" });
+
+      expect(nodeB.className).not.toContain("opacity-30");
+      expect(nodeC.className).toContain("opacity-30");
+
+      const edgePathToC = container.querySelector(
+        '.react-flow__edge[aria-label*="to Service C"] .react-flow__edge-path',
+      ) as SVGPathElement;
+      expect(edgePathToC).not.toBeNull();
+      expect(edgePathToC.style.opacity).toBe("0.25");
+
+      const edgePathToB = container.querySelector(
+        '.react-flow__edge[aria-label*="to Service B"] .react-flow__edge-path',
+      ) as SVGPathElement;
+      expect(edgePathToB).not.toBeNull();
+      expect(edgePathToB.style.opacity).toBe("1");
+    });
+
+    it("supports uncontrolled selection fallback and Escape clearing when selectedNodeId prop is undefined", () => {
+      render(<DiagramView spec={branchingSpec} />);
+
+      const nodeB = screen.getByRole("button", { name: "Node: Service B, service" });
+      const nodeC = screen.getByRole("button", { name: "Node: Service C, service" });
+
+      // Initially neither node is dimmed
+      expect(nodeB.className).not.toContain("opacity-30");
+      expect(nodeC.className).not.toContain("opacity-30");
+
+      // Click node B directly via fireEvent to avoid triggering d3-drag mousedown
+      fireEvent.click(nodeB);
+
+      // Node C is now dimmed internally
+      expect(nodeC.className).toContain("opacity-30");
+      expect(nodeB.className).not.toContain("opacity-30");
+
+      // Press Escape on the container
+      const region = screen.getByRole("region", { name: "Architecture Diagram" });
+      expect(region).toBeDefined();
+      fireEvent.keyDown(region, { key: "Escape" });
+
+      // Selection cleared: neither is dimmed
+      expect(nodeB.className).not.toContain("opacity-30");
+      expect(nodeC.className).not.toContain("opacity-30");
+    });
   });
 });

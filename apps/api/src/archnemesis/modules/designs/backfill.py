@@ -1,55 +1,65 @@
-"""Operational logic to backfill concise AI titles for architecture designs.
+"""Operational logic to backfill concise deterministic titles for architecture designs.
 
-Supports --dry-run (reporting counts only) and --apply (executing generation).
-Never logs or prints brief text, generated titles, or secrets.
+Supports --dry-run (inspecting candidates and proposed titles) and --apply (updating database).
+Never calls Gemini; uses pure deterministic fallback_title from brief fields.
+Never logs or prints brief summary or brief text.
 """
 
-import asyncio
 import json
-import re
-from typing import Any
+from pathlib import Path
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.db.engine import create_engine_and_session
 from archnemesis.db.tables import DesignTable, DesignVersionTable
-from archnemesis.dependencies import get_llm_client
-from archnemesis.llm.base import LLMClient
 from archnemesis.modules.designs.repo import update_design_title
-from archnemesis.modules.designs.title import generate_title_for_design
+from archnemesis.modules.designs.title import disambiguate_title, fallback_title
 from archnemesis.settings import get_settings
-from archnemesis.shared.brief import RequirementBrief
 
 
-def parse_retry_delay(err_msg: str, default_seconds: float = 15.0) -> float:
-    """Extract retry delay in seconds from error text with a +1s margin, defaulting to 15s."""
-    m = re.search(r"retry_delay\s*\{\s*seconds:\s*(\d+(?:\.\d+)?)", err_msg, re.IGNORECASE)
-    if m:
-        return float(m.group(1)) + 1.0
+def validate_backup_path(
+    backup_path: Path | str | None,
+    live_db_path: Path | str | None,
+) -> Path:
+    """Validate that backup_path exists, is a non-empty file, and differs from live_db_path."""
+    if not backup_path:
+        raise ValueError("Missing required --backup-path in apply mode.")
 
-    m = re.search(r"retry\s+(?:in|after)\s*[~:=]?\s*(\d+(?:\.\d+)?)", err_msg, re.IGNORECASE)
-    if m:
-        return float(m.group(1)) + 1.0
+    b_path = Path(backup_path).resolve()
+    if not b_path.exists():
+        raise ValueError(f"Backup file does not exist: {b_path}")
 
-    return default_seconds
+    if not b_path.is_file() or b_path.stat().st_size == 0:
+        raise ValueError(f"Backup file is empty or not a regular file: {b_path}")
+
+    if live_db_path:
+        l_path = Path(live_db_path).resolve()
+        if b_path == l_path:
+            raise ValueError(f"Backup file cannot be the same path as live database: {b_path}")
+
+    return b_path
 
 
 async def run_backfill(
     db_factory: async_sessionmaker[AsyncSession] | None = None,
-    llm: LLMClient | None = None,
+    live_db_path: Path | str | None = None,
+    backup_path: Path | str | None = None,
     apply: bool = False,
-    pause_seconds: float = 4.0,
     limit: int | None = None,
 ) -> dict[str, int]:
-    """Execute dry-run inspection or apply title backfill on designs with title NULL."""
+    """Execute dry-run inspection or apply deterministic title backfill on designs with title NULL."""
     engine = None
     if db_factory is None:
         settings = get_settings()
         engine, db_factory = create_engine_and_session(settings.database_url)
+        if live_db_path is None and "sqlite" in settings.database_url:
+            db_path_str = settings.database_url.split(":///")[-1]
+            live_db_path = Path(db_path_str).resolve()
 
-    if llm is None and apply:
-        llm = get_llm_client()
+    # Guard apply mode with mandatory valid database backup copy
+    if apply:
+        validate_backup_path(backup_path, live_db_path)
 
     try:
         async with db_factory() as session:
@@ -62,8 +72,62 @@ async def run_backfill(
             )
             null_designs = int(null_count_res.scalar() or 0)
 
-        # Dry-run mode: report counts only
+            # Gather existing non-null titles to seed seen set for disambiguation
+            existing_titles_res = await session.execute(
+                select(DesignTable.title).where(DesignTable.title.is_not(None))
+            )
+            initial_seen_titles: set[str] = {
+                row[0].lower() for row in existing_titles_res.all() if row[0]
+            }
+
+        # Dry-run mode: print candidates (design_id, current_title, proposed_title) and counts
         if not apply:
+            async with db_factory() as session:
+                dry_stmt = (
+                    select(
+                        DesignTable.id,
+                        DesignTable.title,
+                        DesignVersionTable.brief_json,
+                    )
+                    .join(
+                        DesignVersionTable,
+                        (DesignVersionTable.design_id == DesignTable.id)
+                        & (DesignVersionTable.version_no == 1),
+                    )
+                    .where(DesignTable.title.is_(None))
+                    .order_by(DesignTable.created_at.asc())
+                )
+                if limit:
+                    dry_stmt = dry_stmt.limit(limit)
+
+                candidate_rows = list((await session.execute(dry_stmt)).all())
+
+            seen_titles = set(initial_seen_titles)
+            for design_id, current_title, brief_json in candidate_rows:
+                summary = ""
+                domain_hint = None
+                data_hint = None
+                if brief_json:
+                    try:
+                        brief_dict = json.loads(brief_json)
+                        summary = brief_dict.get("summary", "")
+                        domain_hint = brief_dict.get("domain_hint")
+                        data_inv = brief_dict.get("data_involved", [])
+                        if data_inv and isinstance(data_inv, list) and isinstance(data_inv[0], str):
+                            data_hint = data_inv[0]
+                    except Exception:  # noqa: BLE001, S110
+                        pass
+
+                raw_proposed = fallback_title(summary, domain_hint)
+                proposed = disambiguate_title(
+                    raw_proposed,
+                    seen_titles,
+                    domain_hint=domain_hint,
+                    data_hint=data_hint,
+                )
+                current_display = current_title if current_title is not None else "<NULL>"
+                print(f"Candidate: {design_id} | current: {current_display} | proposed: {proposed}")
+
             print("Backfill dry run:")
             print(f"Total designs: {total_designs}")
             print(f"Designs with NULL title: {null_designs}")
@@ -74,9 +138,9 @@ async def run_backfill(
                 "already_titled": total_designs - null_designs,
             }
 
-        # Apply mode: query records needing titles
+        # Apply mode: query and update records with title NULL
         async with db_factory() as session:
-            stmt = (
+            apply_stmt = (
                 select(DesignTable.id, DesignVersionTable.brief_json)
                 .join(
                     DesignVersionTable,
@@ -87,38 +151,38 @@ async def run_backfill(
                 .order_by(DesignTable.created_at.asc())
             )
             if limit:
-                stmt = stmt.limit(limit)
+                apply_stmt = apply_stmt.limit(limit)
 
-            rows = list((await session.execute(stmt)).all())
+            rows = list((await session.execute(apply_stmt)).all())
 
         updated = 0
-        skipped = 0
         failed = 0
+        seen_titles = set(initial_seen_titles)
 
-        assert llm is not None, "LLM client required in apply mode"
-
-        for idx, (design_id, brief_json) in enumerate(rows):
+        for design_id, brief_json in rows:
             try:
-                brief_dict: dict[str, Any] = json.loads(brief_json) if brief_json else {}
-                brief_obj = RequirementBrief.model_validate(brief_dict)
+                summary = ""
+                domain_hint = None
+                data_hint = None
+                if brief_json:
+                    brief_dict = json.loads(brief_json)
+                    summary = brief_dict.get("summary", "")
+                    domain_hint = brief_dict.get("domain_hint")
+                    data_inv = brief_dict.get("data_involved", [])
+                    if data_inv and isinstance(data_inv, list) and isinstance(data_inv[0], str):
+                        data_hint = data_inv[0]
+
+                raw_title = fallback_title(summary, domain_hint)
+                title = disambiguate_title(
+                    raw_title,
+                    seen_titles,
+                    domain_hint=domain_hint,
+                    data_hint=data_hint,
+                )
             except Exception:  # noqa: BLE001
                 failed += 1
                 continue
 
-            title, _source, issue = await generate_title_for_design(design_id, brief_obj, llm)
-
-            # Check if transient rate limit or service unavailable issue occurred
-            if issue and ("RATE_LIMITED" in issue or "UNAVAILABLE" in issue):
-                delay = parse_retry_delay(issue, default_seconds=15.0)
-                await asyncio.sleep(delay)
-
-                # Retry once
-                title, _source, issue = await generate_title_for_design(design_id, brief_obj, llm)
-                if issue and ("RATE_LIMITED" in issue or "UNAVAILABLE" in issue):
-                    skipped += 1
-                    continue
-
-            # Persist title to database
             try:
                 async with db_factory() as session:
                     await update_design_title(session, design_id, title)
@@ -126,15 +190,10 @@ async def run_backfill(
             except Exception:  # noqa: BLE001
                 failed += 1
 
-            # Throttle between calls if more rows remain
-            if pause_seconds > 0 and idx < len(rows) - 1:
-                await asyncio.sleep(pause_seconds)
-
         print("Backfill completed:")
         print(f"Updated: {updated}")
-        print(f"Skipped: {skipped}")
         print(f"Failed: {failed}")
-        return {"updated": updated, "skipped": skipped, "failed": failed}
+        return {"updated": updated, "failed": failed}
 
     finally:
         if engine is not None:

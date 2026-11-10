@@ -255,4 +255,38 @@ describe("ExportButtons Component", () => {
     );
     expect(alert).toBeDefined();
   });
+
+  it("invokes onBeforeExportPng before executing exportDiagramToPng", async () => {
+    const user = userEvent.setup();
+    const callOrder: string[] = [];
+
+    const onBeforeExportPng = vi.fn().mockImplementation(async () => {
+      callOrder.push("beforeExport");
+    });
+
+    const mockContainer = document.createElement("div");
+    mockContainer.className = "react-flow";
+    document.body.appendChild(mockContainer);
+
+    vi.spyOn(exportLib, "exportDiagramToPng").mockImplementation(async () => {
+      callOrder.push("exportDiagram");
+    });
+
+    render(
+      <ExportButtons
+        designId="design-before-hook"
+        versionNo={1}
+        explanation={mockExplanation}
+        onBeforeExportPng={onBeforeExportPng}
+      />
+    );
+
+    const pngBtn = screen.getByRole("button", { name: "Download diagram (PNG)" });
+    await user.click(pngBtn);
+
+    expect(onBeforeExportPng).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual(["beforeExport", "exportDiagram"]);
+
+    document.body.removeChild(mockContainer);
+  });
 });

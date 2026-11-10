@@ -3,7 +3,7 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   type EdgeProps,
-  getBezierPath,
+  getSmoothStepPath,
 } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { MAX_LABEL_TEXT_WIDTH } from "./layout";
@@ -17,15 +17,16 @@ export type DiagramEdgeData = {
   labelWidth?: number;
   labelHeight?: number;
   diffStatus?: "added" | "removed" | "edited" | "unchanged";
+  dimmed?: boolean;
   [key: string]: unknown;
 };
 
 /**
  * Custom Diagram Edge with truncated label (max 40 chars), condition badge, and hover/focus disclosure.
  *
- * Requirements (Stage B4e2, D-189):
+ * Requirements (Stage B4e2, D-189; Stage B1a, D-295):
  * - Uses pure layout pathD and labelX/labelY when computed by computeEdgeLabelLayout.
- * - Falls back cleanly to getBezierPath if custom layout data is missing.
+ * - Falls back cleanly to getSmoothStepPath if custom layout data is missing.
  * - Condition badge rendered above flows label (plain text, max 40 chars truncated, full on hover/focus).
  * - Edge label truncated to 40 chars when longer.
  * - Shows full text on hover and keyboard focus (tabIndex={0}).
@@ -60,13 +61,14 @@ export function DiagramEdge({
     labelY = data.labelY!;
   } else {
     // Fallback for legacy specs or standalone test rendering
-    const [fallbackPath, fallbackX, fallbackY] = getBezierPath({
+    const [fallbackPath, fallbackX, fallbackY] = getSmoothStepPath({
       sourceX,
       sourceY,
       sourcePosition,
       targetX,
       targetY,
       targetPosition,
+      borderRadius: 5,
     });
     edgePath = fallbackPath;
     labelX = fallbackX;
@@ -83,6 +85,11 @@ export function DiagramEdge({
 
   const hasLabel = Boolean(flows || condition);
   const isRemoved = data?.diffStatus === "removed";
+  const hasCondition = condition.length > 0;
+
+  const strokeDasharray = isRemoved ? "6 6" : hasCondition ? "5 4" : undefined;
+  const strokeColor = isRemoved ? "#f43f5e" : "var(--muted-foreground, #94a3b8)";
+  const strokeOpacity = isRemoved ? 0.6 : 1;
 
   return (
     <>
@@ -92,9 +99,9 @@ export function DiagramEdge({
         markerEnd={markerEnd}
         style={{
           strokeWidth: 1.5,
-          stroke: isRemoved ? "#f43f5e" : "var(--border, #64748b)",
-          strokeDasharray: isRemoved ? "6 6" : undefined,
-          opacity: isRemoved ? 0.6 : 1,
+          stroke: strokeColor,
+          strokeDasharray,
+          opacity: data?.dimmed ? 0.25 : strokeOpacity,
           ...style,
         }}
       />
@@ -107,7 +114,10 @@ export function DiagramEdge({
               pointerEvents: "all",
               zIndex: 1001,
             }}
-            className="nodrag nopan flex flex-col items-center gap-1.5"
+            className={cn(
+              "nodrag nopan flex flex-col items-center gap-1.5 transition-opacity",
+              data?.dimmed && "opacity-30 focus-within:opacity-100",
+            )}
           >
             {condition && (
               <div
@@ -146,7 +156,7 @@ export function DiagramEdge({
                 aria-label={`Flow: ${flows}`}
                 title={flows}
                 className={cn(
-                  "group relative cursor-help rounded-md border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm transition-colors",
+                  "group relative cursor-help rounded-xl border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm transition-colors",
                   "hover:border-foreground/50 hover:text-foreground",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:text-foreground",
                 )}

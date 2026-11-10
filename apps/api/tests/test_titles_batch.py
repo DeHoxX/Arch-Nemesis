@@ -5,6 +5,7 @@ import json
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import redirect_stdout
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -14,7 +15,6 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.db.tables import DesignTable, DesignVersionTable, IntakeSessionTable
 from archnemesis.dependencies import get_db_session, get_llm_client
-from archnemesis.llm.base import LLMRateLimited
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.main import create_app
 from archnemesis.modules.designs.backfill import run_backfill
@@ -206,12 +206,14 @@ async def test_batch_titles_response_contains_no_brief_or_spec_data(
 
 
 @pytest.mark.asyncio
-async def test_backfill_dry_run_changes_nothing(
+async def test_backfill_dry_run_prints_candidate_details_and_changes_nothing(
     temp_db_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     d1_id = str(uuid.uuid4())
     async with temp_db_session_factory() as session:
         await _seed_design(session, d1_id, None, BRIEF_1)
+
+    expected_proposed = fallback_title(BRIEF_1_SUMMARY, "Insurance")
 
     stdout_buf = io.StringIO()
     with redirect_stdout(stdout_buf):
@@ -223,7 +225,16 @@ async def test_backfill_dry_run_changes_nothing(
     output = stdout_buf.getvalue()
     assert counts["null_count"] == 1
     assert counts["total"] == 1
+    assert counts["already_titled"] == 0
     assert "Backfill dry run:" in output
+
+    # Assert candidate details printed: design_id, current (<NULL>), proposed title
+    assert d1_id in output
+    assert "<NULL>" in output
+    assert expected_proposed in output
+
+    # Assert brief summary text is NEVER printed
+    assert BRIEF_1_SUMMARY not in output
 
     # Assert database record was NOT changed
     async with temp_db_session_factory() as session:
@@ -232,13 +243,70 @@ async def test_backfill_dry_run_changes_nothing(
         ).scalar()
         assert row is None
 
-    # Assert no brief text or title text in stdout
-    assert BRIEF_1_SUMMARY not in output
+
+@pytest.mark.asyncio
+async def test_backfill_apply_refuses_without_valid_backup(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+) -> None:
+    d1_id = str(uuid.uuid4())
+    async with temp_db_session_factory() as session:
+        await _seed_design(session, d1_id, None, BRIEF_1)
+
+    live_db_file = tmp_path / "live.db"
+    live_db_file.write_text("live db mock data")
+
+    # 1. Missing backup_path
+    with pytest.raises(ValueError, match="Missing required --backup-path"):
+        await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db_file,
+            backup_path=None,
+            apply=True,
+        )
+
+    # 2. Non-existent backup file
+    non_existent = tmp_path / "missing.bak"
+    with pytest.raises(ValueError, match="Backup file does not exist"):
+        await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db_file,
+            backup_path=non_existent,
+            apply=True,
+        )
+
+    # 3. Empty backup file (0 bytes)
+    empty_backup = tmp_path / "empty.bak"
+    empty_backup.write_bytes(b"")
+    with pytest.raises(ValueError, match="Backup file is empty"):
+        await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db_file,
+            backup_path=empty_backup,
+            apply=True,
+        )
+
+    # 4. Same path as live database
+    with pytest.raises(ValueError, match="Backup file cannot be the same path"):
+        await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db_file,
+            backup_path=live_db_file,
+            apply=True,
+        )
+
+    # Verify DB was untouched across all failure attempts
+    async with temp_db_session_factory() as session:
+        row = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d1_id))
+        ).scalar()
+        assert row is None
 
 
 @pytest.mark.asyncio
-async def test_backfill_apply_populates_null_and_skips_existing(
+async def test_backfill_apply_populates_null_and_preserves_existing(
     temp_db_session_factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
 ) -> None:
     d1_id = str(uuid.uuid4())
     d2_id = str(uuid.uuid4())
@@ -246,23 +314,29 @@ async def test_backfill_apply_populates_null_and_skips_existing(
         await _seed_design(session, d1_id, None, BRIEF_1)
         await _seed_design(session, d2_id, "Existing Kept Title", BRIEF_2)
 
-    fake_llm = FakeLLMClient(script=[{"title": "AI Generated Claims"}])
+    live_db = tmp_path / "arch_nemesis.db"
+    live_db.write_text("live db mock data")
+    backup_db = tmp_path / "arch_nemesis.db.bak"
+    backup_db.write_text("backup db mock data")
 
     stdout_buf = io.StringIO()
     with redirect_stdout(stdout_buf):
         counts = await run_backfill(
             db_factory=temp_db_session_factory,
-            llm=fake_llm,
+            live_db_path=live_db,
+            backup_path=backup_db,
             apply=True,
-            pause_seconds=0.0,
         )
 
     output = stdout_buf.getvalue()
     assert counts["updated"] == 1
-    assert counts["skipped"] == 0
     assert counts["failed"] == 0
+    assert "Backfill completed:" in output
+    assert "Updated: 1" in output
 
-    # Verify d1 got populated and d2 kept its existing title
+    expected_t1 = fallback_title(BRIEF_1_SUMMARY, "Insurance")
+
+    # Verify d1 got populated with deterministic fallback_title and d2 kept its existing title
     async with temp_db_session_factory() as session:
         t1 = (
             await session.execute(select(DesignTable.title).where(DesignTable.id == d1_id))
@@ -270,51 +344,109 @@ async def test_backfill_apply_populates_null_and_skips_existing(
         t2 = (
             await session.execute(select(DesignTable.title).where(DesignTable.id == d2_id))
         ).scalar()
-        assert t1 == "AI Generated Claims"
+        assert t1 == expected_t1
         assert t2 == "Existing Kept Title"
 
-    # Assert no title or brief text printed to stdout
-    assert "AI Generated Claims" not in output
+    # Assert brief text was NEVER printed
     assert BRIEF_1_SUMMARY not in output
 
 
 @pytest.mark.asyncio
-async def test_backfill_rate_limit_retries_once_then_skips(
+async def test_backfill_disambiguates_duplicates_and_preserves_existing(
     temp_db_session_factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
 ) -> None:
+    # 1 existing titled design + 4 NULL-title designs sharing identical brief summary
+    identical_brief: dict[str, Any] = {
+        "summary": "An automated claims processing engine for insurance.",
+        "domain_hint": "Insurance",
+        "data_involved": ["Claims"],
+    }
+    existing_id = str(uuid.uuid4())
     d1_id = str(uuid.uuid4())
+    d2_id = str(uuid.uuid4())
+    d3_id = str(uuid.uuid4())
+    d4_id = str(uuid.uuid4())
+
     async with temp_db_session_factory() as session:
-        await _seed_design(session, d1_id, None, BRIEF_1)
+        await _seed_design(
+            session,
+            existing_id,
+            "Claims Processing Engine For Insurance",
+            identical_brief,
+        )
+        await _seed_design(session, d1_id, None, identical_brief)
+        await _seed_design(session, d2_id, None, identical_brief)
+        await _seed_design(session, d3_id, None, identical_brief)
+        await _seed_design(session, d4_id, None, identical_brief)
 
-    # Fake LLM that raises rate limit twice
-    fake_llm = FakeLLMClient(
-        script=[
-            LLMRateLimited("Rate limit: retry after 0.01s"),
-            LLMRateLimited("Rate limit: retry after 0.01s"),
-        ]
-    )
+    live_db = tmp_path / "arch_nemesis.db"
+    live_db.write_text("live db mock data")
+    backup_db = tmp_path / "arch_nemesis.db.bak"
+    backup_db.write_text("backup db mock data")
 
-    stdout_buf = io.StringIO()
-    with redirect_stdout(stdout_buf):
-        counts = await run_backfill(
+    # 1. Dry run execution
+    stdout_buf_dry = io.StringIO()
+    with redirect_stdout(stdout_buf_dry):
+        dry_counts = await run_backfill(
             db_factory=temp_db_session_factory,
-            llm=fake_llm,
-            apply=True,
-            pause_seconds=0.0,
+            live_db_path=live_db,
+            backup_path=backup_db,
+            apply=False,
         )
 
-    output = stdout_buf.getvalue()
-    assert counts["updated"] == 0
-    assert counts["skipped"] == 1
-    assert counts["failed"] == 0
+    dry_out = stdout_buf_dry.getvalue()
+    assert dry_counts["null_count"] == 4
+    assert dry_counts["already_titled"] == 1
 
-    # Assert design remains NULL
+    # Extract proposed titles from dry-run output
+    dry_titles: list[str] = []
+    for line in dry_out.splitlines():
+        if line.startswith("Candidate: "):
+            parts = line.split(" | proposed: ")
+            if len(parts) == 2:
+                dry_titles.append(parts[1].strip())
+
+    assert len(dry_titles) == 4
+    # All proposed titles must be mutually distinct and distinct from existing title
+    assert len(set(dry_titles)) == 4
+    assert "Claims Processing Engine For Insurance" not in dry_titles
+
+    # 2. Apply execution
+    stdout_buf_apply = io.StringIO()
+    with redirect_stdout(stdout_buf_apply):
+        apply_counts = await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db,
+            backup_path=backup_db,
+            apply=True,
+        )
+
+    assert apply_counts["updated"] == 4
+    assert apply_counts["failed"] == 0
+
+    # 3. Verify database state: applied titles match dry-run proposed exactly, existing untouched
     async with temp_db_session_factory() as session:
+        t_exist = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == existing_id))
+        ).scalar()
         t1 = (
             await session.execute(select(DesignTable.title).where(DesignTable.id == d1_id))
         ).scalar()
-        assert t1 is None
+        t2 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d2_id))
+        ).scalar()
+        t3 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d3_id))
+        ).scalar()
+        t4 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d4_id))
+        ).scalar()
 
-    # Assert output contains only counts
-    assert "Skipped: 1" in output
-    assert BRIEF_1_SUMMARY not in output
+    assert t_exist == "Claims Processing Engine For Insurance"
+    applied_titles = [t1, t2, t3, t4]
+    assert applied_titles == dry_titles
+
+    # Assert brief summary was NEVER printed in dry-run or apply output
+    assert identical_brief["summary"] not in dry_out
+    assert identical_brief["summary"] not in stdout_buf_apply.getvalue()

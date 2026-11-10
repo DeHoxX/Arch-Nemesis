@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import copy
 import json
 import re
 import sys
@@ -42,7 +43,11 @@ import archnemesis.modules.designs.service as designs_service
 import archnemesis.modules.designs.title as designs_title
 from archnemesis.db.engine import create_engine_and_session
 from archnemesis.db.tables import Base
-from archnemesis.errors import DesignFailedError
+from archnemesis.errors import (
+    DesignFailedError,
+    LLMRateLimitedError,
+    LLMUnavailableError,
+)
 from archnemesis.llm.base import (
     LLMClient,
     LLMRateLimited,
@@ -64,6 +69,8 @@ from archnemesis.modules.explainer.service import (
 from archnemesis.modules.intake.schemas import IntakeTurnRequest
 from archnemesis.modules.intake.service import handle_turn
 from archnemesis.modules.validation.lints import check_lints
+from archnemesis.modules.validation.models import Limits
+from archnemesis.modules.validation.validate import parse_and_validate
 from archnemesis.prompts import _PROMPTS_DIR
 from archnemesis.settings import get_settings
 
@@ -92,11 +99,15 @@ class StructlogEventCollector:
 
 
 class InstrumentedLLMClient(LLMClient):
-    """Wraps an LLMClient to count invocations without modifying production code."""
+    """Wraps an LLMClient to count invocations and record candidate specs without modifying production code."""
 
     def __init__(self, inner: LLMClient) -> None:
         self.inner = inner
         self.call_count = 0
+        self.architect_raw_specs: list[dict[str, Any]] = []
+
+    def clear_run_trace(self) -> None:
+        self.architect_raw_specs.clear()
 
     async def generate_text(self, task: LLMTask, system: str, user: str) -> str:
         self.call_count += 1
@@ -106,7 +117,10 @@ class InstrumentedLLMClient(LLMClient):
         self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
     ) -> dict[str, Any]:
         self.call_count += 1
-        return await self.inner.generate_json(task, system, user, schema)
+        res = await self.inner.generate_json(task, system, user, schema)
+        if task == LLMTask.ARCHITECT:
+            self.architect_raw_specs.append(copy.deepcopy(res))
+        return res
 
 
 def sanitize_validator_message(msg: str) -> str:
@@ -323,6 +337,7 @@ async def execute_eval_suite(
     settings = get_settings()
     completed_records: list[CaseRunRecord] = []
     aborted_due_to_quota = False
+    abort_reason: str | None = None
     started_time = datetime.now().strftime("%Y%m%d-%H%M")
 
     chosen_architect_prompt = architect_prompt or architect_service.ARCHITECT_PROMPT_NAME
@@ -346,8 +361,10 @@ async def execute_eval_suite(
     def _flush_results_to_disk(
         current_records: list[CaseRunRecord],
         is_aborted: bool,
+        current_abort_reason: str | None = None,
     ) -> None:
         eval_summary = aggregate_eval_runs(current_records)
+        effective_abort_reason = current_abort_reason if is_aborted else None
         current_meta = {
             "timestamp": started_time,
             "runner_version": "1.0",
@@ -360,6 +377,7 @@ async def execute_eval_suite(
             "runs_requested": runs_per_case,
             "total_runs_completed": len(current_records),
             "aborted_due_to_quota": is_aborted,
+            "aborted": effective_abort_reason,
             "pause_seconds": pause_seconds,
         }
         result_payload = {
@@ -409,6 +427,8 @@ async def execute_eval_suite(
                 run_attempt = 1
                 while True:
                     event_collector.clear()
+                    if hasattr(client, "clear_run_trace"):
+                        client.clear_run_trace()
                     start_calls = client.call_count
                     start_time = time.perf_counter()
 
@@ -457,7 +477,9 @@ async def execute_eval_suite(
                                     wall_clock_seconds=round(elapsed, 2),
                                 )
                                 completed_records.append(rec)
-                                _flush_results_to_disk(completed_records, is_aborted=False)
+                                _flush_results_to_disk(
+                                    completed_records, is_aborted=False, current_abort_reason=None
+                                )
                                 break
 
                             # 2. Design creation
@@ -475,11 +497,6 @@ async def execute_eval_suite(
                                     for e in event_collector.events
                                     if e.get("event") == "design_attempt"
                                 ]
-                                design_attempt_issues = [
-                                    code
-                                    for e in design_attempts_events
-                                    for code in e.get("issue_codes", [])
-                                ]
                                 code_repairs = [
                                     e
                                     for e in event_collector.events
@@ -496,32 +513,70 @@ async def execute_eval_suite(
                                 ]
                                 code_repair_used = len(code_repairs) > 0
 
-                                sanitized_final_messages = [
-                                    sanitize_validator_message(m) for m in exc.issues[:5]
-                                ]
-                                design_attempts = []
+                                brief_constraints = {
+                                    c.id: c.text for c in turn_res.brief.stated_constraints
+                                }
+                                limits = Limits(
+                                    max_nodes=settings.max_nodes,
+                                    max_edges=settings.max_edges,
+                                )
+
+                                raw_specs = getattr(client, "architect_raw_specs", [])
                                 num_events = len(design_attempts_events)
-                                for idx, e in enumerate(design_attempts_events, 1):
-                                    is_last = idx == num_events
-                                    design_attempts.append(
-                                        {
-                                            "attempt": e.get("attempt", idx),
-                                            "issue_codes": e.get("issue_codes", []),
-                                            "constraint_kinds": e.get("constraint_kinds", []),
-                                            "issue_messages": sanitized_final_messages
-                                            if is_last
-                                            else [],
-                                        }
+                                num_specs = len(raw_specs)
+                                total_attempts = max(num_events, num_specs, 1)
+
+                                design_attempts = []
+                                for idx in range(1, total_attempts + 1):
+                                    e = (
+                                        design_attempts_events[idx - 1]
+                                        if (idx - 1) < num_events
+                                        else {}
                                     )
-                                if not design_attempts:
-                                    design_attempts = [
-                                        {
-                                            "attempt": 1,
-                                            "issue_codes": [],
-                                            "constraint_kinds": [],
-                                            "issue_messages": sanitized_final_messages,
-                                        }
-                                    ]
+                                    spec_dict = (
+                                        raw_specs[idx - 1] if (idx - 1) < num_specs else None
+                                    )
+
+                                    if spec_dict is not None:
+                                        _, val_res = parse_and_validate(
+                                            copy.deepcopy(spec_dict),
+                                            brief_constraints,
+                                            limits,
+                                        )
+                                        attempt_codes = [err.code for err in val_res.errors]
+                                        attempt_messages = [
+                                            sanitize_validator_message(err.message)
+                                            for err in val_res.errors
+                                        ]
+                                        attempt_kinds = [
+                                            c.get("kind")
+                                            for c in spec_dict.get("constraints", [])
+                                            if isinstance(c, dict) and "kind" in c
+                                        ]
+                                    else:
+                                        attempt_codes = e.get("issue_codes", [])
+                                        attempt_messages = (
+                                            [sanitize_validator_message(m) for m in exc.issues]
+                                            if idx == total_attempts
+                                            else []
+                                        )
+                                        attempt_kinds = e.get("constraint_kinds", [])
+
+                                    attempt_entry: dict[str, Any] = {
+                                        "attempt": e.get("attempt", idx),
+                                        "issue_codes": attempt_codes,
+                                        "constraint_kinds": attempt_kinds,
+                                        "issue_messages": attempt_messages,
+                                    }
+                                    if spec_dict is not None:
+                                        attempt_entry["spec"] = copy.deepcopy(spec_dict)
+                                    design_attempts.append(attempt_entry)
+
+                                design_attempt_issues = [
+                                    code
+                                    for att in design_attempts
+                                    for code in att.get("issue_codes", [])
+                                ]
 
                                 rec = CaseRunRecord(
                                     case_id=case_id,
@@ -555,7 +610,9 @@ async def execute_eval_suite(
                                     wall_clock_seconds=round(elapsed, 2),
                                 )
                                 completed_records.append(rec)
-                                _flush_results_to_disk(completed_records, is_aborted=False)
+                                _flush_results_to_disk(
+                                    completed_records, is_aborted=False, current_abort_reason=None
+                                )
                                 break
 
                             # 3. Architect metrics extraction
@@ -568,24 +625,66 @@ async def execute_eval_suite(
                                 for e in event_collector.events
                                 if e.get("event") == "design_attempt"
                             ]
-                            design_attempt_issues = [
-                                code
-                                for e in design_attempts_events
-                                for code in e.get("issue_codes", [])
-                            ]
                             attempt_1_pass = (
                                 len(design_attempts_events) <= 1
                                 and not code_repair_used
                                 and "repair" not in prompt_version
                             )
-                            design_attempts = [
-                                {
+
+                            brief_constraints = {
+                                c.id: c.text for c in turn_res.brief.stated_constraints
+                            }
+                            limits = Limits(
+                                max_nodes=settings.max_nodes,
+                                max_edges=settings.max_edges,
+                            )
+                            raw_specs = getattr(client, "architect_raw_specs", [])
+                            num_events = len(design_attempts_events)
+                            num_specs = len(raw_specs)
+                            total_attempts = max(num_events, num_specs, 1)
+
+                            design_attempts = []
+                            for idx in range(1, total_attempts + 1):
+                                e = (
+                                    design_attempts_events[idx - 1]
+                                    if (idx - 1) < num_events
+                                    else {}
+                                )
+                                spec_dict = raw_specs[idx - 1] if (idx - 1) < num_specs else None
+
+                                if spec_dict is not None:
+                                    _, val_res = parse_and_validate(
+                                        copy.deepcopy(spec_dict),
+                                        brief_constraints,
+                                        limits,
+                                    )
+                                    attempt_codes = [err.code for err in val_res.errors]
+                                    attempt_messages = [
+                                        sanitize_validator_message(err.message)
+                                        for err in val_res.errors
+                                    ]
+                                    attempt_kinds = [
+                                        c.get("kind")
+                                        for c in spec_dict.get("constraints", [])
+                                        if isinstance(c, dict) and "kind" in c
+                                    ]
+                                else:
+                                    attempt_codes = e.get("issue_codes", [])
+                                    attempt_messages = []
+                                    attempt_kinds = e.get("constraint_kinds", [])
+
+                                attempt_entry = {
                                     "attempt": e.get("attempt", idx),
-                                    "issue_codes": e.get("issue_codes", []),
-                                    "constraint_kinds": e.get("constraint_kinds", []),
-                                    "issue_messages": [],
+                                    "issue_codes": attempt_codes,
+                                    "constraint_kinds": attempt_kinds,
+                                    "issue_messages": attempt_messages,
                                 }
-                                for idx, e in enumerate(design_attempts_events, 1)
+                                design_attempts.append(attempt_entry)
+
+                            design_attempt_issues = [
+                                code
+                                for att in design_attempts
+                                for code in att.get("issue_codes", [])
                             ]
 
                             node_count = len(spec.nodes)
@@ -631,13 +730,62 @@ async def execute_eval_suite(
                                 for e in code_repairs
                             ]
 
-                            # 4. Explainer generation
-                            expl_res = await get_or_generate_explanation(
-                                db=db,
-                                design_id=design_res.id,
-                                version_no=1,
-                                llm=client,
+                            # 4. Explainer generation with in-place single retry
+                            expl_attempt = 1
+                            expl_res = None
+                            expl_errors = (
+                                LLMUnavailable,
+                                LLMRateLimited,
+                                LLMUnavailableError,
+                                LLMRateLimitedError,
                             )
+                            while True:
+                                try:
+                                    expl_res = await get_or_generate_explanation(
+                                        db=db,
+                                        design_id=design_res.id,
+                                        version_no=1,
+                                        llm=client,
+                                    )
+                                    break
+                                except expl_errors as exc:
+                                    if expl_attempt == 1:
+                                        if isinstance(exc, (LLMRateLimited, LLMRateLimitedError)):
+                                            delay = parse_retry_delay(
+                                                str(exc), default_seconds=60.0
+                                            )
+                                            sys.stderr.write(
+                                                f"\n[QUOTA WARNING] 429 Rate limited during explainer on case '{case_id}' run {run_idx}: {exc}\n"
+                                                f"Waiting {delay:.1f}s before retrying explainer once...\n"
+                                            )
+                                        else:
+                                            delay = unavailable_retry_delay
+                                            sys.stderr.write(
+                                                f"\n[UNAVAILABLE WARNING] 503 LLMUnavailable during explainer on case '{case_id}' run {run_idx}: {exc}\n"
+                                                f"Waiting {delay:.1f}s before retrying explainer once...\n"
+                                            )
+                                        if delay > 0:
+                                            await asyncio.sleep(delay)
+                                        expl_attempt += 1
+                                        continue
+                                    else:
+                                        err_type = (
+                                            "LLM_RATE_LIMITED (429)"
+                                            if isinstance(
+                                                exc, (LLMRateLimited, LLMRateLimitedError)
+                                            )
+                                            else "LLM_UNAVAILABLE (503)"
+                                        )
+                                        aborted_due_to_quota = True
+                                        abort_reason = f"{err_type} during explainer on case '{case_id}' run {run_idx}: {exc}"
+                                        sys.stderr.write(
+                                            f"\n[ABORT ERROR] Evaluation aborted due to repeated {err_type} during explainer on case '{case_id}' run {run_idx}: {exc}\n"
+                                            f"Completed {len(completed_records)} runs before aborting.\n"
+                                        )
+                                        break
+
+                            if aborted_due_to_quota or expl_res is None:
+                                break
 
                             explainer_source = expl_res.source
                             explainer_failed = [
@@ -719,38 +867,48 @@ async def execute_eval_suite(
                                 wall_clock_seconds=round(elapsed, 2),
                             )
                             completed_records.append(rec)
-                            _flush_results_to_disk(completed_records, is_aborted=False)
+                            _flush_results_to_disk(
+                                completed_records, is_aborted=False, current_abort_reason=None
+                            )
                             break
 
-                    except LLMRateLimited as exc:
+                    except (LLMRateLimited, LLMRateLimitedError) as exc:
                         if run_attempt == 1:
                             delay = parse_retry_delay(str(exc), default_seconds=60.0)
                             sys.stderr.write(
                                 f"\n[QUOTA WARNING] 429 Rate limited on case '{case_id}' run {run_idx}: {exc}\n"
                                 f"Waiting {delay:.1f}s before retrying once...\n"
                             )
-                            await asyncio.sleep(delay)
+                            if delay > 0:
+                                await asyncio.sleep(delay)
                             run_attempt += 1
                             continue
                         else:
                             aborted_due_to_quota = True
+                            abort_reason = (
+                                f"LLM_RATE_LIMITED (429) on case '{case_id}' run {run_idx}: {exc}"
+                            )
                             sys.stderr.write(
                                 f"\n[QUOTA ERROR] Evaluation aborted due to repeated LLMRateLimited on case '{case_id}' run {run_idx}: {exc}\n"
                                 f"Completed {len(completed_records)} runs before aborting.\n"
                             )
                             break
 
-                    except LLMUnavailable as exc:
+                    except (LLMUnavailable, LLMUnavailableError) as exc:
                         if run_attempt == 1:
                             sys.stderr.write(
                                 f"\n[UNAVAILABLE WARNING] 503 LLMUnavailable on case '{case_id}' run {run_idx}: {exc}\n"
                                 f"Waiting {unavailable_retry_delay:.1f}s before retrying once...\n"
                             )
-                            await asyncio.sleep(unavailable_retry_delay)
+                            if unavailable_retry_delay > 0:
+                                await asyncio.sleep(unavailable_retry_delay)
                             run_attempt += 1
                             continue
                         else:
                             aborted_due_to_quota = True
+                            abort_reason = (
+                                f"LLM_UNAVAILABLE (503) on case '{case_id}' run {run_idx}: {exc}"
+                            )
                             sys.stderr.write(
                                 f"\n[UNAVAILABLE ERROR] Evaluation aborted due to repeated {exc.__class__.__name__} on case '{case_id}' run {run_idx}: {exc}\n"
                                 f"Completed {len(completed_records)} runs before aborting.\n"
@@ -776,8 +934,11 @@ async def execute_eval_suite(
         designs_title.generate_title_for_design = orig_designs_title_fn
         await engine.dispose()
         temp_dir.cleanup()
-
-    _flush_results_to_disk(completed_records, is_aborted=aborted_due_to_quota)
+        _flush_results_to_disk(
+            completed_records,
+            is_aborted=aborted_due_to_quota,
+            current_abort_reason=abort_reason,
+        )
 
     if aborted_due_to_quota:
         return 2, completed_records

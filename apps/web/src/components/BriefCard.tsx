@@ -177,7 +177,7 @@ export function BriefCard({
           type="button"
           onClick={onGenerate}
           disabled={isGenerating}
-          className="w-full bg-[#ccff00] text-black hover:bg-[#b8e600] font-semibold text-sm transition-colors py-2.5"
+          className="w-full bg-brand-accent text-brand-accent-ink hover:bg-brand-accent-hover font-semibold text-sm transition-colors py-2.5"
         >
           Generate design
         </Button>

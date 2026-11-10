@@ -180,21 +180,92 @@ export interface EdgeLabelPlacement {
   pathD: string;
 }
 
+function getBend(a: Point, b: Point, c: Point, size: number): string {
+  const d1 = Math.hypot(b.x - a.x, b.y - a.y);
+  const d2 = Math.hypot(c.x - b.x, c.y - b.y);
+  const bendSize = Math.min(d1 / 2, d2 / 2, size);
+  const { x, y } = b;
+  if (bendSize <= 0.01 || (a.x === x && x === c.x) || (a.y === y && y === c.y)) {
+    return ` L ${x} ${y}`;
+  }
+  if (Math.abs(a.y - y) < 0.01) {
+    // incoming segment is horizontal
+    const xDir = a.x < c.x ? -1 : 1;
+    const yDir = a.y < c.y ? 1 : -1;
+    return ` L ${x + bendSize * xDir} ${y} Q ${x} ${y} ${x} ${y + bendSize * yDir}`;
+  }
+  // incoming segment is vertical
+  const xDir = a.x < c.x ? 1 : -1;
+  const yDir = a.y < c.y ? -1 : 1;
+  return ` L ${x} ${y + bendSize * yDir} Q ${x} ${y} ${x + bendSize * xDir} ${y}`;
+}
+
 /**
- * Evaluates a 2D cubic bezier curve at parameter t in [0, 1].
+ * Builds a deterministic orthogonal SVG path from an array of axis-aligned points.
+ * Inserts subtle quadratic rounded corners (default borderRadius = 5px).
  */
-export function evalCubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
-  const clampedT = Math.max(0, Math.min(1, t));
-  const mt = 1 - clampedT;
-  const mt2 = mt * mt;
-  const mt3 = mt2 * mt;
-  const t2 = clampedT * clampedT;
-  const t3 = t2 * clampedT;
+export function buildOrthogonalPath(rawPoints: Point[], borderRadius = 5): string {
+  if (rawPoints.length === 0) return "";
+  if (rawPoints.length === 1) return `M ${rawPoints[0]!.x} ${rawPoints[0]!.y}`;
 
-  const x = mt3 * p0.x + 3 * mt2 * clampedT * p1.x + 3 * mt * t2 * p2.x + t3 * p3.x;
-  const y = mt3 * p0.y + 3 * mt2 * clampedT * p1.y + 3 * mt * t2 * p2.y + t3 * p3.y;
+  // 1. Deduplicate consecutive identical points
+  const pts: Point[] = [rawPoints[0]!];
+  for (let i = 1; i < rawPoints.length; i++) {
+    const prev = pts[pts.length - 1]!;
+    const cur = rawPoints[i]!;
+    if (Math.abs(cur.x - prev.x) > 0.01 || Math.abs(cur.y - prev.y) > 0.01) {
+      pts.push(cur);
+    }
+  }
+  if (pts.length < 2) return `M ${pts[0]!.x} ${pts[0]!.y}`;
 
-  return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+  // 2. Collapse collinear intermediate points (same x or same y)
+  const collapsed: Point[] = [pts[0]!];
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = collapsed[collapsed.length - 1]!;
+    const cur = pts[i]!;
+    const next = pts[i + 1]!;
+    const isCollinearX = Math.abs(prev.x - cur.x) < 0.01 && Math.abs(cur.x - next.x) < 0.01;
+    const isCollinearY = Math.abs(prev.y - cur.y) < 0.01 && Math.abs(cur.y - next.y) < 0.01;
+    if (!isCollinearX && !isCollinearY) {
+      collapsed.push(cur);
+    }
+  }
+  collapsed.push(pts[pts.length - 1]!);
+
+  let path = `M ${collapsed[0]!.x} ${collapsed[0]!.y}`;
+  for (let i = 1; i < collapsed.length - 1; i++) {
+    path += getBend(collapsed[i - 1]!, collapsed[i]!, collapsed[i + 1]!, borderRadius);
+  }
+  path += ` L ${collapsed[collapsed.length - 1]!.x} ${collapsed[collapsed.length - 1]!.y}`;
+  return path;
+}
+
+/**
+ * Checks whether a 2D point lies strictly on a polyline's orthogonal segments (within tolerance).
+ */
+export function isPointOnPathSegments(pt: Point, points: Point[], tolerance = 1.5): boolean {
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i]!;
+    const p2 = points[i + 1]!;
+    const minX = Math.min(p1.x, p2.x) - tolerance;
+    const maxX = Math.max(p1.x, p2.x) + tolerance;
+    const minY = Math.min(p1.y, p2.y) - tolerance;
+    const maxY = Math.max(p1.y, p2.y) + tolerance;
+
+    if (Math.abs(p1.x - p2.x) < tolerance) {
+      // Vertical segment
+      if (Math.abs(pt.x - p1.x) <= tolerance && pt.y >= minY && pt.y <= maxY) {
+        return true;
+      }
+    } else if (Math.abs(p1.y - p2.y) < tolerance) {
+      // Horizontal segment
+      if (Math.abs(pt.y - p1.y) <= tolerance && pt.x >= minX && pt.x <= maxX) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 function rectsIntersect(a: Rect, b: Rect, margin = 0): boolean {
@@ -336,73 +407,81 @@ export function computeEdgeLabelLayout(
     const pIdx = parallelList.findIndex((e) => e.id === edge.id);
     const parallelOffsetIdx = mParallel > 1 ? pIdx - (mParallel - 1) / 2 : 0;
     const pathXOffset = parallelOffsetIdx * 36;
-    const labelXOffset = parallelOffsetIdx * 40;
-    const labelTOffset = parallelOffsetIdx * 0.08;
+    const yStagger = parallelOffsetIdx * 12;
 
     // Check for multi-rank edge waypoints
     const rawWaypoints = dagreEdgePoints?.get(`${edge.source}__${edge.target}`);
     const isMultiRank = rawWaypoints && rawWaypoints.length > 2 && deltaY > RANKSEP * 1.5;
 
-    let pathD = "";
-    let baseP0 = pStart;
-    let baseP1: Point;
-    let baseP2: Point;
-    let baseP3 = pEnd;
+    // Determine initial parameter shelf position based on fan-out vs fan-in column divergence
+    let stepRatio = 0.50;
+    if (kOut >= 2 && kIn === 1) {
+      // Fan-out: stagger horizontal shelf so parallel fan-outs do not overlap
+      stepRatio = 0.38 + (kOut > 1 ? 0.24 * (outIdx / (kOut - 1)) : 0);
+    } else if (kIn >= 2 && kOut === 1) {
+      // Fan-in: stagger horizontal shelf so parallel fan-ins do not overlap
+      stepRatio = 0.38 + (kIn > 1 ? 0.24 * (inIdx / (kIn - 1)) : 0);
+    } else if (kOut >= 2 && kIn >= 2) {
+      const totalIdx = outIdx + inIdx;
+      const totalMax = Math.max(1, (kOut - 1) + (kIn - 1));
+      stepRatio = 0.35 + 0.30 * (totalIdx / totalMax);
+    }
+
+    const minShelfY = pStart.y + 16;
+    const maxShelfY = pEnd.y - 16;
+    const shelfY = Math.max(minShelfY, Math.min(maxShelfY, pStart.y + deltaY * stepRatio + yStagger));
+
+    let edgePoints: Point[] = [];
 
     if (isMultiRank && rawWaypoints) {
-      // Build cubic bezier through Dagre intermediate waypoints using C segments
-      pathD = `M ${pStart.x} ${pStart.y}`;
-      const pts: Point[] = [pStart, ...rawWaypoints.slice(1, -1), pEnd];
+      // Build orthogonal multi-rank points through Dagre intermediate waypoints
+      const pts: Point[] = [
+        pStart,
+        ...rawWaypoints.slice(1, -1).map((p) => ({ x: p.x + pathXOffset, y: p.y })),
+        pEnd,
+      ];
+      edgePoints.push(pts[0]!);
       for (let i = 0; i < pts.length - 1; i++) {
         const cur = pts[i]!;
         const next = pts[i + 1]!;
-        const midY = (cur.y + next.y) / 2;
-        pathD += ` C ${cur.x} ${midY} ${next.x} ${midY} ${next.x} ${next.y}`;
+        if (Math.abs(cur.x - next.x) > 0.01) {
+          const midY = (cur.y + next.y) / 2 + yStagger;
+          edgePoints.push({ x: cur.x, y: midY });
+          edgePoints.push({ x: next.x, y: midY });
+        }
+        edgePoints.push(next);
       }
-
-      // For multi-rank edges, label sits in the first rank transition gap
-      const firstWp = pts[1]!;
-      baseP0 = pStart;
-      baseP1 = { x: pStart.x + pathXOffset, y: (pStart.y + firstWp.y) / 2 };
-      baseP2 = { x: firstWp.x + pathXOffset, y: (pStart.y + firstWp.y) / 2 };
-      baseP3 = firstWp;
     } else {
-      // Standard single rank gap: one cubic bezier with vertical control points
-      baseP1 = { x: pStart.x + pathXOffset, y: pStart.y + deltaY / 2 };
-      baseP2 = { x: pEnd.x + pathXOffset, y: pEnd.y - deltaY / 2 };
-      pathD = `M ${pStart.x} ${pStart.y} C ${baseP1.x} ${baseP1.y} ${baseP2.x} ${baseP2.y} ${pEnd.x} ${pEnd.y}`;
+      // Standard single rank gap: orthogonal step with vertical entry/exit stubs
+      if (Math.abs(pStart.x - pEnd.x) < 0.01 && pathXOffset === 0) {
+        // Collinear straight vertical connection
+        edgePoints = [pStart, pEnd];
+      } else {
+        edgePoints = [
+          pStart,
+          { x: pStart.x + pathXOffset, y: shelfY },
+          { x: pEnd.x + pathXOffset, y: shelfY },
+          pEnd,
+        ];
+      }
     }
 
-    // Determine initial parameter t based on fan-out vs fan-in column divergence
-    let baseT = 0.50;
-    if (isMultiRank) {
-      baseT = 0.50;
-    } else if (kOut >= 2 && kIn === 1) {
-      // Fan-out: place toward target end [0.58, 0.70]
-      baseT = 0.58 + (kOut > 1 ? 0.12 * (outIdx / (kOut - 1)) : 0);
-    } else if (kIn >= 2 && kOut === 1) {
-      // Fan-in: place toward source end [0.30, 0.42]
-      baseT = 0.30 + (kIn > 1 ? 0.12 * (inIdx / (kIn - 1)) : 0);
-    } else if (kOut >= 2 && kIn >= 2) {
-      // Both: stagger across [0.38, 0.62]
-      const totalIdx = outIdx + inIdx;
-      const totalMax = Math.max(1, (kOut - 1) + (kIn - 1));
-      baseT = 0.38 + 0.24 * (totalIdx / totalMax);
-    }
+    const pathD = buildOrthogonalPath(edgePoints, 5);
 
-    baseT = Math.max(0.28, Math.min(0.72, baseT + labelTOffset));
-
-    // Label dimensions
+    // Label dimensions: condition width affects computeEdgeLabelLayout per approved answer
     const flows = edge.data.flows || "";
-    const hasCondition = Boolean(edge.data.condition && edge.data.condition.trim().length > 0);
-    const labelWidth = estimateLabelWidth(flows);
+    const condition = (edge.data.condition || "").trim();
+    const hasCondition = Boolean(condition.length > 0);
+    const flowsWidth = estimateLabelWidth(flows);
+    const conditionWidth = estimateLabelWidth(condition);
+    const labelWidth = Math.max(flowsWidth, conditionWidth);
     const labelHeight = hasCondition ? 52 : (flows.trim().length > 0 ? 26 : 0);
 
     // If edge has no text and no condition, placement is trivial
     if (labelWidth === 0 && labelHeight === 0) {
       resultMap.set(edge.id, {
-        labelX: pStart.x,
-        labelY: pStart.y + deltaY / 2,
+        labelX: Math.round(pStart.x * 10) / 10,
+        labelY: Math.round((pStart.y + deltaY / 2) * 10) / 10,
         labelWidth: 0,
         labelHeight: 0,
         pathD,
@@ -410,28 +489,84 @@ export function computeEdgeLabelLayout(
       continue;
     }
 
-    // Collision checking & fallback loop (bounded at 3 iterations)
+    // Segment-anchored candidate selection: test points strictly along orthogonal segments
+    const candidatePoints: Point[] = [];
+
+    if (isMultiRank) {
+      // Anchor in first vertical rank transition segment
+      candidatePoints.push({
+        x: pStart.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(shelfY - 4 - labelHeight / 2, (pStart.y + shelfY) / 2)),
+      });
+    } else if (kOut >= 2 && kIn === 1) {
+      // Fan-out: anchor on target vertical stub where child columns are separated by >= 290px
+      const targetStubY = shelfY + (pEnd.y - shelfY) * 0.5;
+      candidatePoints.push({
+        x: pEnd.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, targetStubY)),
+      });
+      candidatePoints.push({
+        x: pEnd.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, targetStubY + 12)),
+      });
+      candidatePoints.push({
+        x: pEnd.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, targetStubY - 12)),
+      });
+    } else if (kIn >= 2 && kOut === 1) {
+      // Fan-in: anchor on source vertical stub where parent columns are separated by >= 290px
+      const sourceStubY = pStart.y + (shelfY - pStart.y) * 0.5;
+      candidatePoints.push({
+        x: pStart.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, sourceStubY)),
+      });
+      candidatePoints.push({
+        x: pStart.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, sourceStubY + 12)),
+      });
+      candidatePoints.push({
+        x: pStart.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, sourceStubY - 12)),
+      });
+    } else {
+      // Single connection: check vertical midpoint, or horizontal shelf midpoint if wide enough
+      if (Math.abs(pStart.x - pEnd.x) >= labelWidth + 24) {
+        candidatePoints.push({
+          x: (pStart.x + pEnd.x) / 2 + pathXOffset,
+          y: shelfY,
+        });
+      }
+      candidatePoints.push({
+        x: pEnd.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, pStart.y + deltaY / 2)),
+      });
+      candidatePoints.push({
+        x: pStart.x + pathXOffset,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, pStart.y + deltaY / 2)),
+      });
+    }
+
+    // Fallback candidates: midpoints of every non-zero segment of this edge
+    for (let i = 0; i < edgePoints.length - 1; i++) {
+      const p1 = edgePoints[i]!;
+      const p2 = edgePoints[i + 1]!;
+      const midCandidate = {
+        x: (p1.x + p2.x) / 2,
+        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, (p1.y + p2.y) / 2)),
+      };
+      candidatePoints.push(midCandidate);
+    }
+
     let bestOverlap = Infinity;
-    let bestPoint = evalCubicBezier(baseP0, baseP1, baseP2, baseP3, baseT);
+    let bestPoint = candidatePoints[0]!;
 
-    const testCandidates = [
-      { t: baseT, xShift: labelXOffset },
-      { t: Math.max(0.28, baseT - 0.06), xShift: labelXOffset },
-      { t: Math.min(0.72, baseT + 0.06), xShift: labelXOffset },
-      { t: baseT, xShift: labelXOffset + (outIdx % 2 === 0 ? 25 : -25) },
-    ];
-
-    for (let iter = 0; iter < testCandidates.length; iter++) {
-      const cand = testCandidates[iter]!;
-      const pt = evalCubicBezier(baseP0, baseP1, baseP2, baseP3, cand.t);
-      const candX = pt.x + cand.xShift;
-      const candY = pt.y;
-
+    for (let iter = 0; iter < candidatePoints.length; iter++) {
+      const cand = candidatePoints[iter]!;
       const candRect: Rect = {
-        left: candX - labelWidth / 2,
-        top: candY - labelHeight / 2,
-        right: candX + labelWidth / 2,
-        bottom: candY + labelHeight / 2,
+        left: cand.x - labelWidth / 2,
+        top: cand.y - labelHeight / 2,
+        right: cand.x + labelWidth / 2,
+        bottom: cand.y + labelHeight / 2,
       };
 
       // Check node clearance (min 8px)
@@ -442,18 +577,16 @@ export function computeEdgeLabelLayout(
         }
       }
 
-      // Check sibling label clearance (min 4px)
+      // Check all-pairs label clearance (min 4px)
       for (const prev of placedLabels) {
-        if (prev.source === edge.source || prev.target === edge.target) {
-          if (rectsIntersect(candRect, prev.rect, 4)) {
-            totalOverlap += computeOverlapArea(candRect, prev.rect) + 500;
-          }
+        if (rectsIntersect(candRect, prev.rect, 4)) {
+          totalOverlap += computeOverlapArea(candRect, prev.rect) + 500;
         }
       }
 
       if (totalOverlap < bestOverlap) {
         bestOverlap = totalOverlap;
-        bestPoint = { x: candX, y: candY };
+        bestPoint = cand;
         if (bestOverlap === 0) break; // Zero collision found
       }
     }

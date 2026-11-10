@@ -25,17 +25,17 @@ type ChatMessage = StoredChatMessage;
 
 function HomeLoading(): React.ReactElement {
   return (
-    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--navy-bg)] text-[#ffffff] selection:bg-[#b7c6c2] selection:text-[#171e19]">
-      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
+    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground selection:bg-brand-accent selection:text-brand-accent-ink home-hero-bg">
+      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center pb-24 md:pb-32">
         <div className="mx-auto flex w-full max-w-2xl flex-col items-center space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#302b2f]/80 px-3 py-1 text-xs font-mono text-[#9f8d8b]">
-            <span className="size-2 rounded-full bg-[#b7c6c2]" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
+            <span className="size-2 rounded-full bg-brand-accent" />
             Arch-Nemesis System Architect
           </div>
-          <h1 className="font-[family-name:var(--font-anton)] text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-normal uppercase tracking-tighter text-[#ffffff] max-w-4xl">
+          <h1 className="font-[family-name:var(--font-anton)] text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-normal uppercase tracking-normal text-foreground max-w-4xl">
             Describe the system you need
           </h1>
-          <p className="max-w-lg text-sm text-[#9f8d8b] md:text-base">
+          <p className="max-w-lg text-sm text-muted-foreground md:text-base">
             Plain language intake dialogue turns your business need into a validated, interactive architecture diagram.
           </p>
         </div>
@@ -244,7 +244,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
   const hasMessagesOrBrief = messages.length > 0 || brief !== null;
 
   return (
-    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-[var(--navy-bg)] text-[#ffffff] selection:bg-[#b7c6c2] selection:text-[#171e19]">
+    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground selection:bg-brand-accent selection:text-brand-accent-ink home-hero-bg">
       {/* Generation Loading Overlay */}
       {designMutation.isPending && <LoadingOverlay />}
 
@@ -252,16 +252,16 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       <div className="relative flex flex-1 flex-col overflow-y-auto px-4 py-6">
         {!hasMessagesOrBrief ? (
           /* Empty State Hero (exact BUILD_PLAN.md:446 copy) */
-          <div className="my-auto flex flex-1 flex-col items-center justify-center text-center">
+          <div className="my-auto flex flex-1 flex-col items-center justify-center text-center pb-24 md:pb-32">
             <div className="mx-auto flex w-full max-w-2xl flex-col items-center space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#302b2f]/80 px-3 py-1 text-xs font-mono text-[#9f8d8b]">
-                <span className="size-2 rounded-full bg-[#b7c6c2]" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
+                <span className="size-2 rounded-full bg-brand-accent" />
                 Arch-Nemesis System Architect
               </div>
-              <h1 className="font-[family-name:var(--font-anton)] text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-normal uppercase tracking-tighter text-[#ffffff] max-w-4xl">
+              <h1 className="font-[family-name:var(--font-anton)] text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-normal uppercase tracking-normal text-foreground max-w-4xl">
                 Describe the system you need
               </h1>
-              <p className="max-w-lg text-sm text-[#9f8d8b] md:text-base">
+              <p className="max-w-lg text-sm text-muted-foreground md:text-base">
                 Plain language intake dialogue turns your business need into a validated, interactive architecture diagram.
               </p>
             </div>
@@ -271,8 +271,8 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
           <div className="mx-auto w-full max-w-2xl space-y-6 pb-4">
             {/* Header pill when messages are active */}
             <div className="flex justify-center pt-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-[#302b2f]/80 px-3 py-1 text-xs font-mono text-[#9f8d8b]">
-                <span className="size-1.5 rounded-full bg-[#b7c6c2]" />
+              <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
+                <span className="size-1.5 rounded-full bg-brand-accent" />
                 System Architect Session
               </div>
             </div>
@@ -285,14 +285,14 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                   msg.sender === "user" ? "items-end" : "items-start"
                 }`}
               >
-                <span className="mb-1 text-[11px] font-mono uppercase tracking-wider text-[#9f8d8b]">
+                <span className="mb-1 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
                   {msg.sender === "user" ? "You" : "Architect"}
                 </span>
                 <div
                   className={`max-w-[85%] break-words rounded-xl px-4 py-2.5 text-sm ${
                     msg.sender === "user"
-                      ? "bg-[#b7c6c2] font-medium text-[#171e19]"
-                      : "border border-white/10 bg-[#302b2f] text-[#ffffff]"
+                      ? "bg-brand-accent font-medium text-brand-accent-ink"
+                      : "border border-border bg-card text-foreground"
                   }`}
                 >
                   {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
@@ -372,7 +372,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       </div>
 
       {/* Docked Bottom Chat Input Bar (stays enabled after brief is shown) */}
-      <div className="shrink-0 border-t border-white/10 bg-[var(--navy-bg)] px-4 py-3">
+      <div className="shrink-0 border-t border-border bg-card/40 backdrop-blur-md px-4 py-3">
         <div className="mx-auto w-full max-w-2xl space-y-2">
           {/* Validation or Turn Error Alert */}
           {validationError && (
@@ -387,7 +387,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
             </Alert>
           )}
 
-          <div className="relative w-full rounded-2xl border border-white/10 bg-[#302b2f] p-2.5 shadow-xl transition-all focus-within:border-[#b7c6c2]/60 focus-within:ring-1 focus-within:ring-[#b7c6c2]/60">
+          <div className="relative w-full rounded-2xl border border-white/16 bg-card-elevated p-2.5 shadow-xl transition-all focus-within:border-brand-accent/60 focus-within:ring-1 focus-within:ring-brand-accent/60">
             <Textarea
               ref={textareaRef}
               value={inputText}
@@ -396,11 +396,11 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
               placeholder="For example: a support assistant that answers customers from our help articles and hands hard cases to a person."
               disabled={intakeMutation.isPending}
               rows={1}
-              className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1.5 text-sm text-[#ffffff] placeholder:text-[#9f8d8b]/70 focus-visible:outline-none focus-visible:ring-0 md:text-base"
+              className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-0 md:text-base"
             />
 
-            <div className="mt-1 flex items-center justify-between border-t border-white/10 px-1 pt-1.5">
-              <span className="font-mono text-[11px] text-[#9f8d8b]">
+            <div className="mt-1 flex items-center justify-between border-t border-border/40 px-1 pt-1.5">
+              <span className="font-mono text-[11px] text-muted-foreground">
                 {inputText.length} / 4000 characters
               </span>
 
@@ -408,7 +408,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                 type="button"
                 onClick={handleSend}
                 disabled={intakeMutation.isPending || !inputText.trim()}
-                className="h-8 gap-1.5 bg-[#b7c6c2] px-3.5 py-1.5 text-xs font-semibold text-[#171e19] transition-colors hover:bg-[#a3b5b0] disabled:opacity-50"
+                className="h-8 gap-1.5 bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60"
               >
                 Send
                 <ArrowUp className="size-3.5" />

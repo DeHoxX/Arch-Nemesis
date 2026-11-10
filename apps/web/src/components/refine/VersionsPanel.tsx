@@ -88,7 +88,7 @@ export function VersionsPanel({
         <CardHeader className="border-b border-border/40 pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <History className="size-4 text-[#ccff00]" aria-hidden="true" />
+              <History className="size-4 text-brand-accent" aria-hidden="true" />
               <CardTitle className="text-sm font-semibold tracking-tight">
                 Version History
               </CardTitle>
@@ -124,7 +124,7 @@ export function VersionsPanel({
                             v{ver.version_no}
                           </span>
                           {isCurrent && (
-                            <Badge className="bg-[#ccff00]/15 text-[#ccff00] border-[#ccff00]/30 text-[10px] py-0 px-1.5 font-mono">
+                            <Badge className="bg-brand-accent/15 text-brand-accent border-brand-accent/30 text-[10px] py-0 px-1.5 font-mono">
                               Current
                             </Badge>
                           )}
@@ -149,7 +149,7 @@ export function VersionsPanel({
                         >
                           {isViewing ? (
                             <>
-                              <Check className="size-3 mr-1 text-[#ccff00]" /> Viewing
+                              <Check className="size-3 mr-1 text-brand-accent" /> Viewing
                             </>
                           ) : (
                             <>
@@ -215,7 +215,7 @@ export function VersionsPanel({
               size="sm"
               onClick={handleConfirmRestore}
               disabled={isRestoring}
-              className="text-xs font-mono bg-[#ccff00] text-black hover:bg-[#b8e600]"
+              className="text-xs font-mono bg-brand-accent text-brand-accent-ink hover:bg-brand-accent-hover"
             >
               {isRestoring ? "Restoring..." : `Confirm Restore v${restoreTarget}`}
             </Button>

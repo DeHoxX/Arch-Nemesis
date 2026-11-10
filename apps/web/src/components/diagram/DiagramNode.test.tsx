@@ -438,5 +438,39 @@ describe("DiagramNode component", () => {
         });
       });
     });
+
+    describe("dimmed focus state", () => {
+      it("applies opacity-30 when dimmed is true", () => {
+        const { container } = renderNode({
+          id: "plain_node",
+          name: "Plain Service",
+          dimmed: true,
+        });
+        const rootEl = container.firstElementChild as HTMLElement;
+        expect(rootEl.className).toContain("opacity-30");
+      });
+
+      it("does not apply opacity-30 when dimmed is false or omitted", () => {
+        const { container } = renderNode({
+          id: "plain_node",
+          name: "Plain Service",
+          dimmed: false,
+        });
+        const rootEl = container.firstElementChild as HTMLElement;
+        expect(rootEl.className).not.toContain("opacity-30");
+      });
+
+      it("prefers opacity-30 over opacity-70 when diffStatus is removed and dimmed is true", () => {
+        const { container } = renderNode({
+          id: "removed_node",
+          name: "Removed Service",
+          diffStatus: "removed",
+          dimmed: true,
+        });
+        const rootEl = container.firstElementChild as HTMLElement;
+        expect(rootEl.className).toContain("opacity-30");
+        expect(rootEl.className).not.toContain("opacity-70");
+      });
+    });
   });
 });

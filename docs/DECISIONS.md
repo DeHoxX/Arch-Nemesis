@@ -3099,6 +3099,314 @@ Decided by: user instructed deviation from earlier acceptance gate instruction
 Status: active
 
 
+### D-290 — Stage 9d-2 — step — Rejection of architect_repair_v9 prompt as production default
+What: Retain `ARCHITECT_REPAIR_PROMPT_NAME = "architect_repair_v8"` in `apps/api/src/archnemesis/modules/architect/service.py:27` as the production default. Retain `architect_repair_v9.md` in the repository solely for evaluation and research comparison via the `--repair-prompt` CLI selector.
+Why: Live 10-run evaluation against Gemini 3.5 Flash Lite with `architect_v9` demonstrated that `architect_repair_v9` degraded pass rates and increased errors compared to `architect_repair_v8`:
+- Legal: final pass rate dropped from 80% to 70%, with `E_CONSTRAINT_VIOLATED` increasing from 9 to 21 instances, though `E_CYCLE` decreased from 5 to 3.
+- Support: final pass rate dropped from 100% to 60%, with `E_CYCLE` increasing sharply from 5 to 14 instances and `E_CONSTRAINT_VIOLATED` increasing from 6 to 9.
+Alternatives considered:
+1. Adopting `architect_repair_v9` despite lower benchmark scores: Rejected because production prompt defaults must improve or maintain pass rates.
+2. Deleting `architect_repair_v9.md`: Rejected to preserve prompt comparative research tooling.
+If we removed it: Attempting to use `architect_repair_v9` as the production default would significantly degrade system reliability and constraint satisfaction in production.
+Decided by: user instructed, based on benchmark evaluation data
+Status: active
+
+### D-291 — Stage 9d-2 — step — Pure deterministic cycle repair algorithm (patch_cycles) in validation/repair.py
+What: Implement `patch_cycles(spec, brief_constraints, limits) -> tuple[ArchitectureSpec, list[ValidationIssue]]` in `apps/api/src/archnemesis/modules/validation/repair.py`. Iteratively detects directed simple cycles in the specification graph and deterministically cuts candidate feedback edges until the graph becomes a directed acyclic graph (DAG) or no safe edge cut exists.
+Why: Cyclic graphs fail v1 DAG validation (`E_CYCLE`) and cause immediate aborts in `patch_dead_ends` and `patch_constraints`. Deterministic code repair resolves common cycle patterns (such as query/response feedback edges) without consuming LLM calls, increasing pass rates and reducing latency.
+Alternatives considered:
+1. Relying exclusively on LLM repair prompts (`architect_repair_v8`/`v9`): Rejected because benchmarks showed repair prompts frequently fail to break cycles (or break constraints when attempting to do so).
+2. Modifying limits or validation contracts to permit cycles: Rejected because v1 acyclic graph invariants are non-negotiable.
+If we removed it: Cycle errors would remain dependent entirely on LLM repair prompts, causing 422 design failures on recurring cycle archetypes.
+Decided by: user instructed, agent proposed
+Status: active
+
+### D-292 — Stage 9d-2 — design — Structure-only edge cut ranking without node type or name inspection
+What: In `patch_cycles`, rank candidate cycle edges strictly using graph-topological structural properties: backward topological depth relative to entry nodes ($\text{depth}(u) - \text{depth}(v)$), breaking ties with deterministic lexicographical ordering (`-score, u, v`). Never inspect or branch on node `type`, `name`, `role`, or metadata text.
+Why: Rule 3 and validation module purity dictate that node types are free text invented per use case and code must never branch on or hardcode domain semantics. Edge removal decisions must remain purely structural, robust to domain phrasing, and invariant to node renaming.
+Alternatives considered:
+1. Prioritizing cuts on edges connected to nodes with specific type keywords (e.g. `store`, `database`): Rejected to preserve Rule 3 and avoid domain bias or semantic fragility in pure validation code.
+If we removed it: Pure validation would violate architectural layer separation by inspecting unconstrained free-text strings.
+Decided by: user instructed
+Status: active
+
+### D-293 — Stage 9d-2 — design — Bounding cycle repair iterations by initial edge count without new constants
+What: Terminate the cycle detection and removal loop when the graph becomes acyclic, when no safe candidate cut exists, or when the number of edge removals reaches the graph's initial edge count (`len(spec.edges)`). Introduce no new configuration constants or `Limits` fields.
+Why: A graph cannot contain more cycles than its edge count without revisiting already-evaluated structures. Bounding by initial edge count guarantees termination on arbitrary cyclic inputs without adding arbitrary magic numbers or altering the public API/Limits schemas.
+Alternatives considered:
+1. Adding a `MAX_CYCLE_CUTS` constant or a new field on `Limits`: Rejected to prevent unnecessary public API expansion and keep limits configuration untouched.
+If we removed it: Graph repairs on complex cyclic graphs could risk non-termination or require artificial configuration overhead.
+Decided by: user instructed
+Status: active
+
+### D-294 — Stage 9d-2 — deviation — Non-regressive error preservation gate for patch_cycles
+What: In `patch_cycles`, change the acceptance condition from `validate(patched).ok` to: the patched graph is a DAG (`nx.is_directed_acyclic_graph`), no new validation errors `(code, ids)` are introduced that were not already present in the original spec (ignoring removed `E_CYCLE` errors), and edge/node limits hold. Never alter constraints, kinds, or nodes.
+Why: Requiring `validate(patched).ok` in `patch_cycles` caused legitimate cycle repairs to be rejected when the specification also contained dead-end sinks or constraint bypasses that subsequent deterministic repairers (`patch_dead_ends`, `patch_constraints`) are designed to fix. Because `patch_dead_ends` and `patch_constraints` abort on cyclic graphs, requiring `patch_cycles` to produce an error-free spec created a deadlock where neither repairer could run. Softening the gate to non-regressive error preservation allows `patch_cycles` to resolve the cycle so subsequent pipeline stages can heal the remaining issues, while the existing final `validate()` check in `architect/service.py` continues to guarantee that only completely valid specs are accepted into production.
+Alternatives considered:
+1. Retaining `validate(patched).ok` in `patch_cycles`: Rejected because it deadlocks multi-issue specs (e.g. cycle + dead end).
+2. Merging all repair functions into a single monolithic loop: Rejected to preserve modular, testable pipeline stages.
+If we removed it: Specs with both a cycle and a dead end would fail code repair completely and consume repair LLM calls or fail with 422.
+Decided by: user instructed deviation from earlier acceptance gate instruction
+Status: active
+
+### D-295 — Stage B1a — deviation — Right-angle orthogonal edge routing in layout.ts and DiagramEdge.tsx
+What: Replace cubic Bézier curve paths (`M ... C ...`) in `computeEdgeLabelLayout` with right-angle (orthogonal) edge routing with 5px corner rounding (using `getSmoothStepPath` semantics for single-rank transitions and Dagre waypoint polyline decomposition for multi-rank edges), and update `DiagramEdge.tsx` fallback to invoke `getSmoothStepPath`.
+Why: Bézier curves cause crossing edges and multi-rank skip edges to curve awkwardly across diagrams, obscuring node boundaries. Orthogonal routing provides clean right-angle corridors with vertical entry/exit stubs aligned to centered Top/Bottom handles. Single-rank transitions leverage standard smooth-step routing (default borderRadius = 5px), while multi-rank transitions construct orthogonal staircases through Dagre waypoints avoiding intermediate node collisions.
+Alternatives considered:
+1. Retaining cubic Bézier curves (D-189): Rejected per Phase B1 specification for orthogonal routing.
+2. Sharp 90-degree corners (borderRadius: 0): Rejected in favor of subtle 5px rounding matching React Flow smooth-step defaults.
+If we removed it: Diagram edges would continue rendering as Bézier curves with awkward diagonal overlaps.
+Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
+Status: active
+
+### D-296 — Stage B1a — design — Segment-anchored edge label placement and lateral multi-rank parallel offsets
+What: Replace `evalCubicBezier` label midpoint calculations with pure segment-anchored placement where `(labelX, labelY)` coordinates strictly lie on the orthogonal SVG path segments. Fan-out labels are anchored to target vertical stubs, fan-in labels to source vertical stubs, and multi-rank bypasses to the first unobstructed vertical segment. Remove `evalCubicBezier` from `layout.ts`.
+Why: Because orthogonal paths follow vertical and horizontal stubs rather than a continuous curve, evaluating cubic Bézier equations at parameter `t` yields coordinates that float in empty space off the orthogonal lines. Anchoring labels to actual path segments guarantees that label pills align with the edge path and sit centered over vertical columns where horizontal node spacing (290px) prevents label overlap.
+Alternatives considered:
+1. Retaining `evalCubicBezier` alongside orthogonal paths: Rejected because it calculates points off the orthogonal line.
+If we removed it: Edge label pills would visually detach from right-angle connector paths.
+Decided by: user approved (Phase B1 Plan & Stage B1a Answers)
+Status: active
+
+### D-297 — Stage B1b — design — Soft pill edge labels with zIndex 1001 using existing palette tokens
+What: Style edge flow labels as soft pills (`rounded-xl`) using existing palette classes (`border border-border/80 bg-background px-2 py-0.5 text-[11px] font-mono text-muted-foreground shadow-sm`), keeping `zIndex: 1001` (D-123), plain text rendering with 40-character truncation (`…`), and full text disclosure on hover and keyboard focus (`tabIndex={0}`, `role="note"`). Keep condition labels as distinct stacked pills above flows using existing amber tokens (`border-amber-500/40`, `text-amber-500`, `bg-background/95`) with plain text and zero prefix.
+Why: Soft pill styling (`rounded-xl`) provides visual consistency with the application's card and badge geometry while maintaining high legibility over crossing orthogonal edge segments. Opaque background and positive z-index prevent edge strokes or background artifacts from bleeding through text.
+Alternatives considered:
+1. True pill (`rounded-full`): Rejected per user preference for soft pill (`rounded-xl`).
+2. Prefixing condition text with "when:": Rejected to preserve raw condition text cleanly.
+If we removed it: Edge labels would retain square/box appearance and lack visual cohesion with diagram components.
+Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+### D-298 — Stage B1b — fix — All-pairs edge label collision checking and max(flows, condition) width estimation
+What: In `computeEdgeLabelLayout`, expand candidate label collision detection from sibling-only checks to ALL previously placed labels in the graph (`>= 4px` clearance margin) and ALL node rectangles (`>= 8px` clearance margin). Set `labelWidth = Math.max(estimateLabelWidth(flows), estimateLabelWidth(condition))` so the candidate bounding box accounts for the widest element in the label stack. Keep `computeLayout` Dagre inputs identical so `BlockDiagramView` coordinates never shift.
+Why: In dense diagrams (12 to 25 nodes), non-sibling edge labels crossing through the same rank gap or corridor previously lacked collision avoidance because the filter checked only `prev.source === edge.source || prev.target === edge.target`. Furthermore, when an edge had a short flow label but a long condition, the bounding box was severely underestimated, causing overlap with neighboring elements. All-pairs collision checking with full stack width estimation guarantees no two labels collide anywhere in the graph.
+Alternatives considered:
+1. Retaining sibling-only collision checking: Rejected because non-sibling edges crossing in shared rank bands could collide.
+2. Passing condition width to Dagre in `computeLayout`: Rejected per user instruction to preserve identical coordinates on the Block diagram tab.
+If we removed it: Complex multi-branch architectures would suffer edge label collisions between non-sibling edges.
+Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+### D-299 — Stage B1c — design — Dashed condition edge strokes and accessible edge labels in DiagramView
+What: Render edges carrying a non-empty trimmed `condition` with a neutral dashed stroke (`strokeDasharray: "5 4"`, `stroke: "var(--border, #64748b)"`) in `DiagramEdge.tsx`. Retain absolute precedence for `diffStatus === "removed"` (`stroke: "#f43f5e"`, `strokeDasharray: "6 6"`, `opacity: 0.6`). In `DiagramView.tsx`, populate descriptive `ariaLabel` on each React Flow edge (`Flow from <source_name> to <target_name>: <flows>` and append `, condition: <condition>` when present), replacing React Flow's default `"Edge from <id> to <id>"`. Leave `BlockDiagramView` edges untouched with `type: "default"`.
+Why: Distinguishing conditional branches with dashed lines provides immediate visual understanding of branching logic in the architecture DAG without introducing new color themes. Accessible `ariaLabel` attributes allow screen-reader and keyboard users to announce human-readable node names and flow/condition semantics when navigating between edges.
+Alternatives considered:
+1. Colored condition stroke (e.g. amber): Rejected per user instruction in favor of neutral border stroke with dash pattern.
+2. Showing condition text only on hover: Rejected because conditional branches must be visually apparent on first view.
+If we removed it: Conditional logic would look identical to standard unconditional flows, and edge accessibility would announce raw technical IDs.
+Decided by: user approved (Stage B1b+B1c merged instructions)
+Status: active
+
+### D-300 — Stage 9d-2 — docs — Status note on Stage 9d-2 and branch prompt-v9-production-arch
+What: Document status of Stage 9d-2 (`patch_cycles` cycle repair and 422 gate changes). These changes were developed and verified on branch `prompt-v9-production-arch` and recorded in entries D-290 through D-294. Branch `prompt-v9-production-arch` has not yet been merged into `main` or `phase-b-diagram-panel`.
+Why: Entries D-291 through D-294 document backend repair functions and tests that exist on `prompt-v9-production-arch` but are absent on `main` and `phase-b-diagram-panel`. This note prevents confusion for anyone inspecting the current branch, and confirms that when `prompt-v9-production-arch` is merged, no decision log renumbering is required.
+Alternatives considered:
+1. Removing D-290..D-294 until branch merge: Rejected because decisions must remain monotonic and append-only.
+If we removed it: Developers inspecting `main` or `phase-b-diagram-panel` might suspect missing commits or dangling decision records.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-301 — Stage B2 — design — Centralized legend metadata exports in classify.ts
+What: Expose typed, frozen arrays of metadata (`BORDER_LEGEND_ITEMS`, `SHAPE_LEGEND_ITEMS`, `BADGE_LEGEND_ITEMS`, `CONSTRAINT_LOCK_LEGEND`, `EDGE_LEGEND_ITEMS`) in `apps/web/src/components/diagram/classify.ts` describing diagram visual semantics (border colors, node shapes, badge semantics, constraint lock indicator, and edge dash patterns).
+Why: The diagram legend must strictly match the visual language produced by `classifyNode` and `classifyNodeShape` without inventing hardcoded node-type taxonomies (enforcing Rule 3). Centralizing legend metadata in `classify.ts` guarantees that legend descriptions and node/edge rendering remain in perfect lockstep.
+Alternatives considered:
+1. Hardcoding legend text and classes directly in `DiagramLegend.tsx`: Rejected because visual classification logic would be duplicated across two files.
+2. Generating legend items dynamically from the current spec: Rejected because an empty or partial spec would show an incomplete legend; users need to know what all visual cues mean regardless of whether the current design uses them.
+If we removed it: The legend would risk drifting out of sync with actual node and edge styling.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-302 — Stage B3 — design — Pure cycle-safe lineage computation in focus.ts
+What: Implement pure, cycle-safe upstream and downstream lineage computation in `apps/web/src/components/diagram/focus.ts` via `computeFocusLineage(spec, selectedNodeId)`. Focused nodes are computed via BFS traversals over reverse adjacency (ancestors) and forward adjacency (descendants), yielding `focusedNodeIds = ancestorsAndSelf ∪ descendantsAndSelf`. Focused edges are evaluated via `isEdgeInFocus(lineage, source, target)` which returns `true` if and only if BOTH ends are in `ancestorsAndSelf` OR BOTH ends are in `descendantsAndSelf`.
+Why: When a user selects a node, they need to trace the upstream causes and downstream effects of that component without visual clutter from unrelated nodes or cross-cutting branches. Requiring both ends of an edge to belong to the ancestor set or both ends to belong to the descendant set ensures cross-branch shortcuts and lateral edges between sibling branches remain dimmed. Cycle-safe BFS with visited sets guarantees termination even on malformed or cyclic specs.
+Alternatives considered:
+1. Either-end edge focus (`focusedNodeIds.has(source) || focusedNodeIds.has(target)`): Rejected because edges to/from unrelated dimmed nodes would be illuminated, creating visual confusion.
+2. One-end focus (`focusedNodeIds.has(source) && focusedNodeIds.has(target)` without partition check): Rejected because a direct edge between an upstream ancestor and a downstream descendant that skips the selected node would be illuminated even though it doesn't pass through the selection.
+If we removed it: Users inspecting complex architectures would be unable to isolate critical flow paths.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-303 — Stage B2 — file — Collapsible accessible DiagramLegend component
+What: Implement floating `DiagramLegend` component in `apps/web/src/components/diagram/DiagramLegend.tsx`, mounted top-right inside `DiagramView.tsx` (`absolute top-3 right-3 z-20`, outside `.react-flow__viewport`). Collapsed by default, toggled via a native `<button type="button" aria-expanded={isOpen} aria-controls="diagram-legend-panel">` element with `aria-label="Toggle diagram legend"`. Hidden on screens `< 768px` (`hidden md:block`), omitted entirely from `BlockDiagramView.tsx`, and rendered using plain text and existing Tailwind utility classes.
+Why: Users need an accessible, on-demand reference for diagram styling conventions without cluttering the canvas or interfering with viewport pan/zoom transformations. Floating the legend outside the React Flow viewport prevents zoom scaling distortion, and collapsing it by default keeps the canvas clear for architecture viewing.
+Alternatives considered:
+1. Persistent non-collapsible drawer or side-panel: Rejected because canvas real estate is limited on medium viewports.
+2. Rendering inside React Flow viewport: Rejected because panning or zooming the diagram would shift or scale the legend.
+If we removed it: Users unfamiliar with the diagram conventions would not know what hexagonal nodes, badge labels, or dashed borders represent.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-304 — Stage B3 — fix — Pre-export selection clear hook for clean PNG export
+What: Add optional `onBeforeExportPng?: () => Promise<void> | void` prop to `ExportButtons.tsx`. In `apps/web/src/app/design/[id]/page.tsx`, pass an export handler that clears `selectedNodeId` (`setSelectedNodeId(null)`) and awaits two consecutive `requestAnimationFrame` ticks when a node is selected prior to running `exportDiagramToPng`. Leave `export.ts` completely untouched.
+Why: When a diagram node is selected, non-lineage nodes and edges are dimmed to `0.30` and `0.25` opacity respectively. Exporting a PNG in this state would capture a dimmed diagram. Clearing selection and waiting two frames allows React to commit the cleared selection and the browser to paint full-opacity elements before `html-to-image` rasterizes the viewport.
+Alternatives considered:
+1. Temporarily overriding DOM element opacities inside `export.ts`: Rejected per user instruction to keep `export.ts` untouched and maintain pure separation of export concerns.
+2. Disabling the export button while a node is selected: Rejected because forcing users to manually deselect before exporting is frustrating UX.
+If we removed it: Exported architecture PNGs would contain dimmed nodes and faded edge connections whenever a user exported while a node was selected.
+Decided by: user approved (Phase B2+B3 plan)
+Status: active
+
+### D-305 — Stage B4 — design — High-contrast edge stroke and dark theme React Flow controls
+What: Update diagram edge stroke color from `var(--border, #64748b)` to `var(--muted-foreground, #94a3b8)` in `apps/web/src/components/diagram/DiagramEdge.tsx`. In `apps/web/src/app/globals.css`, add scoped CSS styling for `.react-flow .react-flow__controls` and `.react-flow .react-flow__controls-button` using existing dark design tokens (`var(--card)` background, `var(--foreground)` text/icon fill, `var(--border)` border dividers, `var(--muted)` on hover, and `var(--ring)` on focus-visible).
+Why: In dark theme, `--border` resolves to `oklch(1 0 0 / 10%)`, making solid and dashed conditional edges nearly indistinguishable from the near-black canvas background (`oklch(0.145 0 0)`), as well as in exported PNGs (`#0a0a0a` background). Using `--muted-foreground` (`oklch(0.708 0 0)`) delivers clear, accessible contrast for all diagram edges while leaving conditional dash patterns ("5 4"), removed-diff precedence (`#f43f5e`, "6 6"), and focus dimming (0.25 opacity) intact. Furthermore, default React Flow controls buttons render with unstyled white backgrounds in dark theme; scoping control styles to `.react-flow` ensures zoom and fit-view buttons integrate seamlessly with dark tokens without waiting for the full theme work in Phase C.
+Alternatives considered:
+1. Bright colored edge strokes (e.g., cyan or emerald): Rejected to avoid confusing edge types with node border semantic classification.
+2. Global redesign of React Flow themes: Rejected because complete theming is reserved for Phase C.
+If we removed it: Diagram edges would remain difficult to perceive against dark canvases, and the bottom-left zoom controls would remain a jarring bright white block.
+Decided by: user approved (Phase B4 Small Fix)
+Status: active
+
+### D-306 — Stage Phase D — deviation — Deterministic title backfill, backup guard, and README accuracy
+What: Update the operational title backfill script (`archnemesis.modules.designs.backfill` and `scripts/backfill_titles.py`) to: (1) use deterministic `fallback_title(brief.summary, brief.domain_hint)` ONLY (zero Gemini calls, no `get_llm_client` import), (2) target rows with `title IS NULL` only, never modifying existing titles, (3) in dry-run mode, print candidate `design_id`, current title (`<NULL>`), and `proposed_title` (never printing `brief.summary` or brief text), superseding the stdout-title restriction of D-266 for dry-run inspection output only, and (4) in `--apply` mode, require an explicit `--backup-path <file>` parameter and refuse to run (non-zero exit, database untouched) if the backup file is missing, empty, or resolves to the same path as the live database. In `README.md`, correct the clean-clone setup guide (Step 4 working directory, `X-Admin-Token` header, `/api/admin/leads` route, environment-only model variables without concrete model names per Rule 13, and migration upgrade reminder).
+Why: Ensures existing designs lacking titles are safely and deterministically populated without API quota consumption, runtime latency, or risk of data loss. Requiring an explicit, validated backup copy before apply prevents accidental irreversible corruption of `arch_nemesis.db`. Printing candidate IDs and proposed titles in dry-run provides operators with deterministic visibility into proposed changes before committing, while keeping untrusted user brief text out of logs and terminal stdout. Correcting `README.md` prevents operator errors when following the setup guide from scratch.
+Alternatives considered:
+1. Calling Gemini during backfill: Rejected to avoid quota consumption, rate limits, and non-deterministic title updates.
+2. Wildcard guessing for database backups: Rejected in favor of strict, deterministic validation of an explicit backup file path.
+If we removed it: Un-titled designs would remain NULL or require LLM quota to backfill, backfill apply would risk data loss without database backup verification, and the README setup guide would contain misleading paths and header names.
+Decided by: user approved (Phase D instructions)
+Status: active
+
+### D-307 — Stage C1 — design — Centralized soft-dark palette and single source of truth tokens
+What: Update `apps/web/src/app/globals.css` to establish a single, dark-first source of truth for color tokens across both `:root` and `.dark`. Configure page background `--page-bg: #111111` (and `--background: #111111`), sidebar background `--sidebar-bg: #0d0d0d` (and `--sidebar: #0d0d0d`), card surfaces `--card-bg: #18181b` (and `--card: #18181b`), muted surfaces `--muted: #222226`, foreground text `--foreground: #fafafa`, muted text `--muted-foreground: #a1a1aa`, borders `--border: rgba(255, 255, 255, 0.10)`, and Sage accent `--brand-accent: #b7c6c2` (`--brand-accent-hover: #a3b5b0`, `--brand-accent-ink: #111111`, and `--primary: #b7c6c2`). Expose `--color-page-bg`, `--color-sidebar-bg`, `--color-card-bg`, and `--color-brand-accent` in `@theme inline`. In `apps/web/src/app/layout.tsx`, style `<body>` using `bg-background text-foreground`, removing hardcoded `text-[#ffffff]`. This decision supersedes D-100, D-120, and D-277 for color palette and page chrome tokens.
+Why: Previously, color tokens were fragmented across three competing palettes: D-100 (`#0a0a0a` with `#ccff00` accents), D-120 (defining `--page-bg: #0a0a0a`), and D-277 (introducing `#171e19` / `#302b2f` / `#b7c6c2` on the Home page and Sidebar only), while `:root` retained unused white shadcn defaults. This caused visual divergence between routes, harsh OLED halation on pure black surfaces, and disconnected card/background variables. Unifying `:root` and `.dark` into a single soft-dark palette gives the entire app a cohesive surface hierarchy while preserving Stage B4 edge contrast (`var(--muted-foreground, #a1a1aa)`), Stage B4/D-305 React Flow controls, and semantic diagram node border colors (emerald, violet, amber, slate).
+Alternatives considered:
+1. Retaining `#0a0a0a` obsidian or `#141414` charcoal: Rejected per user selection of `#111111` for balanced contrast.
+2. Keeping distinct `:root` light mode variables: Rejected because Arch-Nemesis is dark-only and mismatched tokens cause style desynchronization.
+If we removed it: The application would remain split across competing palettes with inconsistent surface contrast across routes.
+Decided by: user approved (Phase C Stage C1+C4)
+Status: active
+
+### D-308 — Stage C1 — design — Typography weights and Google Fonts build requirement
+What: Update `Plus_Jakarta_Sans` configuration in `apps/web/src/app/layout.tsx` to load weights `["400", "500", "600", "700"]` (adding `500` medium and `700` bold), while retaining `Anton` (weight `400`) for the Home `<h1>` hero headline and `JetBrains_Mono` for technical code and badge labels. Document that `next/font/google` requires outbound internet access at `next build` time to download font files before self-hosting them statically.
+Why: `Plus_Jakarta_Sans` previously loaded only weights `300, 400, 600`, causing synthetic font rendering for `font-medium` (500) and `font-bold` (700) across cards and headings. Loading the standard geometric weights provides crisp typography without adding new npm packages. Retaining `Anton` on the Home `<h1>` maintains the bold uppercase hero aesthetic established in D-278 while ensuring clean rendering.
+Alternatives considered:
+1. Retiring Anton on the Home hero: Rejected per user instruction to keep Anton on the Home `<h1>`.
+2. Loading variable fonts or external CDN fonts: Rejected to avoid external runtime requests or unnecessary bundle overhead.
+If we removed it: Bold and medium text across the UI would rely on artificial browser font weighting.
+Decided by: user approved (Phase C Stage C1+C4)
+Status: active
+
+### D-309 — Stage C4 — design — Dynamic PNG export background resolution with constant fallback
+What: In `apps/web/src/lib/export.ts`, update `exportDiagramToPng` to dynamically resolve `backgroundColor` from the document root's `--page-bg` CSS variable (falling back to `--background`, and then to constant `DEFAULT_EXPORT_BG_COLOR = "#111111"`) via `window.getComputedStyle(document.documentElement)` before passing it to `html-to-image` (`toPng`). Add unit tests in `apps/web/src/lib/export.test.ts` mocking `toPng` to verify propagation of resolved CSS variables and deterministic fallback when variables are unset.
+Why: `exportDiagramToPng` previously hardcoded `backgroundColor: "#0a0a0a"` (from D-100/BUILD_PLAN.md:509), causing exported PNGs to diverge in background shade from the updated `#111111` page canvas. Resolving computed styles at runtime ensures exported diagrams automatically match the application theme without manual constant synchronization, while the safe fallback guarantees deterministic operation in headless environments and JSDOM tests.
+Alternatives considered:
+1. Hardcoding `#111111` directly in `export.ts`: Rejected because future theme adjustments would require editing export logic again.
+2. Passing `var(--page-bg)` directly to `toPng`: Rejected because canvas rasterizers fail when given CSS variable string syntax instead of concrete color values.
+If we removed it: Exported diagram PNGs would render with outdated `#0a0a0a` backgrounds clashing with the on-screen canvas.
+Decided by: user approved (Phase C Stage C1+C4)
+Status: active
+
+
+### D-310 — Stage C2 — design — Home page and components restyle with semantic tokens
+What: In `apps/web/src/app/page.tsx`, `apps/web/src/components/BriefCard.tsx`, and `apps/web/src/components/LoadingOverlay.tsx`, replace hardcoded color values (`#171e19`, `#302b2f`, `#9f8d8b`, `#b7c6c2`, `#ffffff`, `#ccff00`, `#b8e600`, and `--navy-bg`) with centralized semantic design tokens from `globals.css` (`--page-bg`, `--card-bg`, `--brand-accent`, `--foreground`, `--muted-foreground`, and `--border`). In `page.tsx`, implement optical vertical centering by adjusting the hero container padding, elevate the bottom composer bar using card surface tokens with subtle borders, add a CSS-only micro-dot background pattern with a subtle top radial vignette (honoring `prefers-reduced-motion`), and loosen hero headline letter-spacing from `tracking-tighter` to `tracking-normal` to eliminate glyph collision lines between Anton letters.
+Why: Centralizing all interactive home elements, briefs, and loading screens onto the unified design tokens established in D-307 prevents visual fragmentation and dark palette clashes. Removing arbitrary dark plum/mauve and lime hexes unifies the product under the soft-dark and Sage accent aesthetic. Adjusting the letter spacing addresses glyph overlap rendering artifacts observed in Anton's tight letter bounding boxes.
+Alternatives considered:
+1. Retaining `#ccff00` accents on primary action buttons: Rejected per Phase C direction to adopt Sage (`--brand-accent`) as the universal accent token.
+2. Using raster background image files for texture: Rejected to avoid extra static assets, network requests, and external dependencies.
+If we removed it: The intake dialogue, home hero, brief card, and loading overlays would remain visually disconnected from the rest of the application.
+Decided by: user approved (Phase C2 prompt)
+Status: active
+
+### D-311 — Stage C2 — design — Sidebar default closed on desktop without state persistence
+What: In `apps/web/src/components/shell/AppShell.tsx`, change desktop sidebar behavior so the sidebar is closed (`isCollapsed = true`) by default on initial page load across all routes (`/`, `/design/*`, `/history`). Remove reading and writing of `SIDEBAR_COLLAPSE_STORAGE_KEY` (`archnemesis.sidebar.collapsed`) to `localStorage` so the sidebar state is purely transient for the active session and does not persist across page reloads. Retain drawer behavior for mobile viewports (< 768px), and preserve the `bg-black/60` backdrop overlay on `Sidebar.tsx`.
+Why: Starting with the sidebar closed on desktop provides maximum screen real estate for the intake hero dialogue and complex architecture diagrams without visual clutter. Making open/closed purely in-memory prevents stale collapsed/expanded states from persisting across reloads or overriding clean page initialization.
+Alternatives considered:
+1. Continuing to persist collapse state across reloads: Rejected per explicit user requirement that the sidebar start closed on every fresh load.
+2. Retaining open-by-default on the home page: Rejected because a clean, focused single-column hero layout is preferred for initial user intake.
+If we removed it: The desktop sidebar would default to open on home and persist state unpredictably between user sessions.
+Decided by: user approved (Phase C2 prompt)
+Status: active
+
+
+### D-312 — Stage C3 — design — Unified semantic tokens on Results, History, and Admin pages
+What: In `apps/web/src/app/design/[id]/page.tsx`, `apps/web/src/app/history/page.tsx`, `apps/web/src/app/admin/page.tsx`, `apps/web/src/app/admin/designs/[id]/[n]/page.tsx`, `apps/web/src/components/refine/RefinePanel.tsx`, and `apps/web/src/components/refine/VersionsPanel.tsx`, replace all remaining hardcoded color literals (`#f4f4f5`, `#ccff00`, `#b8e600`, and `#27272a15`) with centralized semantic design tokens from `globals.css` (`--page-bg`, `--card-bg`, `--muted`, `--foreground`, `--muted-foreground`, `--border`, and `--brand-accent`). Add a subtle CSS-only background token grid (`.page-grid-bg`) across Results, History, and Admin pages that honors `prefers-reduced-motion`.
+Why: Eliminates the legacy lime (`#ccff00`) and off-white (`#f4f4f5`) hex literals left over from Phase 1/D-100 across secondary views, unifying all route backgrounds and interactive elements under the Sage accent and soft-dark palette established in D-307. Scoping the subtle grid via CSS classes eliminates redundant inline SVG/linear-gradient style strings while ensuring accessibility for users with motion preferences.
+Alternatives considered:
+1. Keeping lime highlights on admin action buttons: Rejected to ensure uniform product styling and avoid visual dissonance across routes.
+2. Generating background grids via SVG image assets: Rejected to avoid unnecessary static assets and network requests.
+If we removed it: Results, history, and admin panels would display conflicting lime badges, off-white text, and inconsistent background gradients compared to the home page.
+Decided by: user approved (Phase C3 prompt)
+Status: active
+
+### D-313 — Stage C3 — design — Elevated surface token and composer contrast adjustments
+What: In `apps/web/src/app/globals.css`, introduce an elevated surface token `--card-elevated: #1f1f23` (with matching `@theme inline` `--color-card-elevated`) and an elevated border treatment (`rgba(255, 255, 255, 0.16)`). Apply `--card-elevated` and the high-contrast border to the Home page hero pill ("Arch-Nemesis System Architect") and the docked chat composer bar in `apps/web/src/app/page.tsx`. In the composer Send button, use Sage accent (`--brand-accent`) with an explicit disabled state styling (`disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60`) ensuring the button remains distinct from the card background even when inactive.
+Why: Feedback on the soft-dark palette indicated that the intake composer bar, status pill, and Send button blended too closely into `--page-bg` (`#111111`) and standard `--card` (`#18181b`). Adding a stepped `#1f1f23` elevated surface with `0.16` alpha borders establishes clear visual affordance and depth without altering core background or card tokens.
+Alternatives considered:
+1. Brightening `--page-bg` or `--card`: Rejected to preserve dark palette contrast and canvas stability.
+2. Increasing Send button opacity to 100% when disabled: Rejected because disabled inputs must visibly indicate inactive status to users.
+If we removed it: Key home intake interactive controls would lack visual distinction from the dark canvas backdrop.
+Decided by: user approved (Phase C3 prompt)
+Status: active
+
+
+### D-314 — Stage E1 — fix — Word-boundary fluff prefix matching, fragment rejection, and natural boundary trimming in fallback_title
+What: In `apps/api/src/archnemesis/modules/designs/title.py`, rewrite `fallback_title` to: (1) sort `FLUFF_PREFIXES` longest-first, require regex word boundaries (`(?=$|[\s:,\-])`), and include common gerunds (`implementing`, `building`, `creating`, `designing`, `developing`), (2) strip meta-sentence lead-ins iteratively up to 2 passes (`(the )?user(s)? (is|are) looking for( a| an| the)?`, `(the )?system (requires|needs)( a| an| the)?( component( to)?)?`, `(a |the )?business needs( a| an| the)?`, `we need( a| an| the)?`), (3) reject leading non-word fragments (`ing`, `tion`, `ment`, `ed`, `es`, and any single-character non-word letters) and strip leading stopwords, (4) cut at natural punctuation boundaries (`,`, `;`, `.`) or relative/purpose clause markers (` that `, ` which `, ` who `, ` where `, ` in order to `) when at least 2 content words precede them, (5) trim trailing conjunction tails (`and/or + 1 noun`) when truncation dropped subsequent words, (6) loop-strip trailing stopwords, (7) filter Rule-4 forbidden words (`cost`, `price`, `timeline`, etc.), and (8) allow >= 2 content words, falling back to `"Untitled Design"` only when `< 2` content words or `< 6` characters remain.
+Why: Prevents dangling word cutoffs (`And`, `For A`, `That`, `Component To`), stops mid-word prefix truncation producing garbled fragments (`Ing ...`, `N ...`), strips boilerplate actor intros that previously consumed the 5-word budget, and ensures fallback titles consistently read as natural, grammatical architecture titles while maintaining Rule-4 compliance.
+Alternatives considered:
+1. Hard truncation to 5 words without clause awareness: Rejected because it consistently leaves dangling prepositions and conjunctions on multi-clause summaries.
+2. Generating titles via secondary LLM prompt: Rejected to maintain zero API quota usage, deterministic speed, and zero external dependency.
+If we removed it: Past designs lacking titles would receive broken, fragmented, or dangling titles upon backfill.
+Decided by: user approved (Option B implementation)
+Status: active
+
+### D-315 — Stage E2 — design — Deterministic duplicate title disambiguation across backfill
+What: In `apps/api/src/archnemesis/modules/designs/backfill.py` (and supporting helper `disambiguate_title` in `title.py`), implement deterministic duplicate title disambiguation solely within the backfill process: (1) maintain a case-insensitive `seen` set initialized with all existing non-null titles in the database and updated with every newly proposed title, (2) on collision, attempt enrichment using non-overlapping words from `domain_hint` or `data_involved[0]` from the version brief, and (3) if still colliding, append a compact suffix (` (2)`, ` (3)`) while first shortening the base title to at most 26 characters so the disambiguation suffix survives frontend sidebar truncation (`shortTitle` at 30 chars).
+Why: When multiple designs originate from identical prompts or share similar summaries (e.g. repeated benchmark cases or domain prompts), fallback title extraction produces duplicate strings. Disambiguating solely within backfill provides unique, recognizable titles for past designs without adding database queries or concurrency overhead to `create_design`. Shortening the base title before adding the suffix ensures sidebar navigation links remain distinct.
+Alternatives considered:
+1. Disambiguating online inside `create_design`: Rejected to avoid extra database queries and race conditions during online generation.
+2. Random hash or UUID suffix: Rejected in favor of readable, sequential numeric suffixes.
+If we removed it: Multiple designs in the sidebar and history views would share identical fallback titles, confusing operators and users.
+Decided by: user approved (Option B backfill-only dedup)
+Status: active
+
+### D-316 — Stage E3 — fix — Trailing participle, preposition tail pruning, and leading action verb stripping in fallback_title
+What: In `apps/api/src/archnemesis/modules/designs/title.py`, enhance `fallback_title`: (1) strip leading imperative action verbs (`deploy`, `launch`, `build`, `create`, `develop`, `implement`, etc.) and leading articles so titles do not begin with commands (e.g. `Deploy An ...`), (2) strip trailing passive/adjective participles after head nouns (`Designed`, `Built`, `Developed`, etc.), (3) strip trailing participle clauses (`Connecting Customers`) following system head nouns, (4) strip dangling preposition tails (`<prep> <1 word>` like `For Cold`, `For Managing`, or `<prep> <determiner> <1 word>` like `For Their Team`), and (5) fix hyphenated casing in `smart_title_word` so each hyphen-separated segment is individually title-cased while preserving uppercase acronyms (yielding `AI-Powered` and `Real-Time`).
+Why: Resolves remaining weak heuristic title failure classes from real dry runs where titles ended in dangling prepositions, cut-off participles, or started with imperative verbs.
+Alternatives considered: Full part-of-speech tagging via spacy/nltk. Rejected to avoid heavy external dependencies.
+If we removed it: Dry-run and fallback design titles continue to suffer from dangling cutoffs like "For Cold" or "Connecting Customers".
+Decided by: user approved (Second Small Fix Round)
+Status: active
+
+### D-317 — Stage E4 — design — Cease domain_hint and data_involved prepending and standardize deduplication numeric suffixes
+What: In `apps/api/src/archnemesis/modules/designs/title.py`, update `fallback_title` and `disambiguate_title`: (1) in `fallback_title`, do not prepend `domain_hint` or `data_involved` to candidate words when the base title already has 2 or more content words; use `domain_hint` strictly as a fallback when fewer than 2 content words exist (e.g. 1-word inputs like "Dashboard"), (2) in `disambiguate_title`, remove hint prepending during collision resolution and immediately use numeric suffixes (` (2)`, ` (3)`) with base titles shortened to at most 26 characters at word boundaries.
+Why: Prepending domain or data hints to multi-word candidate titles produced awkward inversions ("Claim Photos AI-Powered Motor Insurance", "Financial Services Real-Time Fraud"). Deduplicating directly via compact numeric suffixes keeps titles natural, readable, and within character caps.
+Alternatives considered: Appending domain hints as parentheticals. Rejected in favor of concise sequential numeric suffixes.
+If we removed it: Fallback titles will continue to generate awkward inverted domain phrases when brief hints are provided.
+Decided by: user approved (Second Small Fix Round)
+Status: active
+
+### D-318 — Stage Phase 8 — diagnostics — Inline failed candidate spec JSON on DESIGN_FAILED attempts in eval results
+What: In `evals/run.py`, update `InstrumentedLLMClient` to record candidate spec dictionaries returned by `generate_json` during `LLMTask.ARCHITECT` invocations. When a run fails with 422 `DesignFailedError`, populate `"spec"` inside each corresponding entry of `runs[].design_attempts[]` with the un-mutated copy of the failed candidate spec JSON. Omit `"spec"` on passing runs.
+Why: When an evaluation run fails validation after 3 attempts, operators previously had no way to inspect what the model actually produced or why code repair could not patch it. Inlining the candidate spec JSON directly into the failed run record preserves the complete structural failure artifact in the single eval result file without emitting full LLM outputs to structlog logs (honoring Rule 6).
+Alternatives considered:
+1. Writing separate sidecar JSON files per attempt: Rejected per user selection to keep eval result files self-contained.
+2. Inlining specs on passing runs: Rejected to avoid inflating result file sizes when designs pass.
+If we removed it: Debugging benchmark 422 failures would require rerunning cases manually outside the eval suite.
+Decided by: user approved (Eval diagnostics plan)
+Status: active
+
+### D-319 — Stage Phase 8 — diagnostics — Uncapped validator issue codes and messages across all failed attempts
+What: In `evals/run.py`, populate `issue_codes` and `issue_messages` for every failed attempt across all runs (both 422 failures and runs that required 2 or 3 attempts to pass). Determine issues by replaying pure `parse_and_validate` on each recorded attempt candidate spec using the run's `RequirementBrief` and settings limits, sanitize issue messages via `sanitize_validator_message`, and do not cap the issue list at 5.
+Why: Previously, `design_attempts` set `issue_messages: []` for all intermediate attempts (`attempts < last`), and the final attempt only took `DesignFailedError.issues` which was truncated to 5 items by `archnemesis.errors.DesignFailedError`. Capturing all validator codes and sanitized messages across every attempt reveals how the repair prompt corrected or failed to correct specific issues across repair iterations.
+Alternatives considered:
+1. Only capturing messages on the final attempt: Rejected because diagnostic visibility across repair iterations is lost.
+2. Logging raw validator messages without sanitization: Rejected to preserve brief constraint text sanitization.
+If we removed it: Intermediate validation failures would continue to show blank `issue_messages: []`.
+Decided by: user approved (Eval diagnostics plan)
+Status: active
+
+### D-320 — Stage Phase 8 — resilience — In-place single retry and clean partial-results abort with metadata on explainer 503/429
+What: In `evals/run.py`, isolate explainer generation (`get_or_generate_explanation`) with in-place retry: if `LLMUnavailable` (503) or `LLMRateLimited` (429) (or their `archnemesis.errors` equivalents `LLMUnavailableError` and `LLMRateLimitedError`) occurs, wait `unavailable_retry_delay` or `parse_retry_delay` and retry `get_or_generate_explanation` exactly once without re-running intake or architect generation. If the retry fails, abort the evaluation suite cleanly, flush partial results to disk in `finally`, record `"aborted": "<reason string>"` (and `null` on normal completion) alongside `"aborted_due_to_quota": true` in `meta`, and preserve all previously completed runs without skewing metrics with an incomplete run.
+Why: When the explainer hits transient provider rate limits or service unavailability, retrying the entire case from intake burns intake and architect quota, risks `FakeScriptExhausted` crashes in tests, and creates duplicate intake sessions. Retrying explainer in-place and aborting cleanly guarantees that completed runs are never lost, result files document the exact abort cause, and the process exits with a clean non-zero exit code (2).
+Alternatives considered:
+1. Retrying the entire case from intake: Rejected because it wastes quota and risks test crashes.
+2. Swallowing explainer 503/429 and falling back: Rejected because transient network errors must not inflate the explainer fallback rate.
+If we removed it: Explainer rate limits would crash the test runner or corrupt partial evaluation results.
+Decided by: user approved (Eval diagnostics plan)
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

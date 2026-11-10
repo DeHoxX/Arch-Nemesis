@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -13,9 +13,11 @@ import "@xyflow/react/dist/style.css";
 
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { DiagramEdge } from "./DiagramEdge";
+import { DiagramEdge, type DiagramEdgeData } from "./DiagramEdge";
+import { DiagramLegend } from "./DiagramLegend";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
 import { FitViewWatcher } from "./FitViewWatcher";
+import { computeFocusLineage, isEdgeInFocus } from "./focus";
 import { computeLayout } from "./layout";
 
 export interface DiagramViewProps {
@@ -59,6 +61,27 @@ export function DiagramView({
   // Pure Dagre top-to-bottom layout calculation
   const layout = useMemo(() => computeLayout(spec), [spec]);
 
+  // Uncontrolled selection fallback when selectedNodeId prop is undefined (e.g. admin Architecture tab)
+  const [internalSelectedId, setInternalSelectedId] = useState<string | null>(null);
+  const isControlled = selectedNodeId !== undefined;
+  const effectiveSelectedId = isControlled ? selectedNodeId : internalSelectedId;
+
+  const handleSelect = useCallback(
+    (nodeId: string | null) => {
+      if (!isControlled) {
+        setInternalSelectedId(nodeId);
+      }
+      onSelectNode?.(nodeId);
+    },
+    [isControlled, onSelectNode],
+  );
+
+  // Upstream and downstream lineage focus computation
+  const focusLineage = useMemo(
+    () => computeFocusLineage(spec, effectiveSelectedId),
+    [spec, effectiveSelectedId],
+  );
+
   const computedNodesKey = useMemo(
     () => nodesKey ?? spec.nodes.map((n) => n.id).sort().join(","),
     [nodesKey, spec.nodes],
@@ -94,7 +117,7 @@ export function DiagramView({
           height: 6,
         },
       ],
-      selected: pn.id === selectedNodeId,
+      selected: pn.id === effectiveSelectedId,
       data: {
         ...pn.data,
         diffStatus: (pn.data as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
@@ -104,20 +127,48 @@ export function DiagramView({
         exit_ids: spec.exit_ids,
         constraints: spec.constraints,
         edges: spec.edges,
-        onSelect: onSelectNode ? () => onSelectNode(pn.id) : undefined,
+        dimmed: focusLineage.isActive && !focusLineage.focusedNodeIds.has(pn.id),
+        onSelect: () => handleSelect(pn.id),
       },
     }));
-  }, [layout.nodes, spec.entry_ids, spec.exit_ids, spec.constraints, spec.edges, selectedNodeId, onSelectNode]);
+  }, [
+    layout.nodes,
+    spec.entry_ids,
+    spec.exit_ids,
+    spec.constraints,
+    spec.edges,
+    effectiveSelectedId,
+    focusLineage,
+    handleSelect,
+  ]);
 
   // Transform layout edges to React Flow Edge structure
-  const edges: Edge[] = useMemo(() => {
+  const edges: Edge<DiagramEdgeData>[] = useMemo(() => {
+    const nodeNameMap = new Map<string, string>(spec.nodes.map((n) => [n.id, n.name]));
     return layout.edges.map((pe) => {
       const isRemoved = (pe.data as { diffStatus?: string })?.diffStatus === "removed";
+      const srcName = nodeNameMap.get(pe.source) ?? pe.source;
+      const tgtName = nodeNameMap.get(pe.target) ?? pe.target;
+      const flows = pe.data.flows || "";
+      const condition = (pe.data.condition || "").trim();
+      const hasCondition = condition.length > 0;
+
+      const ariaLabel = flows
+        ? hasCondition
+          ? `Flow from ${srcName} to ${tgtName}: ${flows}, condition: ${condition}`
+          : `Flow from ${srcName} to ${tgtName}: ${flows}`
+        : hasCondition
+          ? `Flow from ${srcName} to ${tgtName}, condition: ${condition}`
+          : `Flow from ${srcName} to ${tgtName}`;
+
+      const dimmed = focusLineage.isActive && !isEdgeInFocus(focusLineage, pe.source, pe.target);
+
       return {
         id: pe.id,
         source: pe.source,
         target: pe.target,
         type: "customEdge",
+        ariaLabel,
         zIndex: isRemoved ? 0 : 1,
         data: {
           flows: pe.data.flows,
@@ -128,16 +179,17 @@ export function DiagramView({
           labelWidth: pe.labelWidth,
           labelHeight: pe.labelHeight,
           diffStatus: (pe.data as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
+          dimmed,
         },
       };
     });
-  }, [layout.edges]);
+  }, [layout.edges, spec.nodes, focusLineage]);
 
   // Keyboard navigation: Escape key clears selection
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "Escape") {
       e.stopPropagation();
-      onSelectNode?.(null);
+      handleSelect(null);
     }
   };
 
@@ -152,6 +204,7 @@ export function DiagramView({
         className,
       )}
     >
+      <DiagramLegend />
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -166,8 +219,8 @@ export function DiagramView({
         maxZoom={1.5}
         fitView
         fitViewOptions={{ padding: 0.2 }}
-        onNodeClick={(_, node) => onSelectNode?.(node.id)}
-        onPaneClick={() => onSelectNode?.(null)}
+        onNodeClick={(_, node) => handleSelect(node.id)}
+        onPaneClick={() => handleSelect(null)}
       >
         <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
         <Background gap={16} size={1} />
