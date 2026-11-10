@@ -11,12 +11,8 @@ import { Sidebar } from "./Sidebar";
 export const SIDEBAR_COLLAPSE_STORAGE_KEY = "archnemesis.sidebar.collapsed";
 
 /**
- * Retrieve saved sidebar collapse state from localStorage.
- *
- * Rules:
- * - Scoped to browser localStorage (archnemesis.sidebar.collapsed)
- * - Safe for SSR (returns false if window is undefined)
- * - Strict checking ("true" -> true, "false" -> false, otherwise null)
+ * Legacy storage helper retained for backwards compatibility with tests and callers.
+ * Note: Under D-311, the sidebar is default-closed on desktop and state is not persisted.
  */
 export function loadSidebarCollapsedPreference(): boolean | null {
   if (typeof window === "undefined") {
@@ -33,7 +29,7 @@ export function loadSidebarCollapsedPreference(): boolean | null {
 }
 
 /**
- * Save sidebar collapse preference to localStorage.
+ * Legacy storage helper retained for backwards compatibility with tests and callers.
  */
 export function saveSidebarCollapsedPreference(collapsed: boolean): void {
   if (typeof window === "undefined") {
@@ -56,42 +52,24 @@ interface AppShellInnerProps {
 function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
   const pathname = usePathname() || "/";
 
-  // Visibility rules (D-253):
+  // Visibility rules (D-253, D-311):
   // 1. /admin and /admin/*: completely hidden
-  // 2. /design/*: present but default-collapsed with top-left toggle
-  // 3. / and /history: present and open by default on desktop
+  // 2. All other routes: present and closed by default on desktop
   const isAdmin = pathname.startsWith("/admin");
-  const isDesign = pathname.startsWith("/design/");
 
-  // Collapse state management: start with default (true for /design/*, false otherwise)
-  // to ensure identical output on server and initial client render (D-275).
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(isDesign);
-
-  // Sync saved preference after mount (D-275) to prevent hydration mismatch
-  useEffect(() => {
-    if (!isDesign && !isAdmin) {
-      const saved = loadSidebarCollapsedPreference();
-      if (saved !== null) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setIsCollapsed(saved);
-      }
-    }
-  }, [isDesign, isAdmin]);
+  // Collapse state management: sidebar is always closed by default on desktop (D-311).
+  // The state is in-memory for the current session and not persisted across page reloads.
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(true);
 
   // Mobile drawer state (< 768px)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Sync state on route transition without useEffect cascading renders
+  // Reset drawer and keep collapsed on route transition without cascading renders
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (prevPathname !== pathname) {
     setPrevPathname(pathname);
     setIsDrawerOpen(false);
-    if (isDesign) {
-      setIsCollapsed(true);
-    } else if (!isAdmin) {
-      const saved = loadSidebarCollapsedPreference();
-      setIsCollapsed(saved !== null ? saved : false);
-    }
+    setIsCollapsed(true);
   }
 
   // Handle keyboard Escape to close mobile drawer
@@ -157,7 +135,6 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
   const handleToggleDesktop = () => {
     setIsCollapsed((prev) => {
       const next = !prev;
-      saveSidebarCollapsedPreference(next);
       triggerCanvasResize();
       return next;
     });
@@ -177,7 +154,7 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
   }
 
   return (
-    <div className="relative flex min-h-screen w-full bg-[var(--page-bg)]">
+    <div className="relative flex min-h-screen w-full bg-page-bg">
       {/* Desktop Sidebar (visible on >= 768px when not collapsed) */}
       <div className="hidden md:block">
         {!isCollapsed && (
@@ -220,7 +197,7 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
               aria-label="Toggle navigation sidebar"
               aria-expanded={!isCollapsed || isDrawerOpen}
               aria-controls="app-sidebar"
-              className="size-8 rounded-lg border-border/60 bg-[var(--sidebar-bg)] text-muted-foreground shadow-md hover:bg-card hover:text-foreground"
+              className="size-8 rounded-lg border-border/60 bg-sidebar-bg text-muted-foreground shadow-md hover:bg-card hover:text-foreground"
             >
               <PanelLeft className="size-4" />
             </Button>

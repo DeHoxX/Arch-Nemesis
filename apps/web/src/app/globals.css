@@ -206,3 +206,20 @@
 .react-flow .react-flow__controls-button svg {
   fill: currentColor;
 }
+
+/* Home hero background subtle micro-dot grid and vignette (D-310) */
+.home-hero-bg {
+  background-color: var(--page-bg);
+  background-image:
+    radial-gradient(circle at 50% 0%, rgba(183, 198, 194, 0.08) 0%, transparent 60%),
+    radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 100% 100%, 24px 24px;
+  background-position: 0 0, 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home-hero-bg {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+}

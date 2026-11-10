@@ -353,7 +353,7 @@ export function Sidebar({
   };
 
   const content = (
-    <div className="flex h-full w-full flex-col bg-[var(--sidebar-bg)] p-3 text-foreground select-none">
+    <div className="flex h-full w-full flex-col bg-sidebar-bg p-3 text-foreground select-none">
       {/* Top Header Row */}
       <div className="mb-3 flex items-center justify-between border-b border-border/40 pb-3">
         <div className="flex items-center gap-2">

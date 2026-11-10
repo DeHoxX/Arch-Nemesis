@@ -452,10 +452,29 @@ describe("AppShell component", () => {
     expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("expands sidebar when toggle button is clicked and persists preference to localStorage", async () => {
+  it("defaults to closed on desktop on every page load and ignores pre-saved open value in localStorage", () => {
+    mockPathname = "/";
+    window.localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, "false");
+
+    render(
+      <AppShell>
+        <div>Home Content</div>
+      </AppShell>,
+    );
+
+    // Sidebar should be collapsed by default even if localStorage had "false"
+    expect(screen.getByText("Home Content")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Collapse sidebar" })).toBeNull();
+
+    const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
+    expect(toggleBtn).toBeDefined();
+    expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("expands sidebar when toggle button is clicked and closes when clicked again (in-memory, not persisted)", async () => {
     const user = userEvent.setup();
     mockPathname = "/";
-    window.localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, "true");
+    window.localStorage.removeItem(SIDEBAR_COLLAPSE_STORAGE_KEY);
 
     render(
       <AppShell>
@@ -466,8 +485,16 @@ describe("AppShell component", () => {
     const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
     await user.click(toggleBtn);
 
-    expect(screen.getByRole("button", { name: "Collapse sidebar" })).toBeDefined();
-    expect(window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)).toBe("false");
+    // Now open
+    const collapseBtn = screen.getByRole("button", { name: "Collapse sidebar" });
+    expect(collapseBtn).toBeDefined();
+    // Verify no persistence to localStorage
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)).toBeNull();
+
+    // Toggle close via Collapse button
+    await user.click(collapseBtn);
+    expect(screen.queryByRole("button", { name: "Collapse sidebar" })).toBeNull();
+    expect(window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)).toBeNull();
   });
 
   it("closes mobile drawer when Escape key is pressed", () => {

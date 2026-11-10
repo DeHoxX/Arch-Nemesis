@@ -3248,6 +3248,27 @@ Decided by: user approved (Phase C Stage C1+C4)
 Status: active
 
 
+### D-310 — Stage C2 — design — Home page and components restyle with semantic tokens
+What: In `apps/web/src/app/page.tsx`, `apps/web/src/components/BriefCard.tsx`, and `apps/web/src/components/LoadingOverlay.tsx`, replace hardcoded color values (`#171e19`, `#302b2f`, `#9f8d8b`, `#b7c6c2`, `#ffffff`, `#ccff00`, `#b8e600`, and `--navy-bg`) with centralized semantic design tokens from `globals.css` (`--page-bg`, `--card-bg`, `--brand-accent`, `--foreground`, `--muted-foreground`, and `--border`). In `page.tsx`, implement optical vertical centering by adjusting the hero container padding, elevate the bottom composer bar using card surface tokens with subtle borders, add a CSS-only micro-dot background pattern with a subtle top radial vignette (honoring `prefers-reduced-motion`), and loosen hero headline letter-spacing from `tracking-tighter` to `tracking-normal` to eliminate glyph collision lines between Anton letters.
+Why: Centralizing all interactive home elements, briefs, and loading screens onto the unified design tokens established in D-307 prevents visual fragmentation and dark palette clashes. Removing arbitrary dark plum/mauve and lime hexes unifies the product under the soft-dark and Sage accent aesthetic. Adjusting the letter spacing addresses glyph overlap rendering artifacts observed in Anton's tight letter bounding boxes.
+Alternatives considered:
+1. Retaining `#ccff00` accents on primary action buttons: Rejected per Phase C direction to adopt Sage (`--brand-accent`) as the universal accent token.
+2. Using raster background image files for texture: Rejected to avoid extra static assets, network requests, and external dependencies.
+If we removed it: The intake dialogue, home hero, brief card, and loading overlays would remain visually disconnected from the rest of the application.
+Decided by: user approved (Phase C2 prompt)
+Status: active
+
+### D-311 — Stage C2 — design — Sidebar default closed on desktop without state persistence
+What: In `apps/web/src/components/shell/AppShell.tsx`, change desktop sidebar behavior so the sidebar is closed (`isCollapsed = true`) by default on initial page load across all routes (`/`, `/design/*`, `/history`). Remove reading and writing of `SIDEBAR_COLLAPSE_STORAGE_KEY` (`archnemesis.sidebar.collapsed`) to `localStorage` so the sidebar state is purely transient for the active session and does not persist across page reloads. Retain drawer behavior for mobile viewports (< 768px), and preserve the `bg-black/60` backdrop overlay on `Sidebar.tsx`.
+Why: Starting with the sidebar closed on desktop provides maximum screen real estate for the intake hero dialogue and complex architecture diagrams without visual clutter. Making open/closed purely in-memory prevents stale collapsed/expanded states from persisting across reloads or overriding clean page initialization.
+Alternatives considered:
+1. Continuing to persist collapse state across reloads: Rejected per explicit user requirement that the sidebar start closed on every fresh load.
+2. Retaining open-by-default on the home page: Rejected because a clean, focused single-column hero layout is preferred for initial user intake.
+If we removed it: The desktop sidebar would default to open on home and persist state unpredictably between user sessions.
+Decided by: user approved (Phase C2 prompt)
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

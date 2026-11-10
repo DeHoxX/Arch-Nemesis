@@ -40,8 +40,8 @@ export function LoadingOverlay({ className }: LoadingOverlayProps): React.ReactE
     >
       <div className="relative flex flex-col items-center max-w-md rounded-2xl border border-border/60 bg-card/90 p-8 shadow-2xl backdrop-blur-sm">
         {/* Spinner: honors prefers-reduced-motion */}
-        <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-primary/10 border border-primary/20">
-          <Loader2 className="size-7 text-[#ccff00] animate-spin motion-reduce:animate-none" />
+        <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-brand-accent/10 border border-brand-accent/20">
+          <Loader2 className="size-7 text-brand-accent animate-spin motion-reduce:animate-none" />
         </div>
 
         <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
