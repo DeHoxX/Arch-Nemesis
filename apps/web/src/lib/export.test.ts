@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { toPng } from "html-to-image";
 import {
   COMPLIANCE_BANNER_TEXT,
+  DEFAULT_EXPORT_BG_COLOR,
   buildExplanationMarkdown,
   dataUrlToBlob,
   downloadFile,
+  exportDiagramToPng,
 } from "./export";
 import type { Explanation } from "./types";
+
+vi.mock("html-to-image", () => ({
+  toPng: vi.fn(),
+}));
 
 const mockFilledExplanation: Explanation = {
   overview: "This system processes incoming telemetry and generates analytics dashboards.",
@@ -403,6 +410,85 @@ describe("Export Module: dataUrlToBlob and downloadFile", () => {
       window.URL.createObjectURL = origCreate;
       window.URL.revokeObjectURL = origRevoke;
     }
+  });
+});
+
+describe("Export Module: exportDiagramToPng background color resolution", () => {
+  const validPngDataUrl =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
+  let origCreateObjectURL: typeof window.URL.createObjectURL;
+  let origRevokeObjectURL: typeof window.URL.revokeObjectURL;
+
+  beforeEach(() => {
+    vi.mocked(toPng).mockReset();
+    vi.mocked(toPng).mockResolvedValue(validPngDataUrl);
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    origCreateObjectURL = window.URL.createObjectURL;
+    origRevokeObjectURL = window.URL.revokeObjectURL;
+    window.URL.createObjectURL = vi.fn().mockReturnValue("blob:http://localhost/mock-png");
+    window.URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    window.URL.createObjectURL = origCreateObjectURL;
+    window.URL.revokeObjectURL = origRevokeObjectURL;
+    vi.restoreAllMocks();
+    document.documentElement.style.removeProperty("--page-bg");
+    document.documentElement.style.removeProperty("--background");
+  });
+
+  it("resolves backgroundColor from document --page-bg CSS variable", async () => {
+    document.documentElement.style.setProperty("--page-bg", "#111111");
+
+    const container = document.createElement("div");
+    const viewport = document.createElement("div");
+    viewport.className = "react-flow__viewport";
+    container.appendChild(viewport);
+
+    await exportDiagramToPng(container, "test-design", 1);
+
+    expect(toPng).toHaveBeenCalledWith(
+      viewport,
+      expect.objectContaining({
+        backgroundColor: "#111111",
+      }),
+    );
+  });
+
+  it("resolves backgroundColor from --background when --page-bg is empty", async () => {
+    document.documentElement.style.setProperty("--background", "#222222");
+
+    const container = document.createElement("div");
+    const viewport = document.createElement("div");
+    viewport.className = "react-flow__viewport";
+    container.appendChild(viewport);
+
+    await exportDiagramToPng(container, "test-design", 1);
+
+    expect(toPng).toHaveBeenCalledWith(
+      viewport,
+      expect.objectContaining({
+        backgroundColor: "#222222",
+      }),
+    );
+  });
+
+  it("falls back to DEFAULT_EXPORT_BG_COLOR (#111111) when neither CSS variable is set", async () => {
+    const container = document.createElement("div");
+    const viewport = document.createElement("div");
+    viewport.className = "react-flow__viewport";
+    container.appendChild(viewport);
+
+    await exportDiagramToPng(container, "test-design", 1);
+
+    expect(toPng).toHaveBeenCalledWith(
+      viewport,
+      expect.objectContaining({
+        backgroundColor: DEFAULT_EXPORT_BG_COLOR,
+      }),
+    );
   });
 });
 

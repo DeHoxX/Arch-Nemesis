@@ -3217,6 +3217,36 @@ If we removed it: Un-titled designs would remain NULL or require LLM quota to ba
 Decided by: user approved (Phase D instructions)
 Status: active
 
+### D-307 — Stage C1 — design — Centralized soft-dark palette and single source of truth tokens
+What: Update `apps/web/src/app/globals.css` to establish a single, dark-first source of truth for color tokens across both `:root` and `.dark`. Configure page background `--page-bg: #111111` (and `--background: #111111`), sidebar background `--sidebar-bg: #0d0d0d` (and `--sidebar: #0d0d0d`), card surfaces `--card-bg: #18181b` (and `--card: #18181b`), muted surfaces `--muted: #222226`, foreground text `--foreground: #fafafa`, muted text `--muted-foreground: #a1a1aa`, borders `--border: rgba(255, 255, 255, 0.10)`, and Sage accent `--brand-accent: #b7c6c2` (`--brand-accent-hover: #a3b5b0`, `--brand-accent-ink: #111111`, and `--primary: #b7c6c2`). Expose `--color-page-bg`, `--color-sidebar-bg`, `--color-card-bg`, and `--color-brand-accent` in `@theme inline`. In `apps/web/src/app/layout.tsx`, style `<body>` using `bg-background text-foreground`, removing hardcoded `text-[#ffffff]`. This decision supersedes D-100, D-120, and D-277 for color palette and page chrome tokens.
+Why: Previously, color tokens were fragmented across three competing palettes: D-100 (`#0a0a0a` with `#ccff00` accents), D-120 (defining `--page-bg: #0a0a0a`), and D-277 (introducing `#171e19` / `#302b2f` / `#b7c6c2` on the Home page and Sidebar only), while `:root` retained unused white shadcn defaults. This caused visual divergence between routes, harsh OLED halation on pure black surfaces, and disconnected card/background variables. Unifying `:root` and `.dark` into a single soft-dark palette gives the entire app a cohesive surface hierarchy while preserving Stage B4 edge contrast (`var(--muted-foreground, #a1a1aa)`), Stage B4/D-305 React Flow controls, and semantic diagram node border colors (emerald, violet, amber, slate).
+Alternatives considered:
+1. Retaining `#0a0a0a` obsidian or `#141414` charcoal: Rejected per user selection of `#111111` for balanced contrast.
+2. Keeping distinct `:root` light mode variables: Rejected because Arch-Nemesis is dark-only and mismatched tokens cause style desynchronization.
+If we removed it: The application would remain split across competing palettes with inconsistent surface contrast across routes.
+Decided by: user approved (Phase C Stage C1+C4)
+Status: active
+
+### D-308 — Stage C1 — design — Typography weights and Google Fonts build requirement
+What: Update `Plus_Jakarta_Sans` configuration in `apps/web/src/app/layout.tsx` to load weights `["400", "500", "600", "700"]` (adding `500` medium and `700` bold), while retaining `Anton` (weight `400`) for the Home `<h1>` hero headline and `JetBrains_Mono` for technical code and badge labels. Document that `next/font/google` requires outbound internet access at `next build` time to download font files before self-hosting them statically.
+Why: `Plus_Jakarta_Sans` previously loaded only weights `300, 400, 600`, causing synthetic font rendering for `font-medium` (500) and `font-bold` (700) across cards and headings. Loading the standard geometric weights provides crisp typography without adding new npm packages. Retaining `Anton` on the Home `<h1>` maintains the bold uppercase hero aesthetic established in D-278 while ensuring clean rendering.
+Alternatives considered:
+1. Retiring Anton on the Home hero: Rejected per user instruction to keep Anton on the Home `<h1>`.
+2. Loading variable fonts or external CDN fonts: Rejected to avoid external runtime requests or unnecessary bundle overhead.
+If we removed it: Bold and medium text across the UI would rely on artificial browser font weighting.
+Decided by: user approved (Phase C Stage C1+C4)
+Status: active
+
+### D-309 — Stage C4 — design — Dynamic PNG export background resolution with constant fallback
+What: In `apps/web/src/lib/export.ts`, update `exportDiagramToPng` to dynamically resolve `backgroundColor` from the document root's `--page-bg` CSS variable (falling back to `--background`, and then to constant `DEFAULT_EXPORT_BG_COLOR = "#111111"`) via `window.getComputedStyle(document.documentElement)` before passing it to `html-to-image` (`toPng`). Add unit tests in `apps/web/src/lib/export.test.ts` mocking `toPng` to verify propagation of resolved CSS variables and deterministic fallback when variables are unset.
+Why: `exportDiagramToPng` previously hardcoded `backgroundColor: "#0a0a0a"` (from D-100/BUILD_PLAN.md:509), causing exported PNGs to diverge in background shade from the updated `#111111` page canvas. Resolving computed styles at runtime ensures exported diagrams automatically match the application theme without manual constant synchronization, while the safe fallback guarantees deterministic operation in headless environments and JSDOM tests.
+Alternatives considered:
+1. Hardcoding `#111111` directly in `export.ts`: Rejected because future theme adjustments would require editing export logic again.
+2. Passing `var(--page-bg)` directly to `toPng`: Rejected because canvas rasterizers fail when given CSS variable string syntax instead of concrete color values.
+If we removed it: Exported diagram PNGs would render with outdated `#0a0a0a` backgrounds clashing with the on-screen canvas.
+Decided by: user approved (Phase C Stage C1+C4)
+Status: active
+
 
 ## Phase 3 Summary
 

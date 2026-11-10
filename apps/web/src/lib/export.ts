@@ -8,6 +8,8 @@ export const COMPLIANCE_BANNER_TEXT =
 export const PNG_EXPORT_ERROR_MESSAGE =
   "Failed to export diagram image. Please try again.";
 
+export const DEFAULT_EXPORT_BG_COLOR = "#111111";
+
 export interface BuildMarkdownInput {
   designId: string;
   versionNo: number;
@@ -152,7 +154,7 @@ export function downloadFile(
  * Rules (BUILD_PLAN.md:509 & User Decisions):
  * - Target React Flow viewport element
  * - Dynamic size from bounding box plus padding
- * - Background color #0a0a0a
+ * - Background color dynamically resolved from --page-bg (fallback --background, then #111111)
  * - Filename: arch-nemesis-{designId}-v{versionNo}.png
  * - Rejection / failure handling: throws error so caller can display message without crashing
  */
@@ -228,8 +230,20 @@ export async function exportDiagramToPng(
     padding / Math.max(imageWidth, imageHeight)
   );
 
+  let exportBgColor = DEFAULT_EXPORT_BG_COLOR;
+  if (typeof window !== "undefined" && typeof window.getComputedStyle === "function") {
+    const rootStyle = window.getComputedStyle(document.documentElement);
+    const pageBg = rootStyle.getPropertyValue("--page-bg").trim();
+    const background = rootStyle.getPropertyValue("--background").trim();
+    if (pageBg) {
+      exportBgColor = pageBg;
+    } else if (background) {
+      exportBgColor = background;
+    }
+  }
+
   const dataUrl = await toPng(flowViewport, {
-    backgroundColor: "#0a0a0a",
+    backgroundColor: exportBgColor,
     width: imageWidth,
     height: imageHeight,
     style: {

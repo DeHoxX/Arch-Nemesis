@@ -12,7 +12,7 @@ const anton = Anton({
 });
 
 const plusJakartaSans = Plus_Jakarta_Sans({
-  weight: ["300", "400", "600"],
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-plus-jakarta",
 });
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       lang="en"
       className={`${anton.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--page-bg)] text-[#ffffff]">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>
