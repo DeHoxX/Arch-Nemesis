@@ -349,3 +349,104 @@ async def test_backfill_apply_populates_null_and_preserves_existing(
 
     # Assert brief text was NEVER printed
     assert BRIEF_1_SUMMARY not in output
+
+
+@pytest.mark.asyncio
+async def test_backfill_disambiguates_duplicates_and_preserves_existing(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    tmp_path: Path,
+) -> None:
+    # 1 existing titled design + 4 NULL-title designs sharing identical brief summary
+    identical_brief: dict[str, Any] = {
+        "summary": "An automated claims processing engine for insurance.",
+        "domain_hint": "Insurance",
+        "data_involved": ["Claims"],
+    }
+    existing_id = str(uuid.uuid4())
+    d1_id = str(uuid.uuid4())
+    d2_id = str(uuid.uuid4())
+    d3_id = str(uuid.uuid4())
+    d4_id = str(uuid.uuid4())
+
+    async with temp_db_session_factory() as session:
+        await _seed_design(
+            session,
+            existing_id,
+            "Claims Processing Engine For Insurance",
+            identical_brief,
+        )
+        await _seed_design(session, d1_id, None, identical_brief)
+        await _seed_design(session, d2_id, None, identical_brief)
+        await _seed_design(session, d3_id, None, identical_brief)
+        await _seed_design(session, d4_id, None, identical_brief)
+
+    live_db = tmp_path / "arch_nemesis.db"
+    live_db.write_text("live db mock data")
+    backup_db = tmp_path / "arch_nemesis.db.bak"
+    backup_db.write_text("backup db mock data")
+
+    # 1. Dry run execution
+    stdout_buf_dry = io.StringIO()
+    with redirect_stdout(stdout_buf_dry):
+        dry_counts = await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db,
+            backup_path=backup_db,
+            apply=False,
+        )
+
+    dry_out = stdout_buf_dry.getvalue()
+    assert dry_counts["null_count"] == 4
+    assert dry_counts["already_titled"] == 1
+
+    # Extract proposed titles from dry-run output
+    dry_titles: list[str] = []
+    for line in dry_out.splitlines():
+        if line.startswith("Candidate: "):
+            parts = line.split(" | proposed: ")
+            if len(parts) == 2:
+                dry_titles.append(parts[1].strip())
+
+    assert len(dry_titles) == 4
+    # All proposed titles must be mutually distinct and distinct from existing title
+    assert len(set(dry_titles)) == 4
+    assert "Claims Processing Engine For Insurance" not in dry_titles
+
+    # 2. Apply execution
+    stdout_buf_apply = io.StringIO()
+    with redirect_stdout(stdout_buf_apply):
+        apply_counts = await run_backfill(
+            db_factory=temp_db_session_factory,
+            live_db_path=live_db,
+            backup_path=backup_db,
+            apply=True,
+        )
+
+    assert apply_counts["updated"] == 4
+    assert apply_counts["failed"] == 0
+
+    # 3. Verify database state: applied titles match dry-run proposed exactly, existing untouched
+    async with temp_db_session_factory() as session:
+        t_exist = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == existing_id))
+        ).scalar()
+        t1 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d1_id))
+        ).scalar()
+        t2 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d2_id))
+        ).scalar()
+        t3 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d3_id))
+        ).scalar()
+        t4 = (
+            await session.execute(select(DesignTable.title).where(DesignTable.id == d4_id))
+        ).scalar()
+
+    assert t_exist == "Claims Processing Engine For Insurance"
+    applied_titles = [t1, t2, t3, t4]
+    assert applied_titles == dry_titles
+
+    # Assert brief summary was NEVER printed in dry-run or apply output
+    assert identical_brief["summary"] not in dry_out
+    assert identical_brief["summary"] not in stdout_buf_apply.getvalue()

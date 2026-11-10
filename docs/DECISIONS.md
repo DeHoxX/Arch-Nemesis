@@ -3290,6 +3290,43 @@ Decided by: user approved (Phase C3 prompt)
 Status: active
 
 
+### D-314 — Stage E1 — fix — Word-boundary fluff prefix matching, fragment rejection, and natural boundary trimming in fallback_title
+What: In `apps/api/src/archnemesis/modules/designs/title.py`, rewrite `fallback_title` to: (1) sort `FLUFF_PREFIXES` longest-first, require regex word boundaries (`(?=$|[\s:,\-])`), and include common gerunds (`implementing`, `building`, `creating`, `designing`, `developing`), (2) strip meta-sentence lead-ins iteratively up to 2 passes (`(the )?user(s)? (is|are) looking for( a| an| the)?`, `(the )?system (requires|needs)( a| an| the)?( component( to)?)?`, `(a |the )?business needs( a| an| the)?`, `we need( a| an| the)?`), (3) reject leading non-word fragments (`ing`, `tion`, `ment`, `ed`, `es`, and any single-character non-word letters) and strip leading stopwords, (4) cut at natural punctuation boundaries (`,`, `;`, `.`) or relative/purpose clause markers (` that `, ` which `, ` who `, ` where `, ` in order to `) when at least 2 content words precede them, (5) trim trailing conjunction tails (`and/or + 1 noun`) when truncation dropped subsequent words, (6) loop-strip trailing stopwords, (7) filter Rule-4 forbidden words (`cost`, `price`, `timeline`, etc.), and (8) allow >= 2 content words, falling back to `"Untitled Design"` only when `< 2` content words or `< 6` characters remain.
+Why: Prevents dangling word cutoffs (`And`, `For A`, `That`, `Component To`), stops mid-word prefix truncation producing garbled fragments (`Ing ...`, `N ...`), strips boilerplate actor intros that previously consumed the 5-word budget, and ensures fallback titles consistently read as natural, grammatical architecture titles while maintaining Rule-4 compliance.
+Alternatives considered:
+1. Hard truncation to 5 words without clause awareness: Rejected because it consistently leaves dangling prepositions and conjunctions on multi-clause summaries.
+2. Generating titles via secondary LLM prompt: Rejected to maintain zero API quota usage, deterministic speed, and zero external dependency.
+If we removed it: Past designs lacking titles would receive broken, fragmented, or dangling titles upon backfill.
+Decided by: user approved (Option B implementation)
+Status: active
+
+### D-315 — Stage E2 — design — Deterministic duplicate title disambiguation across backfill
+What: In `apps/api/src/archnemesis/modules/designs/backfill.py` (and supporting helper `disambiguate_title` in `title.py`), implement deterministic duplicate title disambiguation solely within the backfill process: (1) maintain a case-insensitive `seen` set initialized with all existing non-null titles in the database and updated with every newly proposed title, (2) on collision, attempt enrichment using non-overlapping words from `domain_hint` or `data_involved[0]` from the version brief, and (3) if still colliding, append a compact suffix (` (2)`, ` (3)`) while first shortening the base title to at most 26 characters so the disambiguation suffix survives frontend sidebar truncation (`shortTitle` at 30 chars).
+Why: When multiple designs originate from identical prompts or share similar summaries (e.g. repeated benchmark cases or domain prompts), fallback title extraction produces duplicate strings. Disambiguating solely within backfill provides unique, recognizable titles for past designs without adding database queries or concurrency overhead to `create_design`. Shortening the base title before adding the suffix ensures sidebar navigation links remain distinct.
+Alternatives considered:
+1. Disambiguating online inside `create_design`: Rejected to avoid extra database queries and race conditions during online generation.
+2. Random hash or UUID suffix: Rejected in favor of readable, sequential numeric suffixes.
+If we removed it: Multiple designs in the sidebar and history views would share identical fallback titles, confusing operators and users.
+Decided by: user approved (Option B backfill-only dedup)
+Status: active
+
+### D-316 — Stage E3 — fix — Trailing participle, preposition tail pruning, and leading action verb stripping in fallback_title
+What: In `apps/api/src/archnemesis/modules/designs/title.py`, enhance `fallback_title`: (1) strip leading imperative action verbs (`deploy`, `launch`, `build`, `create`, `develop`, `implement`, etc.) and leading articles so titles do not begin with commands (e.g. `Deploy An ...`), (2) strip trailing passive/adjective participles after head nouns (`Designed`, `Built`, `Developed`, etc.), (3) strip trailing participle clauses (`Connecting Customers`) following system head nouns, (4) strip dangling preposition tails (`<prep> <1 word>` like `For Cold`, `For Managing`, or `<prep> <determiner> <1 word>` like `For Their Team`), and (5) fix hyphenated casing in `smart_title_word` so each hyphen-separated segment is individually title-cased while preserving uppercase acronyms (yielding `AI-Powered` and `Real-Time`).
+Why: Resolves remaining weak heuristic title failure classes from real dry runs where titles ended in dangling prepositions, cut-off participles, or started with imperative verbs.
+Alternatives considered: Full part-of-speech tagging via spacy/nltk. Rejected to avoid heavy external dependencies.
+If we removed it: Dry-run and fallback design titles continue to suffer from dangling cutoffs like "For Cold" or "Connecting Customers".
+Decided by: user approved (Second Small Fix Round)
+Status: active
+
+### D-317 — Stage E4 — design — Cease domain_hint and data_involved prepending and standardize deduplication numeric suffixes
+What: In `apps/api/src/archnemesis/modules/designs/title.py`, update `fallback_title` and `disambiguate_title`: (1) in `fallback_title`, do not prepend `domain_hint` or `data_involved` to candidate words when the base title already has 2 or more content words; use `domain_hint` strictly as a fallback when fewer than 2 content words exist (e.g. 1-word inputs like "Dashboard"), (2) in `disambiguate_title`, remove hint prepending during collision resolution and immediately use numeric suffixes (` (2)`, ` (3)`) with base titles shortened to at most 26 characters at word boundaries.
+Why: Prepending domain or data hints to multi-word candidate titles produced awkward inversions ("Claim Photos AI-Powered Motor Insurance", "Financial Services Real-Time Fraud"). Deduplicating directly via compact numeric suffixes keeps titles natural, readable, and within character caps.
+Alternatives considered: Appending domain hints as parentheticals. Rejected in favor of concise sequential numeric suffixes.
+If we removed it: Fallback titles will continue to generate awkward inverted domain phrases when brief hints are provided.
+Decided by: user approved (Second Small Fix Round)
+Status: active
+
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:

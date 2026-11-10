@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from archnemesis.db.engine import create_engine_and_session
 from archnemesis.db.tables import DesignTable, DesignVersionTable
 from archnemesis.modules.designs.repo import update_design_title
-from archnemesis.modules.designs.title import fallback_title
+from archnemesis.modules.designs.title import disambiguate_title, fallback_title
 from archnemesis.settings import get_settings
 
 
@@ -72,6 +72,14 @@ async def run_backfill(
             )
             null_designs = int(null_count_res.scalar() or 0)
 
+            # Gather existing non-null titles to seed seen set for disambiguation
+            existing_titles_res = await session.execute(
+                select(DesignTable.title).where(DesignTable.title.is_not(None))
+            )
+            initial_seen_titles: set[str] = {
+                row[0].lower() for row in existing_titles_res.all() if row[0]
+            }
+
         # Dry-run mode: print candidates (design_id, current_title, proposed_title) and counts
         if not apply:
             async with db_factory() as session:
@@ -94,18 +102,29 @@ async def run_backfill(
 
                 candidate_rows = list((await session.execute(dry_stmt)).all())
 
+            seen_titles = set(initial_seen_titles)
             for design_id, current_title, brief_json in candidate_rows:
                 summary = ""
                 domain_hint = None
+                data_hint = None
                 if brief_json:
                     try:
                         brief_dict = json.loads(brief_json)
                         summary = brief_dict.get("summary", "")
                         domain_hint = brief_dict.get("domain_hint")
+                        data_inv = brief_dict.get("data_involved", [])
+                        if data_inv and isinstance(data_inv, list) and isinstance(data_inv[0], str):
+                            data_hint = data_inv[0]
                     except Exception:  # noqa: BLE001, S110
                         pass
 
-                proposed = fallback_title(summary, domain_hint)
+                raw_proposed = fallback_title(summary, domain_hint)
+                proposed = disambiguate_title(
+                    raw_proposed,
+                    seen_titles,
+                    domain_hint=domain_hint,
+                    data_hint=data_hint,
+                )
                 current_display = current_title if current_title is not None else "<NULL>"
                 print(f"Candidate: {design_id} | current: {current_display} | proposed: {proposed}")
 
@@ -138,17 +157,28 @@ async def run_backfill(
 
         updated = 0
         failed = 0
+        seen_titles = set(initial_seen_titles)
 
         for design_id, brief_json in rows:
             try:
                 summary = ""
                 domain_hint = None
+                data_hint = None
                 if brief_json:
                     brief_dict = json.loads(brief_json)
                     summary = brief_dict.get("summary", "")
                     domain_hint = brief_dict.get("domain_hint")
+                    data_inv = brief_dict.get("data_involved", [])
+                    if data_inv and isinstance(data_inv, list) and isinstance(data_inv[0], str):
+                        data_hint = data_inv[0]
 
-                title = fallback_title(summary, domain_hint)
+                raw_title = fallback_title(summary, domain_hint)
+                title = disambiguate_title(
+                    raw_title,
+                    seen_titles,
+                    domain_hint=domain_hint,
+                    data_hint=data_hint,
+                )
             except Exception:  # noqa: BLE001
                 failed += 1
                 continue
