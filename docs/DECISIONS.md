@@ -3356,6 +3356,14 @@ If we removed it: Explainer rate limits would crash the test runner or corrupt p
 Decided by: user approved (Eval diagnostics plan)
 Status: active
 
+### D-321 — Stage Phase 8 — deviation — Revert production default architect prompt to architect_v8
+What: In `apps/api/src/archnemesis/modules/architect/service.py`, revert `ARCHITECT_PROMPT_NAME` from `"architect_v9"` back to `"architect_v8"`. Retain `ARCHITECT_REPAIR_PROMPT_NAME = "architect_repair_v8"`. Retain `architect_v9.md` and `architect_repair_v9.md` in the repository for evaluation and comparison flags.
+Why: Live benchmarks showed that `architect_v9` did not demonstrate a clear improvement over `architect_v8` across evaluated benchmark cases. The default architect prompt is reverted to `architect_v8` until further prompt detailing and evaluation work resumes.
+Alternatives considered: Retaining `architect_v9` as default. Rejected because production defaults must demonstrate empirical improvements or non-regression against baseline before adoption.
+If we removed it: Production would run `architect_v9` without proven advantage over `architect_v8`.
+Decided by: user instructed deviation approval
+Status: active
+
 
 ## Phase 3 Summary
 

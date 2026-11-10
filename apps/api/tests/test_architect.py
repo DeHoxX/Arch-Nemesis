@@ -118,7 +118,7 @@ async def test_architect_first_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v9"
+    assert prompt_version == "architect_v8"
     assert calls_used == 1
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 1
@@ -132,7 +132,7 @@ async def test_architect_repair_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v9+architect_repair_v8"
+    assert prompt_version == "architect_v8+architect_repair_v8"
     assert calls_used == 2
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 2
@@ -152,7 +152,7 @@ async def test_architect_uncovered_brief_constraint_triggers_repair() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v9+architect_repair_v8"
+    assert prompt_version == "architect_v8+architect_repair_v8"
     assert calls_used == 2
     assert len(spec.constraints) == 1
     assert "bc1" in spec.constraints[0].covers
@@ -263,7 +263,7 @@ async def test_architect_applies_code_repair_on_first_attempt() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v9+code_repair"
+    assert prompt_version == "architect_v8+code_repair"
     assert calls_used == 1
     assert len(fake_llm.calls) == 1
     assert result is not None
@@ -329,7 +329,7 @@ async def test_architect_applies_code_repair_to_dead_end_sink_on_first_attempt()
 
     assert spec is not None
     assert "audit_sink" in spec.exit_ids
-    assert prompt_version == "architect_v9+code_repair"
+    assert prompt_version == "architect_v8+code_repair"
     assert calls_used == 1
     assert len(fake_llm.calls) == 1
     assert result is not None
@@ -395,7 +395,7 @@ async def test_architect_applies_code_repair_after_call_2() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v9+architect_repair_v8+code_repair"
+    assert prompt_version == "architect_v8+architect_repair_v8+code_repair"
     assert calls_used == 2
     assert len(fake_llm.calls) == 2
     assert result is not None
@@ -706,7 +706,7 @@ async def test_code_repair_logs_node_ids_not_constraint_ids(
     assert spec is not None
     assert result is not None
     assert result.ok is True
-    assert prompt_version == "architect_v9+code_repair"
+    assert prompt_version == "architect_v8+code_repair"
     assert calls_used == 1
 
     records = []
@@ -780,7 +780,7 @@ async def test_code_repair_sanitizes_covers_assumption_text() -> None:
     assert spec is not None
     assert result is not None
     assert result.ok is True
-    assert prompt_version == "architect_v9+code_repair"
+    assert prompt_version == "architect_v8+code_repair"
     assert calls_used == 1
 
     # Non-empty guard
