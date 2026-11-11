@@ -126,7 +126,7 @@ export function DiagramEdge({
                 aria-label={`Condition: ${condition}`}
                 title={condition}
                 className={cn(
-                  "group relative cursor-help rounded-sm border border-amber-500/40 bg-background/95 px-1.5 py-0.5 text-[10px] font-mono text-amber-500 shadow-xs transition-colors",
+                  "group relative cursor-help rounded-sm border border-amber-500/40 bg-card px-1.5 py-0.5 text-[10px] font-mono text-amber-500 transition-colors",
                   "hover:border-amber-500 hover:text-amber-400",
                   "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:text-amber-400",
                 )}

@@ -3364,6 +3364,26 @@ If we removed it: Production would run `architect_v9` without proven advantage o
 Decided by: user instructed deviation approval
 Status: active
 
+### D-322 — Stage 1A — design — Diagram area surface restraint and removal of backdrop blur
+What: In `apps/web/src/app/design/[id]/page.tsx` (Block and Architecture canvas frames), `apps/web/src/app/admin/designs/[id]/[n]/page.tsx` (both frames), `apps/web/src/components/diagram/DiagramLegend.tsx` (trigger and panel), and `apps/web/src/components/diagram/DiagramEdge.tsx` (condition badge), remove all `backdrop-blur-*`, translucent alpha fills (`bg-card/60`, `bg-card/40`, `bg-background/95`), and heavy shadows (`shadow-lg`, `shadow-xl`). Replace them with crisp, flat, opaque surface tokens (`bg-card`, `border-border`, `rounded-lg`/`rounded-md`). Do not touch other application screens.
+Why: Engineering tool aesthetic requires high contrast, deliberate spacing, and restrained surfaces rather than generic SaaS frosted-glass effects. Translucent fills in the diagram canvas cause crossing lines and underlying geometry to bleed faintly behind overlays and badges.
+Alternatives considered:
+1. Keeping blur on collapsible legend: Rejected per user selection of Option 1 (complete removal of blur in diagram area).
+2. Global redesign of app chrome: Rejected because Stage 1 scope is strictly constrained to the diagram area.
+If we removed it: The diagram canvas would retain frosted glass blur and translucent card fills clashing with technical minimalism.
+Decided by: user approved (Stage 1A answers)
+Status: active
+
+### D-323 — Stage 1A — design — Node card typography hierarchy, plain-text tech options, and entry actor micro-labels
+What: In `apps/web/src/components/diagram/DiagramNode.tsx`, restructure card content to establish a strict typographic hierarchy: (1) `name` (semibold, foreground, max 2 lines), (2) `role` (muted, existing clamp), (3) `type` and structural micro-labels (monospace, 10px, muted, with `type` text never changing style per Rule 3), and (4) `tech_options` as a plain small monospace text line (`"A · B · +N"`, max 3 items shown, hidden when empty, defensive for missing or non-string items). Omit `tech_options` on-card inside diamond nodes. Replace stacked colored `<Badge>` boxes (`Entry`, `Exit`, `AI model`, `Agent`) with plain monospace text micro-labels, and for Entry nodes render a small `User` icon alongside `"Entry"` while keeping the existing `rounded-full` pill shape and emerald border. Keep lock icon and diff badges (`New`, `Removed`, `Edited`). In `apps/web/src/components/diagram/layout.ts` (`computeNodeDimensions`), add ~16px height when `tech_options` is non-empty for non-diamond nodes, keeping role at its current clamp so existing ceiling bounds and `BlockNode` positions remain unchanged.
+Why: Elevates readability and visual restraint. Replacing heavy colored pill badges with plain monospace micro-labels eliminates card clutter while preserving structural encoding (emerald border for entry, violet for exit, hexagon for AI model/agent). Adding plain-text technology options gives immediate visibility into node implementation without heavy chips, and preserving role clamp ensures `BlockNode` and DAG layout bounds are preserved.
+Alternatives considered:
+1. Clamping role to 1 line in layout: Rejected per user instruction to preserve layout ceiling assertions and existing test bounds.
+2. Rendering tech options as chips: Rejected per user decision to avoid badge and pill clutter.
+If we removed it: Node cards would remain cluttered with multi-colored badge pills and lack technology visibility.
+Decided by: user approved (Stage 1A answers)
+Status: active
+
 
 ## Phase 3 Summary
 

@@ -1,6 +1,6 @@
 import React from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import { Lock } from "lucide-react";
+import { Lock, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ConstraintSpec, EdgeSpec, NodeSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -37,7 +37,7 @@ const strokeColorMap: Record<BorderColor, string> = {
 /**
  * Custom Diagram Node card.
  *
- * Requirements (Stage B4e1 & D-188 Fix):
+ * Requirements (Stage 1A & D-323):
  * - Fixed 240px width; content-computed height.
  * - Handles: Top (target) and Bottom (source) centered.
  * - Shapes by structure:
@@ -45,9 +45,13 @@ const strokeColorMap: Record<BorderColor, string> = {
  *   2. diamond decision -> diamond with centered inner box (DIAMOND_INNER_WIDTH = 112px)
  *   3. needs_model true (or ai_role model/agent) -> hexagon (with agent double ring)
  *   4. otherwise -> rectangle
- * - Name and role wrapped with line-clamp-2, break-words (diamond role max 1 line).
- * - Type text shown as small grey text and NEVER changes any style.
- * - Badges: Entry, Exit, AI model, Agent (from classify.ts).
+ * - Typographic hierarchy on card:
+ *   1. name (semibold, foreground, max 2 lines, break-words)
+ *   2. role (muted, existing clamp: 2 lines non-diamond, 1 line diamond)
+ *   3. type + micro-labels (mono, 10px, muted; type never changes style per Rule 3)
+ *      - Plain monospace text micro-labels replacing stacked colored Badge pills
+ *      - Entry node receives small User icon + "Entry"
+ *   4. tech_options as plain small mono text line "A · B · +N" (max 3 shown, hidden when empty; omitted in diamond)
  * - Border colour by priority: entry emerald, exit violet, needs_model amber, otherwise slate.
  * - Lock icon when node is named in any constraint.
  * - Focusable with tabIndex={0}, aria-label="Node: {name}, {type}".
@@ -85,6 +89,16 @@ export function DiagramNode({
       ? `Node: ${data.name}, ${data.type}, ${data.diffStatus}`
       : `Node: ${data.name}, ${data.type}`;
 
+  const validTechOptions = Array.isArray(data.tech_options)
+    ? data.tech_options.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    : [];
+  const techDisplay =
+    !isDiamond && validTechOptions.length > 0
+      ? validTechOptions.length <= 3
+        ? validTechOptions.join(" · ")
+        : `${validTechOptions.slice(0, 3).join(" · ")} · +${validTechOptions.length - 3}`
+      : null;
+
   return (
     <div
       tabIndex={0}
@@ -112,7 +126,7 @@ export function DiagramNode({
         data.diffStatus === "edited" && "ring-2 ring-sky-500 ring-offset-2 ring-offset-background",
         data.dimmed && "opacity-30",
         selected
-          ? "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          ? "ring-2 ring-[var(--brand-accent,#b7c6c2)] ring-offset-2 ring-offset-background"
           : "hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
         (isHexagon || isDiamond) && (selected || (data.diffStatus && data.diffStatus !== "unchanged")) && "rounded-xl",
       )}
@@ -182,12 +196,6 @@ export function DiagramNode({
           >
             {data.name}
           </p>
-          <p
-            className="truncate font-mono text-[9px] text-muted-foreground leading-tight"
-            title={data.type}
-          >
-            {data.type}
-          </p>
           {Boolean(data.role) && (
             <p
               className="line-clamp-1 break-words text-[9px] text-muted-foreground/90 leading-tight"
@@ -196,6 +204,26 @@ export function DiagramNode({
               {data.role}
             </p>
           )}
+          <div className="flex items-center justify-center gap-1 flex-wrap font-mono text-[9px] text-muted-foreground leading-tight">
+            <span className="truncate" title={data.type}>
+              {data.type}
+            </span>
+            {badges.map((b) => (
+              <span
+                key={b}
+                className="inline-flex items-center text-[8px] font-mono text-muted-foreground"
+              >
+                {b === "Entry" ? (
+                  <>
+                    <User className="size-2 mr-0.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                    Entry
+                  </>
+                ) : (
+                  b
+                )}
+              </span>
+            ))}
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-1 overflow-hidden pt-0.5">
             {diffBadge && (
               <Badge
@@ -215,87 +243,86 @@ export function DiagramNode({
                 <Lock className="size-2.5 text-amber-500" aria-label="Locked by constraint" />
               </span>
             )}
-            {badges.map((b) => (
-              <Badge
-                key={b}
-                variant="outline"
-                className={cn(
-                  "px-1 py-0 text-[8px] font-mono leading-tight tracking-tight uppercase",
-                  b === "Entry" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                  b === "Exit" && "border-violet-500/50 text-violet-400 bg-violet-500/10",
-                  b === "AI model" && "border-amber-500/50 text-amber-400 bg-amber-500/10",
-                  b === "Agent" && "border-amber-500/50 text-amber-300 bg-amber-500/20",
-                )}
-              >
-                {b}
-              </Badge>
-            ))}
           </div>
         </div>
       ) : (
         /* Non-diamond standard layout */
         <>
-          <div className="flex items-start justify-between gap-1.5 overflow-hidden w-full">
-            <div className="min-w-0 flex-1 overflow-hidden">
+          <div className="flex flex-col gap-0.5 w-full overflow-hidden">
+            {/* Row 1: Name and optional Lock / Diff badge */}
+            <div className="flex items-start justify-between gap-1.5 overflow-hidden w-full">
               <p
-                className="line-clamp-2 break-words font-semibold text-xs text-foreground tracking-tight leading-snug"
+                className="line-clamp-2 break-words font-semibold text-xs text-foreground tracking-tight leading-snug flex-1 min-w-0"
                 title={data.name}
               >
                 {data.name}
               </p>
-              <p
-                className="truncate font-mono text-[10px] text-muted-foreground leading-tight"
-                title={data.type}
-              >
-                {data.type}
-              </p>
+
+              <div className="flex shrink-0 items-center gap-1 overflow-hidden pt-0.5">
+                {locked && (
+                  <span title="Named in a constraint" className="shrink-0 text-muted-foreground">
+                    <Lock className="size-3 text-amber-500" aria-label="Locked by constraint" />
+                  </span>
+                )}
+                {diffBadge && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "px-1 py-0 text-[9px] font-mono leading-tight tracking-tight uppercase",
+                      data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                      data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                      data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                    )}
+                  >
+                    {diffBadge}
+                  </Badge>
+                )}
+              </div>
             </div>
 
-            {locked && (
-              <span title="Named in a constraint" className="shrink-0 text-muted-foreground pt-0.5">
-                <Lock className="size-3 text-amber-500" aria-label="Locked by constraint" />
-              </span>
+            {/* Row 2: Role (muted, existing clamp: 2 lines) */}
+            {Boolean(data.role) && (
+              <p
+                className="line-clamp-2 break-words text-[10px] text-muted-foreground/90 leading-tight w-full"
+                title={data.role}
+              >
+                {data.role}
+              </p>
             )}
           </div>
 
-          <div className="flex items-end justify-between gap-1 overflow-hidden w-full pt-0.5">
-            <p
-              className="line-clamp-2 break-words text-[10px] text-muted-foreground/90 max-w-[130px] leading-tight"
-              title={data.role}
-            >
-              {data.role}
-            </p>
-
-            <div className="flex shrink-0 items-center gap-1 overflow-hidden">
-              {diffBadge && (
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "px-1 py-0 text-[9px] font-mono leading-tight tracking-tight uppercase",
-                    data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                    data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                    data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
-                  )}
-                >
-                  {diffBadge}
-                </Badge>
-              )}
+          <div className="flex flex-col gap-0.5 w-full overflow-hidden pt-0.5">
+            {/* Row 3: Type + micro-labels (mono, 10px, muted; type never changes style, Rule 3) */}
+            <div className="flex items-center gap-1.5 flex-wrap overflow-hidden w-full text-[10px] font-mono text-muted-foreground leading-tight">
+              <span className="truncate" title={data.type}>
+                {data.type}
+              </span>
               {badges.map((b) => (
-                <Badge
+                <span
                   key={b}
-                  variant="outline"
-                  className={cn(
-                    "px-1 py-0 text-[9px] font-mono leading-tight tracking-tight uppercase",
-                    b === "Entry" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                    b === "Exit" && "border-violet-500/50 text-violet-400 bg-violet-500/10",
-                    b === "AI model" && "border-amber-500/50 text-amber-400 bg-amber-500/10",
-                    b === "Agent" && "border-amber-500/50 text-amber-300 bg-amber-500/20",
-                  )}
+                  className="inline-flex items-center text-[10px] font-mono text-muted-foreground"
                 >
-                  {b}
-                </Badge>
+                  {b === "Entry" ? (
+                    <>
+                      <User className="size-2.5 mr-0.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                      Entry
+                    </>
+                  ) : (
+                    b
+                  )}
+                </span>
               ))}
             </div>
+
+            {/* Row 4: Tech line (plain small mono text line "A · B · +N", max 3 shown, hidden when empty) */}
+            {techDisplay && (
+              <p
+                className="truncate font-mono text-[9px] text-muted-foreground/80 leading-tight w-full select-text"
+                title={validTechOptions.join(", ")}
+              >
+                {techDisplay}
+              </p>
+            )}
           </div>
         </>
       )}

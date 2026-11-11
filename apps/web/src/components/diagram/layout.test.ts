@@ -479,6 +479,48 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       }
     });
 
+    it("adds TECH_LINE_HEIGHT (16px) when tech_options is non-empty for non-diamond nodes, keeping diamond and empty-tech unchanged", () => {
+      const baseNode = {
+        name: "Ingest Service",
+        role: "Ingests data",
+      };
+
+      const rectWithout = computeNodeDimensions(baseNode, "rectangle");
+      const rectWith = computeNodeDimensions(
+        { ...baseNode, tech_options: ["Go", "Kafka"] },
+        "rectangle",
+      );
+      expect(rectWithout.height).toBe(94);
+      expect(rectWith.height).toBe(110);
+      expect(rectWith.height - rectWithout.height).toBe(16);
+
+      // Empty tech_options array adds 0px
+      const rectEmptyTech = computeNodeDimensions(
+        { ...baseNode, tech_options: [] },
+        "rectangle",
+      );
+      expect(rectEmptyTech.height).toBe(rectWithout.height);
+
+      // Diamond nodes omit tech line and maintain identical height
+      const diamondWithout = computeNodeDimensions(baseNode, "diamond");
+      const diamondWith = computeNodeDimensions(
+        { ...baseNode, tech_options: ["Go", "Kafka"] },
+        "diamond",
+      );
+      expect(diamondWith.height).toBe(diamondWithout.height);
+      expect(diamondWith.height).toBe(154);
+
+      // Long text node with tech_options stays clamped at RECT_MAX_HEIGHT (130)
+      const longNode = {
+        name: "Enterprise Architecture Multi-Region Transaction Orchestration Gateway Service",
+        role: "Coordinates end-to-end distributed transaction commits across all primary and backup replica clusters",
+        tech_options: ["Kafka", "Postgres", "Redis"],
+      };
+      const longRectWithTech = computeNodeDimensions(longNode, "rectangle");
+      expect(longRectWithTech.height).toBe(RECT_MAX_HEIGHT);
+      expect(longRectWithTech.height).toBe(130);
+    });
+
     it("calculates diamond taller than rectangle for the exact same text and within the new clamp", () => {
       const node = {
         name: "Customer Intent Classifier",

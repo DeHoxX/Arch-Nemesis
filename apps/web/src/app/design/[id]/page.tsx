@@ -623,7 +623,7 @@ function DesignContent(): React.ReactElement {
               {isDesktop ? (
                 <div
                   ref={diagramContainerRef}
-                  className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative"
+                  className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-lg border border-border bg-card overflow-hidden relative"
                 >
                   <BlockDiagramView
                     spec={displaySpec}
@@ -657,7 +657,7 @@ function DesignContent(): React.ReactElement {
                 {isDesktop ? (
                   <div
                     ref={diagramContainerRef}
-                    className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-2xl border border-border/80 bg-card/60 shadow-lg backdrop-blur-sm overflow-hidden relative"
+                    className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-lg border border-border bg-card overflow-hidden relative"
                   >
                     <DiagramView
                       spec={displaySpec}

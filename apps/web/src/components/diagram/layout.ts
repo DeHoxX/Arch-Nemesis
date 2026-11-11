@@ -24,6 +24,7 @@ export const NAME_LINE_HEIGHT = 18;
 export const TYPE_HEIGHT = 14;
 export const ROLE_LINE_HEIGHT = 18;
 export const BADGE_HEIGHT = 20;
+export const TECH_LINE_HEIGHT = 16;
 
 export const RECT_MIN_HEIGHT = 80;
 export const RECT_MAX_HEIGHT = 130;
@@ -39,7 +40,7 @@ export const DIAMOND_MAX_HEIGHT = 190;
  * Pure and deterministic node dimension calculation.
  */
 export function computeNodeDimensions(
-  node: { name: string; role?: string },
+  node: { name: string; role?: string; tech_options?: string[] },
   shape: NodeShape,
 ): { width: number; height: number } {
   const width = NODE_WIDTH;
@@ -73,6 +74,13 @@ export function computeNodeDimensions(
         : Math.min(2, Math.max(1, Math.ceil(roleUnits / charsPerLine)))
       : 0;
 
+  const hasTech = Boolean(
+    shape !== "diamond" &&
+      Array.isArray(node.tech_options) &&
+      node.tech_options.some((t) => typeof t === "string" && t.trim().length > 0),
+  );
+  const techHeight = hasTech ? TECH_LINE_HEIGHT : 0;
+
   let height: number;
   if (shape === "diamond") {
     const innerBoxPadding = 16;
@@ -90,7 +98,8 @@ export function computeNodeDimensions(
       nameLines * NAME_LINE_HEIGHT +
       TYPE_HEIGHT +
       roleLines * ROLE_LINE_HEIGHT +
-      BADGE_HEIGHT;
+      BADGE_HEIGHT +
+      techHeight;
     height = Math.min(
       HEXAGON_MAX_HEIGHT,
       Math.max(HEXAGON_MIN_HEIGHT, baseHeight + 10),
@@ -101,7 +110,8 @@ export function computeNodeDimensions(
       nameLines * NAME_LINE_HEIGHT +
       TYPE_HEIGHT +
       roleLines * ROLE_LINE_HEIGHT +
-      BADGE_HEIGHT;
+      BADGE_HEIGHT +
+      techHeight;
     height = Math.min(
       RECT_MAX_HEIGHT,
       Math.max(RECT_MIN_HEIGHT, baseHeight),

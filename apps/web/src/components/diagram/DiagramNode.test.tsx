@@ -271,6 +271,69 @@ describe("DiagramNode component", () => {
       expect(polygons.length).toBe(2);
     });
 
+    it("renders User icon alongside Entry micro-label for entry nodes", () => {
+      const { container } = renderNode({
+        id: "entry_node",
+        name: "Client Ingress",
+        type: "gateway",
+        entry_ids: ["entry_node"],
+      });
+      expect(screen.getByText("Entry")).toBeDefined();
+      const userIcon = container.querySelector("svg.lucide-user");
+      expect(userIcon).not.toBeNull();
+    });
+
+    it("renders tech_options as plain small mono text line 'A · B · +N' with max 3 shown, hidden when empty", () => {
+      // 1. Two tech options: "Next.js · Tailwind CSS"
+      const { unmount } = renderNode({
+        name: "Frontend Service",
+        tech_options: ["Next.js", "Tailwind CSS"],
+      });
+      expect(screen.getByText("Next.js · Tailwind CSS")).toBeDefined();
+      unmount();
+
+      // 2. Four tech options: first 3 shown + "+1" overflow
+      const { unmount: unmount2 } = renderNode({
+        name: "Full Stack Service",
+        tech_options: ["React", "Node.js", "FastAPI", "Postgres"],
+      });
+      expect(screen.getByText("React · Node.js · FastAPI · +1")).toBeDefined();
+      unmount2();
+
+      // 3. Empty tech_options: tech line not rendered
+      const { container: containerEmpty } = renderNode({
+        name: "Empty Tech Service",
+        tech_options: [],
+      });
+      expect(containerEmpty.textContent).not.toContain(" · ");
+
+      // 4. Missing/defensive non-string handling
+      const { container: containerDefensive } = renderNode({
+        name: "Defensive Tech Service",
+        tech_options: ["   ", ""],
+      });
+      expect(containerDefensive.textContent).not.toContain(" · ");
+    });
+
+    it("omits tech_options inside diamond decision nodes", () => {
+      const { container } = renderNode({
+        id: "decision_node",
+        name: "Fraud Evaluator",
+        type: "evaluator",
+        role: "Evaluates transactions",
+        tech_options: ["Python", "TensorFlow"],
+        edges: [
+          { from: "decision_node", to: "audit", flows: "flagged", condition: "score > 80" },
+          { from: "decision_node", to: "clear", flows: "approved" },
+        ],
+      });
+
+      const innerBox = container.querySelector(".diamond-inner-box");
+      expect(innerBox).not.toBeNull();
+      expect(innerBox?.textContent).not.toContain("Python");
+      expect(innerBox?.textContent).not.toContain("TensorFlow");
+    });
+
     it("renders 100-character unbroken name and hostile HTML string clamped inside diamond", () => {
       const unbrokenName = "A".repeat(100);
       const hostileRole = "<script>alert('xss')</script>";

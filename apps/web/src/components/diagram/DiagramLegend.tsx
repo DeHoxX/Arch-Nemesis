@@ -33,7 +33,7 @@ export function DiagramLegend(): React.ReactElement {
         aria-expanded={isOpen}
         aria-controls="diagram-legend-panel"
         aria-label="Toggle diagram legend"
-        className="flex items-center gap-1.5 rounded-lg border border-border/80 bg-background/95 px-2.5 py-1 text-xs font-medium text-foreground shadow-xs backdrop-blur-xs transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span>Legend</span>
         <ChevronDown
@@ -49,7 +49,7 @@ export function DiagramLegend(): React.ReactElement {
           id="diagram-legend-panel"
           role="region"
           aria-label="Diagram legend"
-          className="mt-2 max-h-[calc(100vh-280px)] w-64 overflow-y-auto rounded-xl border border-border bg-background/95 p-3 text-xs shadow-lg backdrop-blur-md"
+          className="mt-2 max-h-[calc(100vh-280px)] w-64 overflow-y-auto rounded-md border border-border bg-card p-3 text-xs"
         >
           <div className="space-y-3">
             {/* Border Colors */}
