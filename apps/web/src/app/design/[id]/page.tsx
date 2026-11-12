@@ -4,7 +4,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, use
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
 import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
@@ -39,6 +39,8 @@ import {
 } from "@/lib/api";
 import { buildUnionGraph } from "@/lib/diff";
 import { updateHistoryEntryTitle } from "@/lib/history";
+import { useFullscreen } from "@/lib/useFullscreen";
+import { cn } from "@/lib/utils";
 import type { ArchitectureSpec, PatchSummary, SuggestionItemResponse, UnionArchitectureSpec } from "@/lib/types";
 
 /**
@@ -121,9 +123,17 @@ function DesignContent(): React.ReactElement {
   const [chatDraft, setChatDraft] = useState<string>("");
   const [playbackStepIndex, setPlaybackStepIndex] = useState<number | null>(null);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
+  const fullscreenWrapperRef = useRef<HTMLDivElement>(null);
+
+  const { isFullscreen, isFullscreenSupported, toggleFullscreen } =
+    useFullscreen(fullscreenWrapperRef);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
   const isDesktop = useMediaQuery("(min-width: 768px)", true);
+
+  const fitViewTrigger = pendingPatch
+    ? `${pendingPatch.id}-${isFullscreen}`
+    : isFullscreen;
 
   // Fetch current design specification via TanStack Query
   const {
@@ -642,134 +652,195 @@ function DesignContent(): React.ReactElement {
           }}
           className="w-full space-y-6"
         >
-          <TabsList className="bg-card/80 border border-border/60 p-1">
-            <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono">
-              Block diagram
-            </TabsTrigger>
-            <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono">
-              Architecture
-            </TabsTrigger>
-            <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono">
-              Explanation
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between gap-2">
+            <TabsList className="bg-card/80 border border-border/60 p-1">
+              <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono">
+                Block diagram
+              </TabsTrigger>
+              <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono">
+                Architecture
+              </TabsTrigger>
+              <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono">
+                Explanation
+              </TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="block-diagram" className="space-y-6 outline-none focus-visible:ring-0">
-            {/* Simple Block Diagram area */}
-            <div className="w-full">
-              {isDesktop ? (
-                <div
-                  ref={diagramContainerRef}
-                  className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-lg border border-border bg-card overflow-hidden relative"
-                >
-                  <BlockDiagramView
+            {/* Fullscreen Toggle: visible for diagram tabs on desktop when supported */}
+            {isFullscreenSupported && isDesktop && (activeTab === "block-diagram" || activeTab === "architecture") && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={toggleFullscreen}
+                aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+                title={isFullscreen ? "Exit full screen" : "Full screen"}
+                className="h-8 gap-1.5 px-2.5 font-mono text-xs motion-reduce:transition-none"
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="size-3.5" />
+                    <span className="hidden sm:inline">Exit full screen</span>
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="size-3.5" />
+                    <span className="hidden sm:inline">Full screen</span>
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+
+          <div
+            ref={fullscreenWrapperRef}
+            className={cn(
+              "bg-page-bg w-full",
+              isFullscreen && "fixed inset-0 z-50 flex flex-col h-screen w-screen p-4 overflow-hidden"
+            )}
+          >
+            {/* Banner inside fullscreen wrapper: exact compliance text rendered at top */}
+            {isFullscreen && (
+              <div className="mb-3 shrink-0">
+                <Banner />
+              </div>
+            )}
+
+            <TabsContent value="block-diagram" className={cn("space-y-6 outline-none focus-visible:ring-0", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
+              {/* Simple Block Diagram area */}
+              <div className={cn("w-full", isFullscreen && "flex-1 min-h-0 h-full")}>
+                {isDesktop ? (
+                  <div
+                    ref={diagramContainerRef}
+                    className={cn(
+                      "w-full rounded-lg border border-border bg-card overflow-hidden relative",
+                      isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
+                    )}
+                  >
+                    <BlockDiagramView
+                      spec={displaySpec}
+                      fitViewTrigger={fitViewTrigger}
+                      nodesKey={nodesKey}
+                      className="h-full w-full"
+                    />
+                  </div>
+                ) : (
+                  <FallbackList
                     spec={displaySpec}
-                    fitViewTrigger={pendingPatch ? pendingPatch.id : null}
-                    nodesKey={nodesKey}
-                    className="h-full w-full"
+                    flowOrder={activeDesign?.flow_order ?? []}
                   />
+                )}
+              </div>
+
+              {/* Notes and Constraints below the block diagram */}
+              {!isFullscreen && (
+                <div className="space-y-6 pt-2">
+                  <NotesPanel
+                    warnings={activeDesign?.warnings ?? []}
+                    unverifiableRequirements={activeDesign?.brief?.unverifiable_requirements ?? []}
+                  />
+                  <ConstraintsPanel constraints={activeDesign?.spec?.constraints ?? []} />
                 </div>
-              ) : (
-                <FallbackList
-                  spec={displaySpec}
-                  flowOrder={activeDesign?.flow_order ?? []}
-                />
               )}
-            </div>
+            </TabsContent>
 
-            {/* Notes and Constraints below the block diagram */}
-            <div className="space-y-6 pt-2">
-              <NotesPanel
-                warnings={activeDesign?.warnings ?? []}
-                unverifiableRequirements={activeDesign?.brief?.unverifiable_requirements ?? []}
-              />
-              <ConstraintsPanel constraints={activeDesign?.spec?.constraints ?? []} />
-            </div>
-          </TabsContent>
-
-          <TabsContent value="architecture" className="space-y-6 outline-none focus-visible:ring-0">
-            {/* Architecture area and DetailPanel grid */}
-            {(() => {
-              const hasSelection = Boolean(selectedNode || selectedEdge);
-              return (
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  <div className={hasSelection ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full"}>
-                    {isDesktop ? (
-                      <div
-                        ref={diagramContainerRef}
-                        className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-lg border border-border bg-card overflow-hidden relative"
-                      >
-                        <DiagramView
+            <TabsContent value="architecture" className={cn("space-y-6 outline-none focus-visible:ring-0", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
+              {/* Architecture area and DetailPanel grid */}
+              {(() => {
+                const hasSelection = Boolean(selectedNode || selectedEdge);
+                return (
+                  <div className={cn(
+                    "grid grid-cols-1 lg:grid-cols-12 gap-6 items-start",
+                    isFullscreen && "flex-1 min-h-0 h-full"
+                  )}>
+                    <div className={cn(
+                      hasSelection ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full",
+                      isFullscreen && "h-full min-h-0"
+                    )}>
+                      {isDesktop ? (
+                        <div
+                          ref={diagramContainerRef}
+                          className={cn(
+                            "w-full rounded-lg border border-border bg-card overflow-hidden relative",
+                            isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
+                          )}
+                        >
+                          <DiagramView
+                            spec={displaySpec}
+                            flowOrder={activeDesign?.flow_order}
+                            selectedNodeId={selectedNodeId}
+                            onSelectNode={(nodeId) => {
+                              setSelectedNodeId(nodeId);
+                              if (nodeId !== null) {
+                                setSelectedEdgeId(null);
+                                setPlaybackStepIndex(null);
+                              }
+                            }}
+                            selectedEdgeId={selectedEdgeId}
+                            onSelectEdge={(edgeId) => {
+                              setSelectedEdgeId(edgeId);
+                              if (edgeId !== null) {
+                                setSelectedNodeId(null);
+                                setPlaybackStepIndex(null);
+                              }
+                            }}
+                            playbackStepIndex={playbackStepIndex}
+                            onPlaybackStepChange={setPlaybackStepIndex}
+                            fitViewTrigger={fitViewTrigger}
+                            nodesKey={nodesKey}
+                            className="h-full w-full"
+                          />
+                        </div>
+                      ) : (
+                        <FallbackList
                           spec={displaySpec}
-                          flowOrder={activeDesign?.flow_order}
+                          flowOrder={activeDesign?.flow_order ?? []}
                           selectedNodeId={selectedNodeId}
                           onSelectNode={(nodeId) => {
                             setSelectedNodeId(nodeId);
-                            if (nodeId !== null) {
-                              setSelectedEdgeId(null);
-                              setPlaybackStepIndex(null);
-                            }
+                            if (nodeId !== null) setSelectedEdgeId(null);
                           }}
-                          selectedEdgeId={selectedEdgeId}
-                          onSelectEdge={(edgeId) => {
-                            setSelectedEdgeId(edgeId);
-                            if (edgeId !== null) {
-                              setSelectedNodeId(null);
-                              setPlaybackStepIndex(null);
-                            }
+                        />
+                      )}
+                    </div>
+
+                    {hasSelection && (
+                      <div className={cn(
+                        "lg:col-span-4 w-full",
+                        isFullscreen && "h-full max-h-full overflow-y-auto"
+                      )}>
+                        <DetailPanel
+                          node={selectedNode}
+                          edge={selectedEdge}
+                          spec={activeDesign?.spec ?? displaySpec}
+                          onClose={() => {
+                            setSelectedNodeId(null);
+                            setSelectedEdgeId(null);
                           }}
-                          playbackStepIndex={playbackStepIndex}
-                          onPlaybackStepChange={setPlaybackStepIndex}
-                          fitViewTrigger={pendingPatch ? pendingPatch.id : null}
-                          nodesKey={nodesKey}
-                          className="h-full w-full"
+                          onSelectNode={(nodeId) => {
+                            setSelectedEdgeId(null);
+                            setSelectedNodeId(nodeId);
+                          }}
+                          onPrefillChat={(text) => setChatDraft(text)}
+                          disabledShortcuts={Boolean(pendingPatch) || isViewingHistorical}
                         />
                       </div>
-                    ) : (
-                      <FallbackList
-                        spec={displaySpec}
-                        flowOrder={activeDesign?.flow_order ?? []}
-                        selectedNodeId={selectedNodeId}
-                        onSelectNode={(nodeId) => {
-                          setSelectedNodeId(nodeId);
-                          if (nodeId !== null) setSelectedEdgeId(null);
-                        }}
-                      />
                     )}
                   </div>
+                );
+              })()}
 
-                  {hasSelection && (
-                    <div className="lg:col-span-4 w-full">
-                      <DetailPanel
-                        node={selectedNode}
-                        edge={selectedEdge}
-                        spec={activeDesign?.spec ?? displaySpec}
-                        onClose={() => {
-                          setSelectedNodeId(null);
-                          setSelectedEdgeId(null);
-                        }}
-                        onSelectNode={(nodeId) => {
-                          setSelectedEdgeId(null);
-                          setSelectedNodeId(nodeId);
-                        }}
-                        onPrefillChat={(text) => setChatDraft(text)}
-                        disabledShortcuts={Boolean(pendingPatch) || isViewingHistorical}
-                      />
-                    </div>
-                  )}
+              {/* Notes and Constraints below the architecture diagram */}
+              {!isFullscreen && (
+                <div className="space-y-6 pt-2">
+                  <NotesPanel
+                    warnings={activeDesign?.warnings ?? []}
+                    unverifiableRequirements={activeDesign?.brief?.unverifiable_requirements ?? []}
+                  />
+                  <ConstraintsPanel constraints={activeDesign?.spec?.constraints ?? []} />
                 </div>
-              );
-            })()}
-
-            {/* Notes and Constraints below the architecture diagram */}
-            <div className="space-y-6 pt-2">
-              <NotesPanel
-                warnings={activeDesign?.warnings ?? []}
-                unverifiableRequirements={activeDesign?.brief?.unverifiable_requirements ?? []}
-              />
-              <ConstraintsPanel constraints={activeDesign?.spec?.constraints ?? []} />
-            </div>
-          </TabsContent>
+              )}
+            </TabsContent>
+          </div>
 
           <TabsContent value="explanation" className="outline-none focus-visible:ring-0">
             <ExplanationView

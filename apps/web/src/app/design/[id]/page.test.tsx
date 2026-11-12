@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DesignPage from "./page";
+import { BANNER_TEXT } from "@/components/Banner";
 import * as exportLib from "@/lib/export";
 
 let mockId = "design_test_123";
@@ -1648,7 +1649,11 @@ describe("DesignPage Component (/design/[id])", () => {
       // Playback bar is now mounted
       const playbackBar = await screen.findByRole("contentinfo", { name: "Flow playback controls" });
       expect(playbackBar).toBeDefined();
-      expect(screen.getByText(/Ready · 1 flow/)).toBeDefined();
+      expect(screen.getByText("1 flow")).toBeDefined();
+
+      // Open Flow panel
+      const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+      fireEvent.click(flowToggle);
 
       // Start playback (click Next)
       const nextBtn = screen.getByRole("button", { name: "Start flow playback" });
@@ -1669,6 +1674,78 @@ describe("DesignPage Component (/design/[id])", () => {
       // Captured state during exportDiagramToPng call must show playback was not active
       expect(playbackActiveAtExportCall).toBe(false);
       expect(screen.queryByText("Step 1 of 1")).toBeNull();
+    });
+
+    it("renders Full screen button in both Block diagram and Architecture tabs and preserves exact Banner text (Stage 1C+, D-333)", async () => {
+      const user = userEvent.setup();
+
+      const originalFullscreenEnabled = document.fullscreenEnabled;
+      const originalRequestFullscreen = HTMLElement.prototype.requestFullscreen;
+
+      try {
+        // Ensure desktop viewport
+        window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }));
+
+        // Mock Fullscreen API
+        Object.defineProperty(document, "fullscreenEnabled", {
+          writable: true,
+          configurable: true,
+          value: true,
+        });
+
+        const requestFullscreenMock = vi.fn().mockResolvedValue(undefined);
+        HTMLElement.prototype.requestFullscreen = requestFullscreenMock;
+
+        global.fetch = vi.fn().mockResolvedValue({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+
+        renderWithClient(<DesignPage />);
+
+        // Verify Banner text is exact, waiting for query to resolve and page to load
+        const bannerElement = await screen.findByText(BANNER_TEXT);
+        expect(bannerElement).toBeDefined();
+        expect(bannerElement.textContent?.trim().length).toBeGreaterThan(0);
+
+        // 1. In Block diagram tab, Full screen button is present
+        const fsBtnBlock = await screen.findByRole("button", { name: "Full screen" });
+        expect(fsBtnBlock).toBeDefined();
+
+        // Click Full screen
+        fireEvent.click(fsBtnBlock);
+        expect(requestFullscreenMock).toHaveBeenCalled();
+
+        // 2. In Architecture tab, Full screen button is present
+        const archTab = await screen.findByRole("tab", { name: "Architecture" });
+        await user.click(archTab);
+
+        const fsBtnArch = await screen.findByRole("button", { name: "Full screen" });
+        expect(fsBtnArch).toBeDefined();
+
+        // 3. In Explanation tab, Full screen button is NOT present
+        const explanationTab = await screen.findByRole("tab", { name: "Explanation" });
+        await user.click(explanationTab);
+
+        expect(screen.queryByRole("button", { name: "Full screen" })).toBeNull();
+      } finally {
+        Object.defineProperty(document, "fullscreenEnabled", {
+          writable: true,
+          configurable: true,
+          value: originalFullscreenEnabled,
+        });
+        HTMLElement.prototype.requestFullscreen = originalRequestFullscreen;
+      }
     });
   });
 });

@@ -3462,6 +3462,46 @@ If we removed it: Selecting a node while stepping playback would cause visual hi
 Decided by: user approved (Stage 1C plan)
 Status: active
 
+### D-332 — Stage 1C+ — design — Flow panel dropdown replacing always-visible docked playback bar (supersedes the bar layout part of D-329)
+What: In `apps/web/src/components/diagram/FlowPlaybackBar.tsx`, replace the always-visible transport and step descriptions with an upward-opening "Flow" dropdown panel anchored left-0 (`bottom-full mb-2`, max-h with overflow-y-auto, opaque bg-card, border-border, rounded-md, shadow-lg, z-30). In the docked footer bar, render only the "Flow" toggle button (with short `{N} flows` text) on the left and the "Legend" toggle button on the right. Opening Flow closes Legend and vice versa. Closing the Flow panel (toggle button, Escape while focused within it, or Clear button) exits active playback (`onClear()`), while opening the panel does not auto-start playback (Next starts step 1). This supersedes the always-visible transport layout defined in D-329.
+Why: Reduces visual clutter and horizontal crowding in the resting diagram view, matching the clean engineering tool aesthetic while retaining all sequential playback capabilities inside an accessible on-demand panel.
+Alternatives considered:
+1. Keeping the playback toolbar always visible: Rejected per Stage 1C+ requirements to eliminate canvas clutter.
+2. Merging Flow into the Legend popover: Rejected because visual taxonomy legend and sequential playback handoffs serve distinct conceptual roles.
+If we removed it: Transport controls would consume footer space permanently even when users are not actively stepping through flows.
+Decided by: user approved (Stage 1C+ plan)
+Status: active
+
+### D-333 — Stage 1C+ — design — Fullscreen API scope on diagram canvas wrapper with banner preservation
+What: Add a "Full screen" / "Exit full screen" button in the tab row (right side) on both `design/[id]/page.tsx` and `admin/designs/[id]/[n]/page.tsx` using `Maximize2` and `Minimize2` icons from `lucide-react`. Bind the native browser Fullscreen API (`requestFullscreen` / `exitFullscreen`) to ONE container element wrapping the active tab diagram content (canvas, docked bar, legend, and DetailPanel) with solid `var(--page-bg)` background. In fullscreen mode on the design page, render the exact compliance `Banner` at the top of the fullscreen wrapper (preserving Rule 8 compliance messaging without fullscreening the entire page). Synchronize state strictly via the browser `"fullscreenchange"` event, hiding the button if `document.fullscreenEnabled` is false or `requestFullscreen` is missing, and catching promise rejections gracefully.
+Why: Provides distraction-free diagram review for large architectures across both user and admin views, without fullscreening navigation bars or hiding mandatory compliance disclosures.
+Alternatives considered:
+1. Fullscreening the entire HTML document (`document.documentElement`): Rejected because page navigation, header cards, and background decorations clutter the expanded view.
+2. Hiding the compliance Banner in fullscreen: Rejected because Rule 8 requires legal and compliance disclaimers to remain visible.
+If we removed it: Users inspecting dense multi-node architectures would be confined to fixed-height canvas viewports.
+Decided by: user approved (Stage 1C+ plan)
+Status: active
+
+### D-334 — Stage 1C+ — design — FitView viewport synchronization on fullscreen resize and transitions
+What: In fullscreen mode, expand the canvas container to fill available viewport height (replacing `calc(100vh-260px)` min/max height restrictions). Connect `useFullscreen` transition events (`fullscreenchange`) and resize observations to trigger `FitViewWatcher` (`fitView({ padding: 0.2 })`) across both `DiagramView` and `BlockDiagramView` after entering or leaving fullscreen. In fullscreen, maintain the responsive DetailPanel layout (right column at >=1024px, stacked below otherwise) and keep the >=768px desktop canvas threshold (hiding fullscreen button below 768px where FallbackList is mounted).
+Why: Ensures diagram content automatically scales and centers neatly to take advantage of expanded display geometry without manual panning or zooming, while preserving responsive layout integrity.
+Alternatives considered:
+1. Fixed timers for fitView after fullscreen toggle: Rejected due to race conditions with browser window animations and GPU compositor delays.
+2. Forcing canvas rendering below 768px in fullscreen: Rejected because mobile viewports require accessible FallbackList semantics.
+If we removed it: Entering fullscreen would leave diagram nodes in their previous small-viewport zoom levels with large empty margins.
+Decided by: user approved (Stage 1C+ plan)
+Status: active
+
+### D-335 — Stage 1C+ — fix — Fullscreen capability detection and Banner text constant export
+What: In `apps/web/src/lib/useFullscreen.ts`, expand capability detection in `isFullscreenSupported` to check `target.requestFullscreen`, `HTMLElement.prototype.requestFullscreen`, and `document.documentElement.requestFullscreen`. In `apps/web/src/components/Banner.tsx`, export the constant `BANNER_TEXT = "Structurally checked, not guaranteed to be the best design. This is not a compliance claim."`.
+Why: When pages load asynchronously or show an initial authentication prompt (such as the admin token unlock view), the fullscreen container ref (`targetRef.current`) is `null` on initial mount. Relying solely on `targetRef.current.requestFullscreen` caused `isFullscreenSupported` to permanently lock to `false` because ref objects do not trigger effect re-execution. Checking standard prototype capability allows `isFullscreenSupported` to evaluate accurately on initial mount while safely verifying target availability at click time. Exporting `BANNER_TEXT` guarantees test assertions match exact compliance copy without string drift or duplication.
+Alternatives considered:
+1. Re-running effects on every render: Rejected to avoid cascading renders and ESLint set-state-in-effect warnings.
+2. Hardcoding banner string repetitions in tests: Rejected to adhere strictly to single source of truth for compliance text.
+If we removed it: The Full screen button would fail to appear on admin design inspection and other conditional-render pages.
+Decided by: user approved
+Status: active
+
 
 ## Phase 3 Summary
 

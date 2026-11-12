@@ -1,10 +1,10 @@
 "use client";
 
-import React, { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, KeyRound, RefreshCw } from "lucide-react";
+import { AlertCircle, ArrowLeft, KeyRound, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
 import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
@@ -19,6 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApiError, getAdminDesignVersion } from "@/lib/api";
 import type { AdminDesignVersionResponse } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { useFullscreen } from "@/lib/useFullscreen";
 import { useAdminToken } from "../../../context";
 
 function AdminDesignInspectionLoading(): React.ReactElement {
@@ -51,6 +53,10 @@ function AdminDesignInspectionContent(): React.ReactElement {
   const [isVerifying, setIsVerifying] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>("block-diagram");
+  const fullscreenWrapperRef = useRef<HTMLDivElement>(null);
+  const { isFullscreen, isFullscreenSupported, toggleFullscreen } =
+    useFullscreen(fullscreenWrapperRef);
 
   const {
     data,
@@ -337,89 +343,145 @@ function AdminDesignInspectionContent(): React.ReactElement {
             </div>
 
             {/* Read-Only Tabs: Block diagram vs Architecture vs Explanation */}
-            <Tabs defaultValue="block-diagram" className="w-full space-y-4">
-              <TabsList className="bg-card/60 border border-border/60">
-                <TabsTrigger value="block-diagram" className="text-xs font-medium">
-                  Block diagram
-                </TabsTrigger>
-                <TabsTrigger value="architecture" className="text-xs font-medium">
-                  Architecture
-                </TabsTrigger>
-                <TabsTrigger value="explanation" className="text-xs font-medium">
-                  Explanation
-                </TabsTrigger>
-              </TabsList>
+            {/* Read-Only Tabs: Block diagram vs Architecture vs Explanation */}
+            <Tabs
+              value={activeTab}
+              onValueChange={setActiveTab}
+              className="w-full space-y-4"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <TabsList className="bg-card/60 border border-border/60">
+                  <TabsTrigger value="block-diagram" className="text-xs font-medium">
+                    Block diagram
+                  </TabsTrigger>
+                  <TabsTrigger value="architecture" className="text-xs font-medium">
+                    Architecture
+                  </TabsTrigger>
+                  <TabsTrigger value="explanation" className="text-xs font-medium">
+                    Explanation
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="block-diagram" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                  {/* Read-only Block Diagram Canvas */}
-                  <div className="lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] rounded-lg border border-border bg-card overflow-hidden relative">
-                    <BlockDiagramView spec={data.spec} />
-                  </div>
+                {/* Fullscreen Toggle: visible for diagram tabs when supported */}
+                {isFullscreenSupported && (activeTab === "block-diagram" || activeTab === "architecture") && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleFullscreen}
+                    aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
+                    title={isFullscreen ? "Exit full screen" : "Full screen"}
+                    className="h-8 gap-1.5 px-2.5 font-mono text-xs motion-reduce:transition-none"
+                  >
+                    {isFullscreen ? (
+                      <>
+                        <Minimize2 className="size-3.5" />
+                        <span className="hidden sm:inline">Exit full screen</span>
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="size-3.5" />
+                        <span className="hidden sm:inline">Full screen</span>
+                      </>
+                    )}
+                  </Button>
+                )}
+              </div>
 
-                  {/* Summary / Notes Panel */}
-                  <div className="space-y-4">
-                    <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
-                      <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                        User / Audience
-                      </h2>
-                      <p className="text-xs text-foreground/90">{data.brief.users || "General"}</p>
+              <div
+                ref={fullscreenWrapperRef}
+                className={cn(
+                  "bg-page-bg w-full",
+                  isFullscreen && "fixed inset-0 z-50 flex flex-col h-screen w-screen p-4 overflow-hidden"
+                )}
+              >
+                <TabsContent value="block-diagram" className={cn("space-y-6", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
+                  <div className={cn("grid grid-cols-1 lg:grid-cols-4 gap-6", isFullscreen && "flex-1 min-h-0 h-full")}>
+                    {/* Read-only Block Diagram Canvas */}
+                    <div className={cn(
+                      isFullscreen ? "lg:col-span-4 h-full min-h-0" : "lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]",
+                      "rounded-lg border border-border bg-card overflow-hidden relative"
+                    )}>
+                      <BlockDiagramView spec={data.spec} fitViewTrigger={isFullscreen} />
                     </div>
 
-                    {data.warnings.length > 0 && <NotesPanel warnings={data.warnings} />}
-                  </div>
-                </div>
-              </TabsContent>
+                    {/* Summary / Notes Panel */}
+                    {!isFullscreen && (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
+                          <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                            User / Audience
+                          </h2>
+                          <p className="text-xs text-foreground/90">{data.brief.users || "General"}</p>
+                        </div>
 
-              <TabsContent value="architecture" className="space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                  {/* Read-only Architecture Canvas */}
-                  <div className="lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] rounded-lg border border-border bg-card overflow-hidden relative">
-                    <DiagramView
-                      spec={data.spec}
-                      flowOrder={data.flow_order}
-                      selectedNodeId={selectedNodeId}
-                      onSelectNode={(nodeId) => {
-                        setSelectedNodeId(nodeId);
-                        if (nodeId !== null) setSelectedEdgeId(null);
-                      }}
-                      selectedEdgeId={selectedEdgeId}
-                      onSelectEdge={(edgeId) => {
-                        setSelectedEdgeId(edgeId);
-                        if (edgeId !== null) setSelectedNodeId(null);
-                      }}
-                    />
+                        {data.warnings.length > 0 && <NotesPanel warnings={data.warnings} />}
+                      </div>
+                    )}
                   </div>
+                </TabsContent>
 
-                  {/* Summary / Notes Panel + DetailPanel when selected */}
-                  <div className="space-y-4">
-                    {Boolean(selectedNode || selectedEdge) && (
-                      <DetailPanel
-                        node={selectedNode}
-                        edge={selectedEdge}
+                <TabsContent value="architecture" className={cn("space-y-6", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
+                  <div className={cn("grid grid-cols-1 lg:grid-cols-4 gap-6", isFullscreen && "flex-1 min-h-0 h-full")}>
+                    {/* Read-only Architecture Canvas */}
+                    <div className={cn(
+                      Boolean(selectedNode || selectedEdge) ? "lg:col-span-3" : (isFullscreen ? "lg:col-span-4" : "lg:col-span-3"),
+                      "rounded-lg border border-border bg-card overflow-hidden relative",
+                      isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
+                    )}>
+                      <DiagramView
                         spec={data.spec}
-                        onClose={() => {
-                          setSelectedNodeId(null);
-                          setSelectedEdgeId(null);
-                        }}
+                        flowOrder={data.flow_order}
+                        fitViewTrigger={isFullscreen}
+                        selectedNodeId={selectedNodeId}
                         onSelectNode={(nodeId) => {
-                          setSelectedEdgeId(null);
                           setSelectedNodeId(nodeId);
+                          if (nodeId !== null) setSelectedEdgeId(null);
+                        }}
+                        selectedEdgeId={selectedEdgeId}
+                        onSelectEdge={(edgeId) => {
+                          setSelectedEdgeId(edgeId);
+                          if (edgeId !== null) setSelectedNodeId(null);
                         }}
                       />
-                    )}
-
-                    <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
-                      <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                        User / Audience
-                      </h2>
-                      <p className="text-xs text-foreground/90">{data.brief.users || "General"}</p>
                     </div>
 
-                    {data.warnings.length > 0 && <NotesPanel warnings={data.warnings} />}
+                    {/* Summary / Notes Panel + DetailPanel when selected */}
+                    {(Boolean(selectedNode || selectedEdge) || !isFullscreen) && (
+                      <div className={cn("space-y-4", isFullscreen && "h-full max-h-full overflow-y-auto")}>
+                        {Boolean(selectedNode || selectedEdge) && (
+                          <DetailPanel
+                            node={selectedNode}
+                            edge={selectedEdge}
+                            spec={data.spec}
+                            onClose={() => {
+                              setSelectedNodeId(null);
+                              setSelectedEdgeId(null);
+                            }}
+                            onSelectNode={(nodeId) => {
+                              setSelectedEdgeId(null);
+                              setSelectedNodeId(nodeId);
+                            }}
+                          />
+                        )}
+
+                        {!isFullscreen && (
+                          <>
+                            <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
+                              <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
+                                User / Audience
+                              </h2>
+                              <p className="text-xs text-foreground/90">{data.brief.users || "General"}</p>
+                            </div>
+
+                            {data.warnings.length > 0 && <NotesPanel warnings={data.warnings} />}
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-                </div>
-              </TabsContent>
+                </TabsContent>
+              </div>
 
               <TabsContent value="explanation" className="space-y-4">
                 {/* Pure presenter: NEVER triggers POST /explanation or LLM synthesis */}

@@ -539,5 +539,44 @@ describe("DiagramView component", () => {
       fireEvent.click(nodeB);
       expect(handlePlaybackChange).toHaveBeenCalledWith(null);
     });
+
+    it("closing the Flow panel exits playback, removing dimming and badges (Stage 1C+, D-332)", () => {
+      let currentStep: number | null = 0;
+      const { rerender } = render(
+        <DiagramView
+          spec={branchingSpec}
+          flowOrder={["entry_node", "branch_b", "branch_c", "exit_node"]}
+          playbackStepIndex={currentStep}
+          onPlaybackStepChange={(step) => {
+            currentStep = step;
+          }}
+        />,
+      );
+
+      // Verify active step highlights are present
+      expect(screen.getByLabelText("Step 1")).toBeDefined();
+
+      // Open Flow panel and then close it
+      const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+      fireEvent.click(flowToggle); // Open panel
+      expect(screen.getByRole("region", { name: /flow playback panel/i })).toBeDefined();
+
+      fireEvent.click(flowToggle); // Close panel -> triggers exit playback
+      expect(currentStep).toBeNull();
+
+      // Re-render with null playbackStepIndex
+      rerender(
+        <DiagramView
+          spec={branchingSpec}
+          flowOrder={["entry_node", "branch_b", "branch_c", "exit_node"]}
+          playbackStepIndex={currentStep}
+        />,
+      );
+
+      // Badges and dimming removed
+      expect(screen.queryByLabelText("Step 1")).toBeNull();
+      const nodeC = screen.getByRole("button", { name: "Node: Service C, service" });
+      expect(nodeC.className).not.toContain("opacity-30");
+    });
   });
 });

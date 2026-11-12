@@ -22,14 +22,59 @@ import {
  * - Rendered strictly from classify.ts metadata (no hardcoded node taxonomies).
  * - Plain React text only (no dangerouslySetInnerHTML).
  */
-export function DiagramLegend({ className }: { className?: string } = {}): React.ReactElement {
-  const [isOpen, setIsOpen] = useState(false);
+export interface DiagramLegendProps {
+  className?: string;
+  isOpen?: boolean;
+  onToggle?: () => void;
+  onClose?: () => void;
+}
+
+/**
+ * DiagramLegend: Collapsible legend panel explaining diagram visual conventions.
+ *
+ * Requirements (Stage B2, D-301, D-303, Stage 1C+ D-332):
+ * - Collapsed by default, toggleable via keyboard-accessible button.
+ * - Supports controlled (isOpen, onToggle) or uncontrolled mode.
+ * - Docked outside React Flow or inside FlowPlaybackBar.
+ * - Hidden on screens narrower than 768px (hidden md:block).
+ * - Rendered strictly from classify.ts metadata (no hardcoded node taxonomies).
+ * - Plain React text only (no dangerouslySetInnerHTML).
+ */
+export function DiagramLegend({
+  className,
+  isOpen: controlledIsOpen,
+  onToggle: controlledOnToggle,
+  onClose,
+}: DiagramLegendProps = {}): React.ReactElement {
+  const [uncontrolledIsOpen, setUncontrolledIsOpen] = useState(false);
+
+  const isControlled = controlledIsOpen !== undefined;
+  const isOpen = isControlled ? controlledIsOpen : uncontrolledIsOpen;
+
+  const handleToggle = () => {
+    if (isControlled) {
+      controlledOnToggle?.();
+    } else {
+      setUncontrolledIsOpen((prev) => !prev);
+    }
+  };
+
+  const handlePanelKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      if (isControlled) {
+        onClose?.();
+      } else {
+        setUncontrolledIsOpen(false);
+      }
+    }
+  };
 
   return (
     <div className={cn("relative select-none", className)}>
       <button
         type="button"
-        onClick={() => setIsOpen((prev) => !prev)}
+        onClick={handleToggle}
         aria-expanded={isOpen}
         aria-controls="diagram-legend-panel"
         aria-label="Toggle diagram legend"
@@ -49,6 +94,7 @@ export function DiagramLegend({ className }: { className?: string } = {}): React
           id="diagram-legend-panel"
           role="region"
           aria-label="Diagram legend"
+          onKeyDown={handlePanelKeyDown}
           className="absolute bottom-full right-0 mb-2 max-h-[calc(100vh-320px)] w-64 overflow-y-auto rounded-md border border-border bg-card p-3 text-xs shadow-lg z-30"
         >
           <div className="space-y-3">

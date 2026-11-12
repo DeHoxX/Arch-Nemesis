@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -243,6 +243,60 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
     expect(screen.getByTestId("mock-diagram-flow-order").textContent).toBe(
       "Flow order: broker,sink"
     );
+  });
+
+  it("renders Full screen button for Block diagram and Architecture tabs and calls requestFullscreen (Stage 1C+, D-333)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getAdminDesignVersion).mockResolvedValueOnce(mockAdminVersionData);
+
+    const originalFullscreenEnabled = document.fullscreenEnabled;
+    const originalRequestFullscreen = HTMLElement.prototype.requestFullscreen;
+
+    try {
+      // Mock Fullscreen API
+      Object.defineProperty(document, "fullscreenEnabled", {
+        writable: true,
+        configurable: true,
+        value: true,
+      });
+      const requestFullscreenMock = vi.fn().mockResolvedValue(undefined);
+      HTMLElement.prototype.requestFullscreen = requestFullscreenMock;
+
+      renderPage();
+
+      await user.type(screen.getByLabelText(/Admin Secret Token/i), "valid-token");
+      await user.click(screen.getByRole("button", { name: /Unlock Design Version/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Cloud Native Event Store")).toBeDefined();
+      });
+
+      // 1. In Block diagram tab, Full screen button is present
+      const fsBtnBlock = await screen.findByRole("button", { name: "Full screen" });
+      expect(fsBtnBlock).toBeDefined();
+      fireEvent.click(fsBtnBlock);
+      expect(requestFullscreenMock).toHaveBeenCalled();
+
+      // 2. In Architecture tab, Full screen button is present
+      const archTab = screen.getByRole("tab", { name: "Architecture" });
+      await user.click(archTab);
+
+      const fsBtnArch = await screen.findByRole("button", { name: "Full screen" });
+      expect(fsBtnArch).toBeDefined();
+
+      // 3. In Explanation tab, Full screen button is NOT present
+      const explanationTab = screen.getByRole("tab", { name: "Explanation" });
+      await user.click(explanationTab);
+
+      expect(screen.queryByRole("button", { name: "Full screen" })).toBeNull();
+    } finally {
+      Object.defineProperty(document, "fullscreenEnabled", {
+        writable: true,
+        configurable: true,
+        value: originalFullscreenEnabled,
+      });
+      HTMLElement.prototype.requestFullscreen = originalRequestFullscreen;
+    }
   });
 
   it("displays 'No explanation generated yet.' when explanation is null", async () => {

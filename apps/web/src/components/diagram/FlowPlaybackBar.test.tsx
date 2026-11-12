@@ -29,8 +29,37 @@ const mockSteps: FlowPlaybackStep[] = [
   },
 ];
 
-describe("FlowPlaybackBar Component (Stage 1C, D-329)", () => {
-  it("renders idle state with 'Ready · {N} flows' and honest caption when currentStepIndex is null", () => {
+describe("FlowPlaybackBar Component (Stage 1C+, D-332)", () => {
+  it("closed state shows Flow toggle and no playback controls", () => {
+    render(
+      <FlowPlaybackBar
+        steps={mockSteps}
+        currentStepIndex={null}
+        onStart={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
+
+    // Flow toggle and Legend toggle are present
+    const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+    expect(flowToggle).toBeDefined();
+    expect(flowToggle.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByText("2 flows")).toBeDefined();
+
+    const legendToggle = screen.getByRole("button", { name: /toggle diagram legend/i });
+    expect(legendToggle).toBeDefined();
+
+    // Controls are not visible in closed state
+    expect(screen.queryByRole("region", { name: /flow playback panel/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Restart playback" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Next flow step" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start flow playback" })).toBeNull();
+  });
+
+  it("opening Flow shows controls, honest caption, and aria-live polite description", () => {
     const handleStart = vi.fn();
     render(
       <FlowPlaybackBar
@@ -44,26 +73,25 @@ describe("FlowPlaybackBar Component (Stage 1C, D-329)", () => {
       />,
     );
 
-    const readyText = screen.getByText(/Ready · 2 flows/);
-    expect(readyText).toBeDefined();
-    expect(readyText.textContent?.trim().length).toBeGreaterThan(0);
+    const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+    fireEvent.click(flowToggle);
+    expect(flowToggle.getAttribute("aria-expanded")).toBe("true");
 
-    const restartBtn = screen.getByRole("button", { name: "Restart playback" }) as HTMLButtonElement;
-    const backBtn = screen.getByRole("button", { name: "Previous flow step" }) as HTMLButtonElement;
+    const panel = screen.getByRole("region", { name: /flow playback panel/i });
+    expect(panel).toBeDefined();
+
+    expect(screen.getByText(/Ready · 2 flows/)).toBeDefined();
+    expect(screen.getByText("Topological edge order (not a runtime scenario)")).toBeDefined();
+
     const nextBtn = screen.getByRole("button", { name: "Start flow playback" }) as HTMLButtonElement;
-    const clearBtn = screen.getByRole("button", { name: "Exit playback" }) as HTMLButtonElement;
-
-    expect(restartBtn.disabled).toBe(true);
-    expect(backBtn.disabled).toBe(true);
     expect(nextBtn.disabled).toBe(false);
-    expect(clearBtn.disabled).toBe(true);
 
     // Clicking Next starts step 1
     fireEvent.click(nextBtn);
     expect(handleStart).toHaveBeenCalledOnce();
   });
 
-  it("renders active step counter, honest disclaimer, and aria-live polite description", () => {
+  it("Next, Back, Restart, and Clear buttons trigger corresponding callbacks when active", () => {
     const handleNext = vi.fn();
     const handleBack = vi.fn();
     const handleRestart = vi.fn();
@@ -81,11 +109,11 @@ describe("FlowPlaybackBar Component (Stage 1C, D-329)", () => {
       />,
     );
 
+    // Open panel
+    fireEvent.click(screen.getByRole("button", { name: /toggle flow playback/i }));
+
     const stepCounter = screen.getByText("Step 1 of 2");
     expect(stepCounter).toBeDefined();
-
-    const disclaimer = screen.getByText("Topological edge order (not a runtime scenario)");
-    expect(disclaimer).toBeDefined();
 
     // Verify aria-live container
     const liveRegion = screen.getByText(/Source Ingest/);
@@ -114,32 +142,86 @@ describe("FlowPlaybackBar Component (Stage 1C, D-329)", () => {
     expect(handleClear).toHaveBeenCalledOnce();
   });
 
-  it("disables Next button on the last step", () => {
-    const handleBack = vi.fn();
+  it("closing the Flow panel exits playback", () => {
+    const handleClear = vi.fn();
     render(
       <FlowPlaybackBar
         steps={mockSteps}
-        currentStepIndex={1} // Step 2 of 2 (last step)
+        currentStepIndex={1}
         onStart={vi.fn()}
         onNext={vi.fn()}
-        onBack={handleBack}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+        onClear={handleClear}
+      />,
+    );
+
+    const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+
+    // Open panel
+    fireEvent.click(flowToggle);
+    expect(flowToggle.getAttribute("aria-expanded")).toBe("true");
+
+    // Close panel by clicking toggle again -> calls onClear()
+    fireEvent.click(flowToggle);
+    expect(flowToggle.getAttribute("aria-expanded")).toBe("false");
+    expect(handleClear).toHaveBeenCalledOnce();
+  });
+
+  it("pressing Escape inside Flow panel closes panel and exits playback", () => {
+    const handleClear = vi.fn();
+    render(
+      <FlowPlaybackBar
+        steps={mockSteps}
+        currentStepIndex={0}
+        onStart={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
+        onRestart={vi.fn()}
+        onClear={handleClear}
+      />,
+    );
+
+    const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+    fireEvent.click(flowToggle);
+
+    const panel = screen.getByRole("region", { name: /flow playback panel/i });
+    fireEvent.keyDown(panel, { key: "Escape" });
+
+    expect(screen.queryByRole("region", { name: /flow playback panel/i })).toBeNull();
+    expect(handleClear).toHaveBeenCalledOnce();
+  });
+
+  it("opening Flow closes Legend and vice versa (mutually exclusive)", () => {
+    render(
+      <FlowPlaybackBar
+        steps={mockSteps}
+        currentStepIndex={null}
+        onStart={vi.fn()}
+        onNext={vi.fn()}
+        onBack={vi.fn()}
         onRestart={vi.fn()}
         onClear={vi.fn()}
       />,
     );
 
-    expect(screen.getByText("Step 2 of 2")).toBeDefined();
+    const flowToggle = screen.getByRole("button", { name: /toggle flow playback/i });
+    const legendToggle = screen.getByRole("button", { name: /toggle diagram legend/i });
 
-    const nextBtn = screen.getByRole("button", { name: "Next flow step" }) as HTMLButtonElement;
-    expect(nextBtn.disabled).toBe(true);
+    // Open Flow
+    fireEvent.click(flowToggle);
+    expect(screen.getByRole("region", { name: /flow playback panel/i })).toBeDefined();
+    expect(screen.queryByRole("region", { name: /diagram legend/i })).toBeNull();
 
-    const backBtn = screen.getByRole("button", { name: "Previous flow step" }) as HTMLButtonElement;
-    expect(backBtn.disabled).toBe(false);
-    fireEvent.click(backBtn);
-    expect(handleBack).toHaveBeenCalledOnce();
+    // Open Legend -> closes Flow
+    fireEvent.click(legendToggle);
+    expect(screen.getByRole("region", { name: /diagram legend/i })).toBeDefined();
+    expect(screen.queryByRole("region", { name: /flow playback panel/i })).toBeNull();
 
-    // Condition disclosure
-    expect(screen.getByText("(when: valid == true)")).toBeDefined();
+    // Open Flow again -> closes Legend
+    fireEvent.click(flowToggle);
+    expect(screen.getByRole("region", { name: /flow playback panel/i })).toBeDefined();
+    expect(screen.queryByRole("region", { name: /diagram legend/i })).toBeNull();
   });
 
   it("renders disabled state with 'No flows to step through' when steps array is empty", () => {
@@ -155,9 +237,12 @@ describe("FlowPlaybackBar Component (Stage 1C, D-329)", () => {
       />,
     );
 
+    expect(screen.getByText("0 flows")).toBeDefined();
+
+    // Open panel
+    fireEvent.click(screen.getByRole("button", { name: /toggle flow playback/i }));
     expect(screen.getByText("No flows to step through")).toBeDefined();
 
-    // All transport buttons are disabled (legend toggle button may be present)
     const restartBtn = screen.getByRole("button", { name: "Restart playback" }) as HTMLButtonElement;
     const backBtn = screen.getByRole("button", { name: "Previous flow step" }) as HTMLButtonElement;
     const nextBtn = screen.getByRole("button", { name: "Start flow playback" }) as HTMLButtonElement;
@@ -194,10 +279,13 @@ describe("FlowPlaybackBar Component (Stage 1C, D-329)", () => {
       />,
     );
 
+    // Open panel
+    fireEvent.click(screen.getByRole("button", { name: /toggle flow playback/i }));
+
     expect(screen.getByText("<script>alert('from')</script>")).toBeDefined();
     expect(screen.getByText("<img src=x onerror=alert('to') />")).toBeDefined();
     expect(screen.getByText(/: <b>markdown flow<\/b>/)).toBeDefined();
-    expect(screen.getByText(/\(when: x < 1 && y > 2\)/)).toBeDefined();
+    expect(screen.getByText(/When: x < 1 && y > 2/)).toBeDefined();
 
     expect(container.querySelector("script")).toBeNull();
     expect(container.querySelector("img")).toBeNull();

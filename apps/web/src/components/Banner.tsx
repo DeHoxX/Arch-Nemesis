@@ -1,6 +1,9 @@
 import React from "react";
 import { AlertTriangle } from "lucide-react";
 
+export const BANNER_TEXT =
+  "Structurally checked, not guaranteed to be the best design. This is not a compliance claim.";
+
 /**
  * Permanent, non-dismissible compliance banner.
  * Exact copy mandated by BUILD_PLAN.md:443:
@@ -15,7 +18,7 @@ export function Banner(): React.ReactElement {
     >
       <AlertTriangle className="size-5 shrink-0 text-amber-500" aria-hidden="true" />
       <p className="font-mono text-xs sm:text-sm text-foreground/90">
-        Structurally checked, not guaranteed to be the best design. This is not a compliance claim.
+        {BANNER_TEXT}
       </p>
     </div>
   );
