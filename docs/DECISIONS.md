@@ -3705,3 +3705,13 @@ Alternatives considered:
 If we removed it: React StrictMode double-invoke in `next dev` would immediately lose the WebGL2 context on every `/` load and prevent `<Waves />` from rendering.
 Decided by: user approved fix scope (Stage H-FIX5)
 Status: active
+
+### D-355 — Stage H2a — refactor — Extract useStudioWavesGate and StudioBackground for shared studio layout reuse without resize listeners
+What: Extract the desktop and reduced-motion media query gate from `apps/web/src/app/page.tsx` into a reusable hook `apps/web/src/components/studio/useStudioWavesGate.ts` and the layered decorative background stack into `apps/web/src/components/studio/StudioBackground.tsx`. Refactor `apps/web/src/app/page.tsx` to consume both components with `wavesScope="full"` and `wavesLayerTestId="home-waves-layer"`.
+Why: Results (`/design/[id]`) and admin inspection pages require the same obsidian studio background styling (`.studio-grid-bg`, `<StudioCornerCircuits />`, and desktop-gated `<Waves />`) without code duplication. Centralizing the gate in `useStudioWavesGate` guarantees that only `matchMedia` `"change"` listeners are used without `window.resize` listeners, preserving the `D-352` fix that prevents React cross-component update errors during sidebar toggles, while preserving `D-354` WebGL2 context safety and `Waves.tsx` visibility-based animation pauses.
+Alternatives considered:
+1. Copy-pasting the `showWaves` effect and inline JSX into `apps/web/src/app/design/[id]/page.tsx`: Rejected as duplicated logic that risks drifting or reintroducing `window.resize` listeners.
+2. Embedding `<Waves />` directly into `AppShell`: Rejected because `AppShell` wraps non-studio routes and routes with different Waves scopes (e.g. `header-band` for design results vs `full` for home vs disabled for admin).
+If we removed it: Each studio route would duplicate the media query listeners and Waves mounting boilerplate, increasing the risk of lifecycle mismatches and cross-component render errors.
+Decided by: user approved Stage H2a scope
+Status: active

@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BriefCard } from "@/components/BriefCard";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
-import { StudioCornerCircuits } from "@/components/studio/StudioCornerCircuits";
-import Waves from "@/components/studio/Waves";
+import { StudioBackground } from "@/components/studio/StudioBackground";
+import { useStudioWavesGate } from "@/components/studio/useStudioWavesGate";
 import { ApiError, createDesign, sendIntakeTurn } from "@/lib/api";
 import {
   EXAMPLE_PROMPTS,
@@ -95,36 +95,8 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     setRandomPrompts(pickRandomExamplePrompts(EXAMPLE_PROMPTS, 3));
   }, []);
 
-  // Post-mount Waves background visibility: ON only on "/" desktop (>= 768px) and not reduced motion (D-351)
-  const [showWaves, setShowWaves] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const motionQuery =
-      typeof window.matchMedia === "function"
-        ? window.matchMedia("(prefers-reduced-motion: reduce)")
-        : null;
-    const desktopQuery =
-      typeof window.matchMedia === "function"
-        ? window.matchMedia("(min-width: 768px)")
-        : null;
-
-    const update = () => {
-      const reduced = motionQuery ? motionQuery.matches : false;
-      const isDesktop = desktopQuery
-        ? desktopQuery.matches
-        : window.innerWidth >= 768;
-      setShowWaves(!reduced && isDesktop);
-    };
-
-    update();
-    motionQuery?.addEventListener?.("change", update);
-    desktopQuery?.addEventListener?.("change", update);
-
-    return () => {
-      motionQuery?.removeEventListener?.("change", update);
-      desktopQuery?.removeEventListener?.("change", update);
-    };
-  }, []);
+  // Post-mount Waves background visibility: ON only on desktop (>= 768px) and not reduced motion (D-351, D-355)
+  const showWaves = useStudioWavesGate();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -370,35 +342,12 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
 
   return (
     <main className="relative isolate flex h-[100dvh] w-full flex-col overflow-hidden bg-page-bg text-foreground selection:bg-brand-accent selection:text-brand-accent-ink studio-grid-bg">
-      {/* Interactive WebGL2 Waves layer (D-351): "/" desktop only, off on reduced motion & <768px */}
-      {showWaves && (
-        <div
-          aria-hidden="true"
-          data-testid="home-waves-layer"
-          className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
-        >
-          <Waves
-            lineColor="#ffffff"
-            spacing={5}
-            amplitude={13}
-            twist={0}
-            speed={0.45}
-            mouseRadius={100}
-            mouseStrength={0.3}
-            accentColor="#10b981"
-            lineStyle="dashed"
-            lineWidth={0.5}
-            scale={0.7}
-            bounce={0.3}
-            returnDuration={1}
-            opacity={0.55}
-            lightMode
-          />
-        </div>
-      )}
-
-      {/* Decorative static corner circuit lines (D-347, D-349) */}
-      <StudioCornerCircuits />
+      {/* Shared Studio Background: Waves (desktop, non-reduced-motion) + static corner circuits (D-351, D-355) */}
+      <StudioBackground
+        showWaves={showWaves}
+        wavesScope="full"
+        wavesLayerTestId="home-waves-layer"
+      />
 
       {/* Generation Loading Overlay (flat, no blur) */}
       {designMutation.isPending && <LoadingOverlay />}
