@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { ArchitectureSpec, NodeSpec } from "@/lib/types";
+import type { ArchitectureSpec, EdgeSpec, NodeSpec } from "@/lib/types";
 import { DetailPanel } from "./DetailPanel";
 
 const mockSpec: ArchitectureSpec = {
@@ -296,5 +296,134 @@ describe("DetailPanel component", () => {
 
     expect(askBtn.disabled).toBe(true);
     expect(removeBtn.disabled).toBe(true);
+  });
+
+  describe("Edge Details mode (Stage 1B, D-325)", () => {
+    it("renders edge details with sender and receiver names looked up from spec", () => {
+      const edge: EdgeSpec = {
+        from: "intake_portal",
+        to: "reasoning_engine",
+        flows: "parsed user payload",
+        condition: "status == 'valid'",
+      };
+
+      render(<DetailPanel edge={edge} spec={mockSpec} />);
+
+      expect(screen.getByRole("complementary", { name: "Edge Details" })).toBeDefined();
+      expect(screen.getByText("Edge Details")).toBeDefined();
+      expect(screen.getByText("Sender")).toBeDefined();
+      expect(screen.getByText("Intake Portal")).toBeDefined();
+      expect(screen.getByText("Receiver")).toBeDefined();
+      expect(screen.getByText("Reasoning Engine")).toBeDefined();
+      expect(screen.getByText("Data flows")).toBeDefined();
+      expect(screen.getByText("parsed user payload")).toBeDefined();
+      expect(screen.getByText("Condition")).toBeDefined();
+      expect(screen.getByText("status == 'valid'")).toBeDefined();
+    });
+
+    it("falls back to raw IDs when sender or receiver are not found in spec.nodes", () => {
+      const edge: EdgeSpec = {
+        from: "unknown_src",
+        to: "unknown_tgt",
+        flows: "raw stream",
+      };
+
+      render(<DetailPanel edge={edge} spec={mockSpec} />);
+
+      expect(screen.getByText("unknown_src")).toBeDefined();
+      expect(screen.getByText("unknown_tgt")).toBeDefined();
+      expect(screen.getByText("raw stream")).toBeDefined();
+      expect(screen.queryByText("Condition")).toBeNull();
+    });
+
+    it("calls onSelectNode when Select node button is clicked for sender and receiver", async () => {
+      const user = userEvent.setup();
+      const handleSelectNode = vi.fn();
+      const edge: EdgeSpec = {
+        from: "intake_portal",
+        to: "reasoning_engine",
+        flows: "data payload",
+      };
+
+      render(
+        <DetailPanel
+          edge={edge}
+          spec={mockSpec}
+          onSelectNode={handleSelectNode}
+        />,
+      );
+
+      const selectButtons = screen.getAllByRole("button", { name: "Select node" });
+      expect(selectButtons).toHaveLength(2);
+
+      // Click sender Select node
+      await user.click(selectButtons[0]!);
+      expect(handleSelectNode).toHaveBeenCalledWith("intake_portal");
+
+      // Click receiver Select node
+      await user.click(selectButtons[1]!);
+      expect(handleSelectNode).toHaveBeenCalledWith("reasoning_engine");
+    });
+
+    it("omits Condition section when condition is null, empty string, or whitespace", () => {
+      const whitespaceEdge: EdgeSpec = {
+        from: "intake_portal",
+        to: "reasoning_engine",
+        flows: "payload",
+        condition: "   ",
+      };
+
+      render(<DetailPanel edge={whitespaceEdge} spec={mockSpec} />);
+      expect(screen.queryByText("Condition")).toBeNull();
+    });
+
+    it("calls onClose when Close details button is clicked in edge mode", async () => {
+      const user = userEvent.setup();
+      const handleClose = vi.fn();
+      const edge: EdgeSpec = {
+        from: "intake_portal",
+        to: "reasoning_engine",
+        flows: "payload",
+      };
+
+      render(
+        <DetailPanel
+          edge={edge}
+          spec={mockSpec}
+          onClose={handleClose}
+        />,
+      );
+
+      const closeBtn = screen.getByRole("button", { name: "Close details" });
+      await user.click(closeBtn);
+      expect(handleClose).toHaveBeenCalledOnce();
+    });
+
+    it("renders hostile edge flows and condition strings literally as plain text", () => {
+      const hostileEdge: EdgeSpec = {
+        from: "intake_portal",
+        to: "reasoning_engine",
+        flows: "<script>alert('flows')</script>",
+        condition: "<img src=x onerror=alert('cond') />",
+      };
+
+      const { container } = render(<DetailPanel edge={hostileEdge} spec={mockSpec} />);
+
+      expect(screen.getByText("<script>alert('flows')</script>")).toBeDefined();
+      expect(screen.getByText("<img src=x onerror=alert('cond') />")).toBeDefined();
+      expect(container.querySelector("script")).toBeNull();
+      expect(container.querySelector("img")).toBeNull();
+    });
+  });
+
+  describe("Constraint indicator in Node mode (Stage 1B, D-326)", () => {
+    it("renders constraint indicator icon when node participates in constraints", () => {
+      const nodeWithConstraints = mockSpec.nodes[0] as NodeSpec; // intake_portal participates in c2
+      render(<DetailPanel node={nodeWithConstraints} spec={mockSpec} />);
+
+      const constraintIcon = screen.getByLabelText("Constraint");
+      expect(constraintIcon).toBeDefined();
+      expect(screen.getByText("Rules this part takes part in")).toBeDefined();
+    });
   });
 });

@@ -103,6 +103,7 @@ function DesignContent(): React.ReactElement {
   const queryClient = useQueryClient();
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("block-diagram");
   const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
   const [viewingVersion, setViewingVersion] = useState<number | null>(null);
@@ -200,11 +201,12 @@ function DesignContent(): React.ReactElement {
 
   const activeExplanation = activeDesign?.explanation ?? generatedExplanation;
 
-  // Keyboard accessibility: Escape clears selected node
+  // Keyboard accessibility: Escape clears selected node and edge
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setSelectedNodeId(null);
+        setSelectedEdgeId(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -219,8 +221,10 @@ function DesignContent(): React.ReactElement {
 
   // Clear diagram selection before PNG capture so exported image is at full opacity
   const handleBeforeExportPng = async () => {
-    if (selectedNodeId !== null) {
+    if (selectedNodeId !== null || selectedEdgeId !== null) {
       setSelectedNodeId(null);
+    setSelectedEdgeId(null);
+      setSelectedEdgeId(null);
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
         await new Promise((resolve) => {
           window.requestAnimationFrame(() => {
@@ -247,6 +251,28 @@ function DesignContent(): React.ReactElement {
     }
     return activeDesign.spec;
   }, [activeDesign, pendingPatch, isViewingHistorical]);
+
+  // Derive selected edge from displaySpec
+  const selectedEdge = useMemo(() => {
+    if (!selectedEdgeId || !displaySpec?.edges) return null;
+    const sorted = [...displaySpec.edges].sort((a, b) => {
+      const fromComp = a.from.localeCompare(b.from);
+      if (fromComp !== 0) return fromComp;
+      const toComp = a.to.localeCompare(b.to);
+      if (toComp !== 0) return toComp;
+      return a.flows.localeCompare(b.flows);
+    });
+    const foundIdx = sorted.findIndex((e, idx) => `e-${e.from}-${e.to}-${idx}` === selectedEdgeId);
+    if (foundIdx !== -1) return sorted[foundIdx] ?? null;
+    return (
+      displaySpec.edges.find(
+        (e) =>
+          `${e.from}__${e.to}` === selectedEdgeId ||
+          `${e.from}-${e.to}` === selectedEdgeId ||
+          (e as { id?: string }).id === selectedEdgeId,
+      ) ?? null
+    );
+  }, [selectedEdgeId, displaySpec?.edges]);
 
   const nodesKey = useMemo(
     () => displaySpec.nodes.map((n) => n.id).sort().join(","),
@@ -438,6 +464,7 @@ function DesignContent(): React.ReactElement {
       setViewingVersion(versionNo);
     }
     setSelectedNodeId(null);
+    setSelectedEdgeId(null);
   };
 
   const handleRestoreVersion = async (versionNo: number) => {
@@ -652,44 +679,68 @@ function DesignContent(): React.ReactElement {
 
           <TabsContent value="architecture" className="space-y-6 outline-none focus-visible:ring-0">
             {/* Architecture area and DetailPanel grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              <div className={selectedNode ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full"}>
-                {isDesktop ? (
-                  <div
-                    ref={diagramContainerRef}
-                    className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-lg border border-border bg-card overflow-hidden relative"
-                  >
-                    <DiagramView
-                      spec={displaySpec}
-                      selectedNodeId={selectedNodeId}
-                      onSelectNode={setSelectedNodeId}
-                      fitViewTrigger={pendingPatch ? pendingPatch.id : null}
-                      nodesKey={nodesKey}
-                      className="h-full w-full"
-                    />
+            {(() => {
+              const hasSelection = Boolean(selectedNode || selectedEdge);
+              return (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  <div className={hasSelection ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full"}>
+                    {isDesktop ? (
+                      <div
+                        ref={diagramContainerRef}
+                        className="h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] w-full rounded-lg border border-border bg-card overflow-hidden relative"
+                      >
+                        <DiagramView
+                          spec={displaySpec}
+                          selectedNodeId={selectedNodeId}
+                          onSelectNode={(nodeId) => {
+                            setSelectedNodeId(nodeId);
+                            if (nodeId !== null) setSelectedEdgeId(null);
+                          }}
+                          selectedEdgeId={selectedEdgeId}
+                          onSelectEdge={(edgeId) => {
+                            setSelectedEdgeId(edgeId);
+                            if (edgeId !== null) setSelectedNodeId(null);
+                          }}
+                          fitViewTrigger={pendingPatch ? pendingPatch.id : null}
+                          nodesKey={nodesKey}
+                          className="h-full w-full"
+                        />
+                      </div>
+                    ) : (
+                      <FallbackList
+                        spec={displaySpec}
+                        flowOrder={activeDesign?.flow_order ?? []}
+                        selectedNodeId={selectedNodeId}
+                        onSelectNode={(nodeId) => {
+                          setSelectedNodeId(nodeId);
+                          if (nodeId !== null) setSelectedEdgeId(null);
+                        }}
+                      />
+                    )}
                   </div>
-                ) : (
-                  <FallbackList
-                    spec={displaySpec}
-                    flowOrder={activeDesign?.flow_order ?? []}
-                    selectedNodeId={selectedNodeId}
-                    onSelectNode={(nodeId) => setSelectedNodeId(nodeId)}
-                  />
-                )}
-              </div>
 
-              {selectedNode && (
-                <div className="lg:col-span-4 w-full">
-                  <DetailPanel
-                    node={selectedNode}
-                    spec={activeDesign?.spec ?? displaySpec}
-                    onClose={() => setSelectedNodeId(null)}
-                    onPrefillChat={(text) => setChatDraft(text)}
-                    disabledShortcuts={Boolean(pendingPatch) || isViewingHistorical}
-                  />
+                  {hasSelection && (
+                    <div className="lg:col-span-4 w-full">
+                      <DetailPanel
+                        node={selectedNode}
+                        edge={selectedEdge}
+                        spec={activeDesign?.spec ?? displaySpec}
+                        onClose={() => {
+                          setSelectedNodeId(null);
+                          setSelectedEdgeId(null);
+                        }}
+                        onSelectNode={(nodeId) => {
+                          setSelectedEdgeId(null);
+                          setSelectedNodeId(nodeId);
+                        }}
+                        onPrefillChat={(text) => setChatDraft(text)}
+                        disabledShortcuts={Boolean(pendingPatch) || isViewingHistorical}
+                      />
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Notes and Constraints below the architecture diagram */}
             <div className="space-y-6 pt-2">

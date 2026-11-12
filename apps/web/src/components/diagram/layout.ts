@@ -15,7 +15,9 @@ export const LABEL_PADDING_X = 16; // 8px left + 8px right (px-2)
 export const LABEL_BORDER_X = 2; // 1px left + 1px right border
 export const MAX_LABEL_TEXT_WIDTH = 150; // max-w-[150px]
 export const MAX_LABEL_TOTAL_WIDTH = MAX_LABEL_TEXT_WIDTH + LABEL_PADDING_X + LABEL_BORDER_X; // 168
-export const LABEL_HEIGHT = 26;
+export const LABEL_HEIGHT = 24;
+export const CONDITIONAL_LABEL_HEIGHT = 42;
+export const DAGRE_LABEL_HEIGHT = 26;
 
 // Node dimension computation constants
 export const CHAR_UNIT_PX = 7.2;
@@ -485,7 +487,7 @@ export function computeEdgeLabelLayout(
     const flowsWidth = estimateLabelWidth(flows);
     const conditionWidth = estimateLabelWidth(condition);
     const labelWidth = Math.max(flowsWidth, conditionWidth);
-    const labelHeight = hasCondition ? 52 : (flows.trim().length > 0 ? 26 : 0);
+    const labelHeight = hasCondition ? CONDITIONAL_LABEL_HEIGHT : (flows.trim().length > 0 ? LABEL_HEIGHT : 0);
 
     // If edge has no text and no condition, placement is trivial
     if (labelWidth === 0 && labelHeight === 0) {
@@ -666,7 +668,7 @@ export function computeLayout(spec: ArchitectureSpec): LayoutResult {
     if (labelWidth > RANKSEP) {
       g.setEdge(edge.from, edge.to, {
         width: labelWidth,
-        height: LABEL_HEIGHT,
+        height: DAGRE_LABEL_HEIGHT,
         labelpos: "c",
       });
     } else {

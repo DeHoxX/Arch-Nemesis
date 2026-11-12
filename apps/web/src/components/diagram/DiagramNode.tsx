@@ -1,6 +1,6 @@
 import React from "react";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import { Lock, User } from "lucide-react";
+import { User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { ConstraintSpec, EdgeSpec, NodeSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -60,7 +60,7 @@ export function DiagramNode({
   data,
   selected,
 }: NodeProps & { data: DiagramNodeData }): React.ReactElement {
-  const { borderColor, badges, locked, shape } = classifyNode(data, {
+  const { borderColor, badges, shape } = classifyNode(data, {
     entry_ids: data.entry_ids || [],
     exit_ids: data.exit_ids || [],
     constraints: data.constraints || [],
@@ -238,11 +238,6 @@ export function DiagramNode({
                 {diffBadge}
               </Badge>
             )}
-            {locked && (
-              <span title="Named in a constraint" className="shrink-0 text-muted-foreground">
-                <Lock className="size-2.5 text-amber-500" aria-label="Locked by constraint" />
-              </span>
-            )}
           </div>
         </div>
       ) : (
@@ -259,11 +254,6 @@ export function DiagramNode({
               </p>
 
               <div className="flex shrink-0 items-center gap-1 overflow-hidden pt-0.5">
-                {locked && (
-                  <span title="Named in a constraint" className="shrink-0 text-muted-foreground">
-                    <Lock className="size-3 text-amber-500" aria-label="Locked by constraint" />
-                  </span>
-                )}
                 {diffBadge && (
                   <Badge
                     variant="outline"

@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import DesignPage from "./page";
+import * as exportLib from "@/lib/export";
 
 let mockId = "design_test_123";
 
@@ -1521,6 +1522,88 @@ describe("DesignPage Component (/design/[id])", () => {
       // Shortcut buttons are now disabled because a patch is pending
       expect((screen.getByRole("button", { name: "Ask about this node" }) as HTMLButtonElement).disabled).toBe(true);
       expect((screen.getByRole("button", { name: "Remove this node" }) as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it("opens Edge Details panel when an edge label is clicked, mutually exclusive with node details, and clears on export (Stage 1B, D-325)", async () => {
+      let edgeDetailsVisibleAtExportCall: boolean | null = null;
+      let nodeDetailsVisibleAtExportCall: boolean | null = null;
+
+      const exportPngSpy = vi
+        .spyOn(exportLib, "exportDiagramToPng")
+        .mockImplementation(async () => {
+          // Capture DOM state at the exact moment exportDiagramToPng is invoked
+          edgeDetailsVisibleAtExportCall =
+            screen.queryByRole("complementary", { name: "Edge Details" }) !== null;
+          nodeDetailsVisibleAtExportCall =
+            screen.queryByRole("complementary", { name: "Node Details" }) !== null;
+        });
+
+      global.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (String(url).includes("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => [{ version_no: 1, created_at: "2026-03-30T10:00:00Z" }],
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+
+      const user = userEvent.setup();
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        const titleEl = screen.getByText(/Design design_test_123/);
+        expect(titleEl).toBeDefined();
+        expect(titleEl.textContent?.trim().length).toBeGreaterThan(0);
+      });
+
+      // Switch to Architecture tab (Radix UI tab requires userEvent)
+      const archTab = await screen.findByRole("tab", { name: "Architecture" });
+      expect(archTab).toBeDefined();
+      await user.click(archTab);
+
+      // Select node_a (use fireEvent to avoid d3-zoom mousedown in jsdom)
+      const nodeBtn = await screen.findByRole("button", { name: /Node: Ingest Node/ });
+      expect(nodeBtn).toBeDefined();
+      fireEvent.click(nodeBtn);
+
+      await waitFor(() => {
+        const nodePanel = screen.getByRole("complementary", { name: "Node Details" });
+        expect(nodePanel).toBeDefined();
+        expect(nodePanel.textContent?.trim().length).toBeGreaterThan(0);
+      });
+
+      // Now click edge label button (use fireEvent to avoid d3-zoom mousedown in jsdom)
+      const edgeBtn = await screen.findByRole("button", { name: /Flow: Raw metrics stream/ });
+      expect(edgeBtn).toBeDefined();
+      fireEvent.click(edgeBtn);
+
+      await waitFor(() => {
+        const edgePanel = screen.getByRole("complementary", { name: "Edge Details" });
+        expect(edgePanel).toBeDefined();
+        expect(edgePanel.textContent?.trim().length).toBeGreaterThan(0);
+        expect(screen.queryByRole("complementary", { name: "Node Details" })).toBeNull();
+      });
+
+      // Export PNG clears edge selection so diagram is not exported in dimmed state
+      const exportPngBtn = screen.getByRole("button", { name: "Download diagram (PNG)" });
+      expect(exportPngBtn).toBeDefined();
+      fireEvent.click(exportPngBtn);
+
+      // Verify exportDiagramToPng was invoked and that selections were cleared BEFORE invocation
+      await waitFor(() => {
+        expect(exportPngSpy).toHaveBeenCalledTimes(1);
+      });
+
+      expect(edgeDetailsVisibleAtExportCall).toBe(false);
+      expect(nodeDetailsVisibleAtExportCall).toBe(false);
+      expect(screen.queryByRole("complementary", { name: "Edge Details" })).toBeNull();
+      expect(screen.queryByRole("complementary", { name: "Node Details" })).toBeNull();
     });
   });
 });

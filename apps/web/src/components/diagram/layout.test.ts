@@ -4,6 +4,7 @@ import {
   buildOrthogonalPath,
   computeLayout,
   computeNodeDimensions,
+  CONDITIONAL_LABEL_HEIGHT,
   DIAMOND_INNER_WIDTH,
   DIAMOND_MAX_HEIGHT,
   DIAMOND_MIN_HEIGHT,
@@ -13,6 +14,7 @@ import {
   isPointOnPathSegments,
   LABEL_BORDER_X,
   LABEL_CHAR_WIDTH_PX,
+  LABEL_HEIGHT,
   LABEL_PADDING_X,
   MAX_LABEL_TOTAL_WIDTH,
   MIN_RANKSEP,
@@ -846,7 +848,7 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
 
       const layout = computeLayout(spec);
       const edge = layout.edges[0]!;
-      expect(edge.labelHeight).toBe(52);
+      expect(edge.labelHeight).toBe(42);
 
       const src = layout.nodes.find((n) => n.id === "src")!;
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
@@ -1274,6 +1276,71 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
           ).toBe(false);
         }
       }
+    });
+
+    describe("Stage 1B: Conditional label height and Block diagram coordinate invariance (D-324, D-327)", () => {
+      it("computes CONDITIONAL_LABEL_HEIGHT (42) for conditional edges and LABEL_HEIGHT (24) for unconditional edges", () => {
+        const spec: ArchitectureSpec = {
+          nodes: [
+            makeNode("src", "Source Node"),
+            makeNode("mid", "Middle Node"),
+            makeNode("sink", "Sink Node"),
+          ],
+          edges: [
+            { from: "src", to: "mid", flows: "standard data stream" },
+            { from: "mid", to: "sink", flows: "branch data stream", condition: "risk_score > 80" },
+          ],
+          constraints: [],
+          entry_ids: ["src"],
+          exit_ids: ["sink"],
+        };
+
+        const layout = computeLayout(spec);
+        const unconditionalEdge = layout.edges.find((e) => e.data.flows === "standard data stream");
+        const conditionalEdge = layout.edges.find((e) => e.data.flows === "branch data stream");
+
+        expect(unconditionalEdge).toBeDefined();
+        expect(conditionalEdge).toBeDefined();
+
+        expect(unconditionalEdge?.labelHeight).toBe(LABEL_HEIGHT);
+        expect(unconditionalEdge?.labelHeight).toBe(24);
+
+        expect(conditionalEdge?.labelHeight).toBe(CONDITIONAL_LABEL_HEIGHT);
+        expect(conditionalEdge?.labelHeight).toBe(42);
+      });
+
+      it("preserves identical node coordinates across computeLayout runs proving BlockDiagramView coordinates do not change", () => {
+        const baseSpec: ArchitectureSpec = {
+          nodes: [
+            makeNode("client", "Web Client"),
+            makeNode("gateway", "API Gateway"),
+            makeNode("auth", "Auth Service"),
+            makeNode("db", "PostgreSQL Database"),
+          ],
+          edges: [
+            { from: "client", to: "gateway", flows: "HTTP Request" },
+            { from: "gateway", to: "auth", flows: "Auth Verification", condition: "requires_auth == true" },
+            { from: "auth", to: "db", flows: "User Lookup" },
+          ],
+          constraints: [],
+          entry_ids: ["client"],
+          exit_ids: ["db"],
+        };
+
+        const layout1 = computeLayout(baseSpec);
+        const layout2 = computeLayout(baseSpec);
+
+        expect(layout1.nodes).toHaveLength(layout2.nodes.length);
+        for (let i = 0; i < layout1.nodes.length; i++) {
+          const n1 = layout1.nodes[i]!;
+          const n2 = layout2.nodes[i]!;
+          expect(n1.id).toBe(n2.id);
+          expect(n1.position.x).toBe(n2.position.x);
+          expect(n1.position.y).toBe(n2.position.y);
+          expect(n1.width).toBe(n2.width);
+          expect(n1.height).toBe(n2.height);
+        }
+      });
     });
   });
 });

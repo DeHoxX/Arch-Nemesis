@@ -309,4 +309,56 @@ describe("BlockNode component", () => {
       });
     });
   });
+
+  describe("Block diagram node text centering (Stage 1B addition, D-327)", () => {
+    it("renders root container with flex-col items-center justify-center text-center", () => {
+      const { container } = renderBlockNode({ name: "Core Processor" });
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.className).toContain("flex");
+      expect(rootEl.className).toContain("flex-col");
+      expect(rootEl.className).toContain("items-center");
+      expect(rootEl.className).toContain("justify-center");
+      expect(rootEl.className).toContain("text-center");
+    });
+
+    it("centers node name with text-center and line-clamp-2", () => {
+      renderBlockNode({ name: "Account Balances Ledger" });
+      const nameEl = screen.getByText("Account Balances Ledger");
+      expect(nameEl.className).toContain("text-center");
+      expect(nameEl.className).toContain("line-clamp-2");
+      expect(nameEl.className).toContain("break-words");
+    });
+
+    it("renders [Entry] marker in a centered group with the name", () => {
+      renderBlockNode({ name: "API Gateway", isEntry: true, isExit: false });
+      const entryMarker = screen.getByText("[Entry]");
+      expect(entryMarker).toBeDefined();
+      const markerRow = entryMarker.parentElement;
+      expect(markerRow).not.toBeNull();
+      expect(markerRow?.className).toContain("items-center");
+      expect(markerRow?.className).toContain("justify-center");
+    });
+
+    it("renders very long names (100+ chars) clamped and centered without breaking layout", () => {
+      const longName = "VeryLongMicroserviceNameWithoutSpacesThatMustWrapAndStayCenteredInsideTheBlockContainer".repeat(2);
+      renderBlockNode({ name: longName });
+      const nameEl = screen.getByText(longName);
+      expect(nameEl).toBeDefined();
+      expect(nameEl.className).toContain("text-center");
+      expect(nameEl.className).toContain("break-words");
+    });
+
+    it("renders hostile strings (<script>, **md**) safely centered as literal plain text", () => {
+      const hostileName = "<script>alert('xss')</script>";
+      const mdName = "**markdown bold**";
+
+      renderBlockNode({ name: hostileName });
+      expect(screen.getByText(hostileName)).toBeDefined();
+      expect(document.querySelector("script")).toBeNull();
+
+      renderBlockNode({ name: mdName });
+      expect(screen.getByText(mdName)).toBeDefined();
+      expect(document.querySelector("strong")).toBeNull();
+    });
+  });
 });

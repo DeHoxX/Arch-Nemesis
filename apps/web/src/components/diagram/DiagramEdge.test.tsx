@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Position, ReactFlowProvider } from "@xyflow/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { UnionArchitectureSpec } from "@/lib/types";
 import { normalizeColorToHex } from "@/test/helpers";
 import { DiagramEdge, type DiagramEdgeData } from "./DiagramEdge";
@@ -12,6 +12,8 @@ function renderEdge(
   data: DiagramEdgeData,
   selectedNodeId?: string | null,
   extraNodes?: UnionArchitectureSpec["nodes"],
+  selectedEdgeId?: string | null,
+  onSelectEdge?: (edgeId: string | null) => void,
 ) {
   const spec: UnionArchitectureSpec = {
     nodes: [
@@ -53,11 +55,18 @@ function renderEdge(
     exit_ids: ["target_node"],
   };
 
-  return render(<DiagramView spec={spec} selectedNodeId={selectedNodeId} />);
+  return render(
+    <DiagramView
+      spec={spec}
+      selectedNodeId={selectedNodeId}
+      selectedEdgeId={selectedEdgeId}
+      onSelectEdge={onSelectEdge}
+    />,
+  );
 }
 
 describe("DiagramEdge component", () => {
-  it("renders flows label and condition badge when both exist", () => {
+  it("renders single merged label with condition line on top and flows text below when both exist", () => {
     renderEdge({
       flows: "claim payload",
       condition: "claim_amount > 10000",
@@ -65,12 +74,14 @@ describe("DiagramEdge component", () => {
 
     expect(screen.getByText("claim payload")).toBeDefined();
     expect(screen.getByText("claim_amount > 10000")).toBeDefined();
-    expect(
-      screen.getByRole("note", { name: "Condition: claim_amount > 10000" }),
-    ).toBeDefined();
-    expect(
-      screen.getByRole("note", { name: "Flow: claim payload" }),
-    ).toBeDefined();
+
+    const labelButton = screen.getByRole("button", {
+      name: "Condition: claim_amount > 10000, Flow: claim payload",
+    });
+    expect(labelButton).toBeDefined();
+    expect(labelButton.className).toContain("rounded-md");
+    expect(labelButton.className).toContain("border-border");
+    expect(labelButton.className).toContain("bg-card");
   });
 
   it("truncates condition exceeding 40 characters and provides tooltip", async () => {
@@ -85,24 +96,26 @@ describe("DiagramEdge component", () => {
     const expectedTruncated = `${longCondition.slice(0, 40)}…`;
     expect(screen.getByText(expectedTruncated)).toBeDefined();
 
-    const conditionNote = screen.getByRole("note", {
-      name: `Condition: ${longCondition}`,
+    const labelButton = screen.getByRole("button", {
+      name: `Condition: ${longCondition}, Flow: fast approval`,
     });
-    expect(conditionNote).toBeDefined();
-    expect(conditionNote.getAttribute("title")).toBe(longCondition);
+    expect(labelButton).toBeDefined();
+    expect(labelButton.getAttribute("title")).toBe(
+      `Condition: ${longCondition}\nFlow: fast approval`,
+    );
 
     const tooltip = screen.getByRole("tooltip", { hidden: true });
-    expect(tooltip.textContent).toBe(longCondition);
+    expect(tooltip.textContent).toContain(longCondition);
 
     // Full text disclosure on hover
-    await user.hover(conditionNote);
-    expect(tooltip.textContent).toBe(longCondition);
+    await user.hover(labelButton);
+    expect(tooltip.textContent).toContain(longCondition);
 
     // Full text disclosure on keyboard focus
-    conditionNote.focus();
-    expect(document.activeElement).toBe(conditionNote);
-    expect(conditionNote.getAttribute("aria-label")).toBe(
-      `Condition: ${longCondition}`,
+    labelButton.focus();
+    expect(document.activeElement).toBe(labelButton);
+    expect(labelButton.getAttribute("aria-label")).toBe(
+      `Condition: ${longCondition}, Flow: fast approval`,
     );
   });
 
@@ -134,26 +147,69 @@ describe("DiagramEdge component", () => {
     expect(pathD).toMatch(/^M\s*100\s*50/);
   });
 
-  describe("Pill styling and hostile input rendering (Stage B1b, D-297)", () => {
-    it("renders flows with soft pill class rounded-xl and zIndex 1001", () => {
+  describe("Single merged label styling and hostile input rendering (Stage 1B, D-324, D-325)", () => {
+    it("renders single merged label container with rounded-md and zIndex 1001", () => {
       const { container } = renderEdge({
         flows: "order processing",
         condition: "is_valid == true",
       });
 
-      const flowNote = screen.getByRole("note", { name: "Flow: order processing" });
-      expect(flowNote.className).toContain("rounded-xl");
-      expect(flowNote.className).toContain("border-border/80");
-      expect(flowNote.className).toContain("bg-background");
-
-      const conditionNote = screen.getByRole("note", { name: "Condition: is_valid == true" });
-      expect(conditionNote.className).toContain("rounded-sm");
-      expect(conditionNote.className).toContain("border-amber-500/40");
-      expect(conditionNote.className).toContain("text-amber-500");
+      const labelButton = screen.getByRole("button", {
+        name: "Condition: is_valid == true, Flow: order processing",
+      });
+      expect(labelButton.className).toContain("rounded-md");
+      expect(labelButton.className).toContain("border-border");
+      expect(labelButton.className).toContain("bg-card");
 
       const pillWrapper = container.querySelector(".react-flow__edgelabel-renderer > div") as HTMLElement;
       expect(pillWrapper).not.toBeNull();
       expect(pillWrapper.style.zIndex).toBe("1001");
+    });
+
+    it("renders selected edge stroke with brand-accent and 2.5 width", () => {
+      const { container } = renderEdge(
+        { flows: "selected flow" },
+        null,
+        undefined,
+        "e-source_node-target_node-0",
+      );
+
+      const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+      expect(edgePath).not.toBeNull();
+      expect(edgePath.style.stroke).toBe("var(--brand-accent, #b7c6c2)");
+      expect(edgePath.style.strokeWidth).toBe("2.5");
+
+      const labelBtn = screen.getByRole("button", { name: "Flow: selected flow" });
+      expect(labelBtn.getAttribute("aria-pressed")).toBe("true");
+      expect(labelBtn.className).toContain("border-[var(--brand-accent,#b7c6c2)]");
+    });
+
+    it("triggers onSelect on click, Enter key, and Space key", async () => {
+      const user = userEvent.setup();
+      const handleSelect = vi.fn();
+
+      renderEdge(
+        { flows: "interactive stream" },
+        null,
+        undefined,
+        null,
+        handleSelect,
+      );
+
+      const labelBtn = screen.getByRole("button", { name: "Flow: interactive stream" });
+
+      // Click
+      await user.click(labelBtn);
+      expect(handleSelect).toHaveBeenCalledWith("e-source_node-target_node-0");
+
+      // Enter key
+      labelBtn.focus();
+      await user.keyboard("{Enter}");
+      expect(handleSelect).toHaveBeenCalledTimes(2);
+
+      // Space key
+      await user.keyboard(" ");
+      expect(handleSelect).toHaveBeenCalledTimes(3);
     });
 
     it("renders hostile HTML strings literally as plain text without executing or injecting elements", () => {
@@ -342,15 +398,15 @@ describe("DiagramEdge component", () => {
         expect(edgePath).not.toBeNull();
         expect(edgePath.style.opacity).toBe("0.25");
 
-        // Find flow label pill via its role note (matching other passing label tests)
-        const flowNote = screen.getByRole("note", { name: "Flow: dimmed flow" });
-        expect(flowNote).toBeDefined();
+        // Find flow label button
+        const flowBtn = screen.getByRole("button", { name: "Flow: dimmed flow" });
+        expect(flowBtn).toBeDefined();
 
-        // Locate wrapper container that carries opacity-30 from real DOM
-        const labelWrapper = (flowNote.closest(".react-flow__edgelabel-renderer > div") ||
-          flowNote.parentElement) as HTMLElement;
+        // Locate wrapper container that carries opacity-25 from real DOM
+        const labelWrapper = (flowBtn.closest(".react-flow__edgelabel-renderer > div") ||
+          flowBtn.parentElement) as HTMLElement;
         expect(labelWrapper).not.toBeNull();
-        expect(labelWrapper.className).toContain("opacity-30");
+        expect(labelWrapper.className).toContain("opacity-25");
         expect(labelWrapper.className).toContain("focus-within:opacity-100");
       });
     });

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { AlertCircle, ArrowLeft, KeyRound, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
 import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
+import { DetailPanel } from "@/components/diagram/DetailPanel";
 import { DiagramView } from "@/components/diagram/DiagramView";
 import { NotesPanel } from "@/components/diagram/NotesPanel";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
@@ -48,6 +49,8 @@ function AdminDesignInspectionContent(): React.ReactElement {
   const [authError, setAuthError] = useState<"401" | "404" | "500" | "network" | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
   const {
     data,
@@ -153,6 +156,43 @@ function AdminDesignInspectionContent(): React.ReactElement {
           : queryError instanceof Error
             ? queryError.message
             : null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setSelectedNodeId(null);
+        setSelectedEdgeId(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const selectedNode =
+    selectedNodeId && data?.spec?.nodes
+      ? data.spec.nodes.find((n) => n.id === selectedNodeId) ?? null
+      : null;
+
+  const selectedEdge = (() => {
+    if (!selectedEdgeId || !data?.spec?.edges) return null;
+    const sorted = [...data.spec.edges].sort((a, b) => {
+      const fromComp = a.from.localeCompare(b.from);
+      if (fromComp !== 0) return fromComp;
+      const toComp = a.to.localeCompare(b.to);
+      if (toComp !== 0) return toComp;
+      return a.flows.localeCompare(b.flows);
+    });
+    const foundIdx = sorted.findIndex((e, idx) => `e-${e.from}-${e.to}-${idx}` === selectedEdgeId);
+    if (foundIdx !== -1) return sorted[foundIdx] ?? null;
+    return (
+      data.spec.edges.find(
+        (e) =>
+          `${e.from}__${e.to}` === selectedEdgeId ||
+          `${e.from}-${e.to}` === selectedEdgeId ||
+          (e as { id?: string }).id === selectedEdgeId,
+      ) ?? null
+    );
+  })();
 
   return (
     <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-8 md:py-12">
@@ -335,11 +375,39 @@ function AdminDesignInspectionContent(): React.ReactElement {
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                   {/* Read-only Architecture Canvas */}
                   <div className="lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] rounded-lg border border-border bg-card overflow-hidden relative">
-                    <DiagramView spec={data.spec} />
+                    <DiagramView
+                      spec={data.spec}
+                      selectedNodeId={selectedNodeId}
+                      onSelectNode={(nodeId) => {
+                        setSelectedNodeId(nodeId);
+                        if (nodeId !== null) setSelectedEdgeId(null);
+                      }}
+                      selectedEdgeId={selectedEdgeId}
+                      onSelectEdge={(edgeId) => {
+                        setSelectedEdgeId(edgeId);
+                        if (edgeId !== null) setSelectedNodeId(null);
+                      }}
+                    />
                   </div>
 
-                  {/* Summary / Notes Panel */}
+                  {/* Summary / Notes Panel + DetailPanel when selected */}
                   <div className="space-y-4">
+                    {Boolean(selectedNode || selectedEdge) && (
+                      <DetailPanel
+                        node={selectedNode}
+                        edge={selectedEdge}
+                        spec={data.spec}
+                        onClose={() => {
+                          setSelectedNodeId(null);
+                          setSelectedEdgeId(null);
+                        }}
+                        onSelectNode={(nodeId) => {
+                          setSelectedEdgeId(null);
+                          setSelectedNodeId(nodeId);
+                        }}
+                      />
+                    )}
+
                     <div className="rounded-xl border border-border/60 bg-card/60 p-4 space-y-2">
                       <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
                         User / Audience

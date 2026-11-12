@@ -3384,6 +3384,44 @@ If we removed it: Node cards would remain cluttered with multi-colored badge pil
 Decided by: user approved (Stage 1A answers)
 Status: active
 
+### D-324 — Stage 1B — design — Merged single opaque edge label, condition-aware height, and clearance preservation
+What: In `apps/web/src/components/diagram/DiagramEdge.tsx`, replace the two separate stacked badge pills (amber condition pill and grey flows pill) with a single merged opaque label container (`rounded-md`, `border border-border`, `bg-card`, `px-2 py-1`, native `<button type="button">`). When a condition is present after trimming, render the condition line on top (`text-amber-500 font-mono text-[10px] leading-tight`, truncated at 40 chars) and the flows text below (`font-mono text-[11px] text-muted-foreground leading-tight`, truncated at 40 chars). In `apps/web/src/components/diagram/layout.ts` (`computeEdgeLabelLayout`), dynamically compute the candidate bounding box height per edge based on condition presence (`hasCondition ? 42 : 24`), while keeping all D-295..D-298 clearance invariants active (>= 4px label-to-label clearance, >= 8px label-to-node clearance). In `computeLayout`, maintain Dagre graph edge inputs using `estimateLabelWidth(edge.flows)` and constant `LABEL_HEIGHT = 24` so Dagre coordinate computations and `BlockDiagramView` coordinates do not change.
+Why: Solves visual overlap seen in browser captures where separate condition and flows pills stacked directly over each other near node boundaries. Merging them into a single opaque container eliminates inter-pill overlap, keeps text hierarchy clear, and accurately bounds the collision box in the geometry engine.
+Alternatives considered:
+1. Staggering separate condition and flow badges laterally: Rejected because lateral offsets can collide with adjacent edge paths and increase horizontal footprint.
+2. Altering Dagre edge height input dynamically in `computeLayout`: Rejected per user instruction to preserve `BlockDiagramView` layout coordinates.
+If we removed it: Conditional edges in complex diagrams would exhibit overlapping badge pills and inaccurate layout clearance bounds.
+Decided by: user approved (Stage 1B plan)
+Status: active
+
+### D-325 — Stage 1B — design — Interactive edge selection, endpoint bright focus rule, and docked Edge Details panel mode
+What: In `apps/web/src/components/diagram/DiagramEdge.tsx`, add interactive edge selection via native `<button type="button">` with `aria-pressed`, keyboard selection on `Enter`/`Space`, `interactionWidth: 20` on `BaseEdge` for line click, and selected styling (`stroke: var(--brand-accent, #b7c6c2)`, `strokeWidth: 2.5`, border highlighted). In `apps/web/src/components/diagram/DiagramView.tsx`, implement edge focus dimming: selecting an edge keeps the edge and its sender (`from`) and receiver (`to`) nodes bright (`opacity-100`), while dimming non-participating nodes to `opacity-30` and non-participating edges to `0.25`. Enforce a unified state model where selecting an edge clears node selection and vice-versa, and `Escape` or pane clicks clear both. In `apps/web/src/components/diagram/DetailPanel.tsx`, add an `edge?: EdgeSpec | null` mode in `<aside aria-label="Edge Details">` showing sender and receiver names (looked up from `spec.nodes` with fallback raw IDs, each with a "Select node" action), full untruncated `flows` text, and `condition` (only when non-empty after trim). Wire node and edge selection into both `/design/[id]` and `/admin/designs/[id]/[n]`. In `/design/[id]`, extend `handleBeforeExportPng` to clear both selected node and selected edge before capture.
+Why: Provides first-class edge inspection in complex architectures where flow descriptions or conditions are truncated. Docking the inspection into the existing `DetailPanel` avoids floating popovers and maintains consistent layout structure. Clearing selections before PNG export prevents captured diagrams from being exported in a dimmed state.
+Alternatives considered:
+1. Hover popover for edge details: Rejected to avoid floating UI clutter and mobile touch incompatibility.
+2. Separate edge detail modal: Rejected because the docked sidebar already hosts detail inspection.
+If we removed it: Users could not inspect full text of truncated edge flows or conditions, and could not easily navigate between connected nodes.
+Decided by: user approved (Stage 1B plan)
+Status: active
+
+### D-326 — Stage 1B — design — Relocation of node card lock icon to DetailPanel constraints
+What: In `apps/web/src/components/diagram/DiagramNode.tsx`, remove the `Lock` icon from both diamond and non-diamond node cards. In `apps/web/src/components/diagram/DetailPanel.tsx` under section 7 ("Rules this part takes part in"), retain full constraint text and add an explicit constraint indicator icon. Update affected component tests in `DiagramNode.test.tsx` and `DetailPanel.test.tsx`.
+Why: Reduces visual clutter on diagram cards in accordance with technical minimalism and restraint principles. Structural constraints are fully detailed with plain text explanations in `DetailPanel` where users have adequate space to read them.
+Alternatives considered:
+1. Shrinking the lock icon on the card: Rejected because removing non-essential badges from the canvas improves overall diagram readability.
+If we removed it: Canvas cards would continue to carry auxiliary icon clutter.
+Decided by: user approved (Stage 1B plan)
+Status: active
+
+### D-327 — Stage 1B — design — Vertical and horizontal centering of Block diagram node content
+What: In `apps/web/src/components/diagram/BlockNode.tsx`, replace the outer container's `isDiamond ? "items-center justify-center" : "justify-between"` layout with consistent `flex flex-col items-center justify-center text-center` across all shapes (rectangle, pill, hexagon, and diamond). Wrap the optional diff badge and `[Entry]` / `[Exit]` markers into a centered flex row rendered only when at least one marker exists, grouped directly with the centered node name paragraph (`line-clamp-2 break-words text-xs font-semibold text-foreground tracking-tight leading-snug text-center`). Preserve top and bottom handle centering at `Position.Top` and `Position.Bottom`. Do not alter node coordinates, bounding dimensions, or `computeLayout` inputs.
+Why: Solves browser defect where text inside non-diamond Block diagram nodes sat near the bottom edge of the box. The root cause was that `BlockNode` inherited custom heights (~80-140px) from `computeLayout` but applied `justify-between` between an empty/sparse top row and the bottom name container, pushing the text to the bottom. Flex centering groups the markers and node name at the optical center of each node box.
+Alternatives considered:
+1. Shrinking `BlockNode` height to a fixed 48px: Rejected because `computeLayout` DAG rank spacing and handles expect the computed node heights shared across views.
+If we removed it: Block diagram nodes would continue to display text pushed toward the bottom border of node boxes.
+Decided by: user approved (Stage 1B addition)
+Status: active
+
 
 ## Phase 3 Summary
 

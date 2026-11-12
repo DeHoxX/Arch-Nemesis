@@ -89,8 +89,7 @@ export function BlockNode({
       aria-label={accessibleLabel}
       style={{ width, height }}
       className={cn(
-        "relative flex select-none flex-col text-card-foreground shadow-xs transition-all",
-        isDiamond ? "items-center justify-center" : "justify-between",
+        "relative flex select-none flex-col items-center justify-center text-center text-card-foreground shadow-xs transition-all",
         !isHexagon && !isDiamond && "border border-border/80 bg-card",
         !isHexagon && !isDiamond && (isPill ? "rounded-full px-8 py-2" : "rounded-lg px-3 py-2"),
         isHexagon && "px-7 py-2.5",
@@ -148,78 +147,82 @@ export function BlockNode({
           className="diamond-inner-box flex flex-col items-center justify-center text-center overflow-hidden gap-1 px-1 py-0.5 pointer-events-auto"
         >
           {/* Top marker */}
-          <div className="flex items-center justify-center gap-1 h-3">
-            {diffBadge && (
-              <span
-                className={cn(
-                  "font-mono text-[9px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
-                  data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                  data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                  data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
-                )}
-              >
-                {diffBadge}
-              </span>
-            )}
-            {data.isEntry && (
-              <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                [Entry]
-              </span>
-            )}
-            {data.isExit && (
-              <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
-                [Exit]
-              </span>
-            )}
-          </div>
+          {(diffBadge || data.isEntry || data.isExit) && (
+            <div className="flex items-center justify-center gap-1 flex-wrap">
+              {diffBadge && (
+                <span
+                  className={cn(
+                    "font-mono text-[9px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
+                    data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                    data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                    data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                  )}
+                >
+                  {diffBadge}
+                </span>
+              )}
+              {data.isEntry && (
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  [Entry]
+                </span>
+              )}
+              {data.isExit && (
+                <span className="font-mono text-[9px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+                  [Exit]
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Node Name */}
           <p
-            className="line-clamp-2 break-words text-xs font-semibold text-foreground tracking-tight leading-snug"
+            className="line-clamp-2 break-words text-xs font-semibold text-foreground tracking-tight leading-snug text-center"
             title={data.name}
           >
             {data.name}
           </p>
         </div>
       ) : (
-        /* Non-diamond standard layout */
-        <>
-          {/* Top row: [Entry] / [Exit] text marker (or empty spacer) */}
-          <div className="flex items-center gap-1.5 h-3.5">
-            {diffBadge && (
-              <span
-                className={cn(
-                  "font-mono text-[10px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
-                  data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                  data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                  data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
-                )}
-              >
-                {diffBadge}
-              </span>
-            )}
-            {data.isEntry && (
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                [Entry]
-              </span>
-            )}
-            {data.isExit && (
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
-                [Exit]
-              </span>
-            )}
-          </div>
+        /* Non-diamond standard layout - vertically and horizontally centered */
+        <div className="flex flex-col items-center justify-center text-center w-full max-w-full overflow-hidden gap-1 pointer-events-auto">
+          {/* Top marker */}
+          {(diffBadge || data.isEntry || data.isExit) && (
+            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+              {diffBadge && (
+                <span
+                  className={cn(
+                    "font-mono text-[10px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
+                    data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                    data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
+                    data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                  )}
+                >
+                  {diffBadge}
+                </span>
+              )}
+              {data.isEntry && (
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  [Entry]
+                </span>
+              )}
+              {data.isExit && (
+                <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+                  [Exit]
+                </span>
+              )}
+            </div>
+          )}
 
-          {/* Middle/Bottom: Node Name */}
-          <div className="min-w-0 overflow-hidden w-full">
+          {/* Middle: Node Name */}
+          <div className="min-w-0 overflow-hidden w-full flex items-center justify-center">
             <p
-              className="line-clamp-2 break-words text-xs font-semibold text-foreground tracking-tight leading-snug"
+              className="line-clamp-2 break-words text-xs font-semibold text-foreground tracking-tight leading-snug text-center"
               title={data.name}
             >
               {data.name}
             </p>
           </div>
-        </>
+        </div>
       )}
 
       <Handle

@@ -137,28 +137,28 @@ describe("DiagramView component", () => {
     const truncatedPrefix = "draft summary with full precedent citati…";
     expect(screen.getByText(truncatedPrefix)).toBeDefined();
 
-    // Query the edge note element
+    // Query the edge button element (D-325)
     const fullText =
       "draft summary with full precedent citations and statutory references";
-    const edgeNote = screen.getByRole("note", {
+    const edgeBtn = screen.getByRole("button", {
       name: `Flow: ${fullText}`,
     });
-    expect(edgeNote).toBeDefined();
-    expect(edgeNote.getAttribute("title")).toBe(fullText);
+    expect(edgeBtn).toBeDefined();
+    expect(edgeBtn.getAttribute("title")).toBe(fullText);
 
     const tooltip = screen.getByRole("tooltip", { hidden: true });
-    expect(tooltip.textContent).toBe(fullText);
+    expect(tooltip.textContent).toBe(`Flow: ${fullText}`);
 
     // (ii) full text disclosure on hover
-    await user.hover(edgeNote);
-    expect(edgeNote.getAttribute("title")).toBe(fullText);
-    expect(tooltip.textContent).toBe(fullText);
+    await user.hover(edgeBtn);
+    expect(edgeBtn.getAttribute("title")).toBe(fullText);
+    expect(tooltip.textContent).toBe(`Flow: ${fullText}`);
 
     // (iii) full text disclosure on keyboard focus
-    edgeNote.focus();
-    expect(document.activeElement).toBe(edgeNote);
-    expect(edgeNote.getAttribute("aria-label")).toBe(`Flow: ${fullText}`);
-    expect(tooltip.textContent).toBe(fullText);
+    edgeBtn.focus();
+    expect(document.activeElement).toBe(edgeBtn);
+    expect(edgeBtn.getAttribute("aria-label")).toBe(`Flow: ${fullText}`);
+    expect(tooltip.textContent).toBe(`Flow: ${fullText}`);
   });
 
   it("renders union architecture spec with added and removed diff badges", () => {
@@ -402,6 +402,64 @@ describe("DiagramView component", () => {
       // Selection cleared: neither is dimmed
       expect(nodeB.className).not.toContain("opacity-30");
       expect(nodeC.className).not.toContain("opacity-30");
+    });
+
+    it("dims non-endpoint nodes and other edges when an edge is selected (Stage 1B, D-325)", () => {
+      // Branch B edge is between entry_node and branch_b (index 2 in deterministic sorted order:
+      // e-branch_b-exit_node-0, e-branch_c-exit_node-1, e-entry_node-branch_b-2, e-entry_node-branch_c-3)
+      const { container } = render(
+        <DiagramView spec={branchingSpec} selectedEdgeId="e-entry_node-branch_b-2" />,
+      );
+
+      const entryNode = screen.getByRole("button", { name: "Node: Entry Service, service" });
+      const nodeB = screen.getByRole("button", { name: "Node: Service B, service" });
+      const nodeC = screen.getByRole("button", { name: "Node: Service C, service" });
+      const exitNode = screen.getByRole("button", { name: "Node: Exit Service, service" });
+
+      // Endpoints of the edge (entry_node and branch_b) stay bright
+      expect(entryNode.className).not.toContain("opacity-30");
+      expect(nodeB.className).not.toContain("opacity-30");
+
+      // Other nodes (branch_c and exit_node) are dimmed
+      expect(nodeC.className).toContain("opacity-30");
+      expect(exitNode.className).toContain("opacity-30");
+
+      // Selected edge has opacity 1 and brand-accent stroke; other edge is dimmed to 0.25
+      const edgeToC = container.querySelector(
+        '.react-flow__edge[aria-label*="to Service C"] .react-flow__edge-path',
+      ) as SVGPathElement;
+      expect(edgeToC).not.toBeNull();
+      expect(edgeToC.style.opacity).toBe("0.25");
+    });
+
+    it("synchronizes mutually exclusive node and edge selections and clears on Escape", () => {
+      const handleSelectNode = vi.fn();
+      const handleSelectEdge = vi.fn();
+
+      render(
+        <DiagramView
+          spec={branchingSpec}
+          onSelectNode={handleSelectNode}
+          onSelectEdge={handleSelectEdge}
+        />,
+      );
+
+      const nodeB = screen.getByRole("button", { name: "Node: Service B, service" });
+      fireEvent.click(nodeB);
+      expect(handleSelectNode).toHaveBeenCalledWith("branch_b");
+      expect(handleSelectEdge).toHaveBeenCalledWith(null);
+
+      // Click edge label button
+      const edgeLabelBtn = screen.getByRole("button", { name: /Flow: flow_to_c/ });
+      fireEvent.click(edgeLabelBtn);
+      expect(handleSelectEdge).toHaveBeenCalled();
+      expect(handleSelectNode).toHaveBeenCalledWith(null);
+
+      // Escape key clears both
+      const region = screen.getByRole("region", { name: "Architecture Diagram" });
+      fireEvent.keyDown(region, { key: "Escape" });
+      expect(handleSelectNode).toHaveBeenCalledWith(null);
+      expect(handleSelectEdge).toHaveBeenCalledWith(null);
     });
   });
 });

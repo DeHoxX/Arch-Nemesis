@@ -32,9 +32,31 @@ vi.mock("@/components/diagram/BlockDiagramView", () => ({
 }));
 
 vi.mock("@/components/diagram/DiagramView", () => ({
-  DiagramView: ({ spec }: { spec: { nodes: unknown[] } }) => (
+  DiagramView: ({
+    spec,
+    onSelectNode,
+    onSelectEdge,
+  }: {
+    spec: { nodes: unknown[]; edges?: unknown[] };
+    onSelectNode?: (id: string | null) => void;
+    onSelectEdge?: (id: string | null) => void;
+  }) => (
     <div data-testid="mock-diagram-view">
       Diagram Canvas with {spec.nodes.length} nodes
+      <button
+        type="button"
+        data-testid="select-node-broker"
+        onClick={() => onSelectNode?.("broker")}
+      >
+        Select Broker
+      </button>
+      <button
+        type="button"
+        data-testid="select-edge-test"
+        onClick={() => onSelectEdge?.("e-broker-sink-0")}
+      >
+        Select Edge
+      </button>
     </div>
   ),
 }));
@@ -62,14 +84,26 @@ const mockAdminVersionData = {
         tech_options: ["Kafka"],
         needs_model: false,
       },
+      {
+        id: "sink",
+        name: "Database Sink",
+        type: "database",
+        role: "Stores incoming events",
+        inputs: ["event_stream"],
+        outputs: [],
+        tech_options: ["PostgreSQL"],
+        needs_model: false,
+      },
     ],
-    edges: [],
+    edges: [
+      { from: "broker", to: "sink", flows: "Event Stream" },
+    ],
     constraints: [],
     entry_ids: ["broker"],
-    exit_ids: ["broker"],
+    exit_ids: ["sink"],
   },
   warnings: ["No redundancy on broker"],
-  flow_order: ["broker"],
+  flow_order: ["broker", "sink"],
   explanation: {
     overview: "This design provides an event store.",
     flow: [{ step: 1, node_id: "broker", node_name: "Broker", text: "Processes events" }],
@@ -252,5 +286,39 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
 
     // Verify postExplanation was never called
     expect(api.postExplanation).not.toHaveBeenCalled();
+  });
+
+  it("mounts read-only DetailPanel when a node or edge is selected in Architecture tab (Stage 1B, D-325)", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.getAdminDesignVersion).mockResolvedValueOnce(mockAdminVersionData);
+
+    renderPage();
+
+    await user.type(screen.getByLabelText(/Admin Secret Token/i), "valid-token");
+    await user.click(screen.getByRole("button", { name: /Unlock Design Version/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cloud Native Event Store")).toBeDefined();
+    });
+
+    // Switch to Architecture tab
+    const archTab = screen.getByRole("tab", {
+      name: "Architecture",
+    });
+    await user.click(archTab);
+
+    // Click select node trigger in mock
+    await user.click(screen.getByTestId("select-node-broker"));
+
+    // DetailPanel node mode mounted above Notes
+    expect(screen.getByRole("complementary", { name: "Node Details" })).toBeDefined();
+    expect(screen.getByText("Message Broker")).toBeDefined();
+
+    // Click select edge trigger in mock
+    await user.click(screen.getByTestId("select-edge-test"));
+
+    // DetailPanel edge mode mounted, replacing node mode
+    expect(screen.getByRole("complementary", { name: "Edge Details" })).toBeDefined();
+    expect(screen.queryByRole("complementary", { name: "Node Details" })).toBeNull();
   });
 });

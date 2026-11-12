@@ -112,7 +112,7 @@ describe("DiagramNode component", () => {
     expect(normalizeColorToHex(polygon?.getAttribute("stroke"))).toBe("#f59e0b");
   });
 
-  it("renders lock icon when node is referenced in constraints", () => {
+  it("does not render lock icon on node card when node participates in constraints (relocated to DetailPanel per D-326)", () => {
     renderNode({
       id: "counsel_review",
       constraints: [
@@ -128,7 +128,7 @@ describe("DiagramNode component", () => {
       ],
     });
 
-    expect(screen.getByLabelText("Locked by constraint")).toBeDefined();
+    expect(screen.queryByLabelText("Locked by constraint")).toBeNull();
   });
 
   it("invokes onSelect on click and on Enter/Space keyboard events", async () => {
