@@ -2,14 +2,16 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { PanelLeftClose, Pin, Plus, Trash2, X } from "lucide-react";
+import { FileText, PanelLeftClose, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/ui/BrandMark";
+import { Separator } from "@/components/ui/separator";
 import { removeHistoryEntry, useHistory } from "@/lib/history";
-import { removePin, togglePin, usePins } from "@/lib/pins";
+import { MAX_PINS, removePin, togglePin, usePins } from "@/lib/pins";
 import type { HistoryEntry } from "@/lib/types";
 
 export const SIDEBAR_WIDTH_STORAGE_KEY = "archnemesis.sidebar.width";
-export const SIDEBAR_MIN_WIDTH = 200;
+export const SIDEBAR_MIN_WIDTH = 240;
 export const SIDEBAR_MAX_WIDTH = 420;
 export const SIDEBAR_DEFAULT_WIDTH = 256;
 
@@ -64,21 +66,26 @@ export function shortTitle(
   return isShortened ? `${result}...` : result;
 }
 
+export function getDefaultSidebarWidth(): number {
+  return SIDEBAR_DEFAULT_WIDTH;
+}
+
 export function loadSidebarWidthPreference(): number {
+  const fallback = getDefaultSidebarWidth();
   if (typeof window === "undefined") {
-    return SIDEBAR_DEFAULT_WIDTH;
+    return fallback;
   }
   try {
     const raw = window.localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY);
-    if (!raw) return SIDEBAR_DEFAULT_WIDTH;
+    if (!raw) return fallback;
     const parsed = Number(raw);
-    if (isNaN(parsed) || !isFinite(parsed)) return SIDEBAR_DEFAULT_WIDTH;
+    if (isNaN(parsed) || !isFinite(parsed)) return fallback;
     return Math.min(
       SIDEBAR_MAX_WIDTH,
       Math.max(SIDEBAR_MIN_WIDTH, Math.round(parsed)),
     );
   } catch {
-    return SIDEBAR_DEFAULT_WIDTH;
+    return fallback;
   }
 }
 
@@ -111,16 +118,23 @@ export function Sidebar({
   const history = useHistory();
   const pins = usePins();
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // Group into Pinned and Recents (D-270, D-271)
+  // Filter history by search query (case-insensitive title match)
+  const trimmedSearch = searchQuery.trim().toLowerCase();
+  const filteredHistory = trimmedSearch
+    ? history.filter((item) => item.title.toLowerCase().includes(trimmedSearch))
+    : history;
+
+  // Group into Pinned and Recent (D-270, D-271, D-339)
   // Pinned order = most recently pinned first (order in pins array)
-  const historyMap = new Map(history.map((item) => [item.design_id, item]));
+  const historyMap = new Map(filteredHistory.map((item) => [item.design_id, item]));
   const pinnedEntries = pins
     .map((id) => historyMap.get(id))
     .filter((item): item is HistoryEntry => Boolean(item));
   const pinnedIdsSet = new Set(pins);
-  const recentEntries = history.filter((item) => !pinnedIdsSet.has(item.design_id));
+  const recentEntries = filteredHistory.filter((item) => !pinnedIdsSet.has(item.design_id));
 
   // Combined ordered entries for infinite scroll
   const allOrderedEntries = [...pinnedEntries, ...recentEntries];
@@ -128,7 +142,6 @@ export function Sidebar({
   // Infinite scroll: 20 rows first, +20 on sentinel (D-272)
   const PAGE_SIZE = 20;
   const [visibleCount, setVisibleCount] = useState<number>(PAGE_SIZE);
-
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -158,7 +171,7 @@ export function Sidebar({
   const displayedPinned = pinnedEntries.filter((item) => visibleEntriesSet.has(item));
   const displayedRecent = recentEntries.filter((item) => visibleEntriesSet.has(item));
 
-  // Desktop width state: start with SIDEBAR_DEFAULT_WIDTH on first render to match SSR (D-275)
+  // Desktop width state: 256px everywhere (D-345)
   const [width, setWidth] = useState<number>(SIDEBAR_DEFAULT_WIDTH);
 
   // Sync saved preference after mount (D-275) to prevent hydration mismatch
@@ -311,9 +324,10 @@ export function Sidebar({
             href={`/design/${encodeURIComponent(entry.design_id)}`}
             onClick={handleNavigate}
             title={entry.title}
-            className="flex-1 min-w-0 py-1.5 pl-2.5 pr-14 text-foreground/85 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-lg"
+            className="flex-1 min-w-0 py-1.5 pl-2 pr-14 text-foreground/85 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-lg flex items-center gap-2"
           >
-            <span className="truncate block font-normal">
+            <FileText className="size-3.5 shrink-0 text-muted-foreground/70" />
+            <span className="truncate block font-normal flex-1">
               {shortTitle(entry.title)}
             </span>
           </Link>
@@ -325,11 +339,18 @@ export function Sidebar({
                 e.stopPropagation();
                 togglePin(entry.design_id);
               }}
+              disabled={!isPinned && pins.length >= MAX_PINS}
               aria-label={isPinned ? "Unpin design" : "Pin design"}
-              title={isPinned ? "Unpin design" : "Pin design"}
+              title={
+                isPinned
+                  ? "Unpin design"
+                  : pins.length >= MAX_PINS
+                    ? "Maximum 25 pinned designs reached"
+                    : "Pin design"
+              }
               className={`p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring transition-colors ${
                 isPinned ? "text-foreground" : ""
-              }`}
+              } disabled:opacity-40 disabled:hover:text-muted-foreground`}
             >
               <Pin className={`size-3.5 ${isPinned ? "fill-current" : ""}`} />
             </button>
@@ -352,16 +373,14 @@ export function Sidebar({
     );
   };
 
+  const hasAnyHistory = history.length > 0;
+  const hasSearchResults = allOrderedEntries.length > 0;
+
   const content = (
     <div className="flex h-full w-full flex-col bg-sidebar-bg p-3 text-foreground select-none">
-      {/* Top Header Row */}
+      {/* Top Header Row with BrandMark and Collapse/Close Button */}
       <div className="mb-3 flex items-center justify-between border-b border-border/40 pb-3">
-        <div className="flex items-center gap-2">
-          <span className="size-2 rounded-full bg-muted-foreground/60" aria-hidden="true" />
-          <span className="text-xs font-semibold tracking-tight text-foreground">
-            Arch-Nemesis
-          </span>
-        </div>
+        <BrandMark />
         {isMobileDrawer ? (
           <Button
             type="button"
@@ -387,33 +406,70 @@ export function Sidebar({
         )}
       </div>
 
-      {/* New Design Action (BUILD_PLAN N1 / ?new=1) */}
-      <div className="mb-4">
+      {/* New Architecture Action Link */}
+      <div className="mb-3">
         <Button
           asChild
           variant="outline"
           size="sm"
-          className="w-full justify-start gap-2 border-border/60 bg-card/40 text-xs font-medium text-foreground hover:bg-card/80"
+          className="w-full justify-start gap-2 border-border/60 bg-card/40 text-xs font-mono text-foreground hover:bg-card/80"
         >
           <Link href="/?new=1" onClick={handleNavigate}>
-            <Plus className="size-3.5 shrink-0" />
-            <span>New design</span>
+            <Plus className="size-3.5 shrink-0 text-muted-foreground" />
+            <span>New architecture</span>
           </Link>
         </Button>
       </div>
 
-      {/* Past Designs List */}
+      {/* Workspace Section with Live Search */}
+      <div className="mb-2">
+        <div className="px-1 mb-1.5 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+          <span>YOUR WORKSPACE</span>
+        </div>
+        <div className="relative">
+          <label htmlFor="workspace-search-input" className="sr-only">
+            Search projects
+          </label>
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/60 pointer-events-none" />
+          <input
+            id="workspace-search-input"
+            type="search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search projects..."
+            className="w-full rounded-md border border-border/60 bg-card/40 py-1.5 pl-8 pr-7 text-xs text-foreground placeholder:text-muted-foreground/60 focus:border-brand-accent/60 focus:outline-none focus:ring-1 focus:ring-brand-accent/60"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/70 hover:text-foreground p-0.5"
+            >
+              <X className="size-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <Separator className="my-2 bg-border/40" />
+
+      {/* Past Designs List: PINNED & RECENT PROJECTS */}
       <div className="flex-1 overflow-y-auto pr-1 sidebar-scrollbar">
-        {allOrderedEntries.length === 0 ? (
+        {!hasAnyHistory ? (
           <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
             No past designs yet
+          </div>
+        ) : !hasSearchResults ? (
+          <div className="rounded-lg border border-dashed border-border/40 p-4 text-center text-xs text-muted-foreground">
+            No matching projects
           </div>
         ) : (
           <div className="space-y-4">
             {displayedPinned.length > 0 && (
               <div>
-                <div className="mb-1.5 px-2 text-[11px] font-medium text-muted-foreground/80 tracking-wide">
-                  Pinned
+                <div className="mb-1.5 px-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+                  PINNED
                 </div>
                 <ul className="space-y-0.5" role="list" aria-label="Pinned designs">
                   {displayedPinned.map((entry) => renderRow(entry, true))}
@@ -423,8 +479,8 @@ export function Sidebar({
 
             {displayedRecent.length > 0 && (
               <div>
-                <div className="mb-1.5 px-2 text-[11px] font-medium text-muted-foreground/80 tracking-wide">
-                  Recents
+                <div className="mb-1.5 px-2 text-[10px] font-mono uppercase tracking-wider text-muted-foreground/70">
+                  RECENT PROJECTS
                 </div>
                 <ul className="space-y-0.5" role="list" aria-label="Recent designs">
                   {displayedRecent.map((entry) => renderRow(entry, false))}
@@ -459,7 +515,7 @@ export function Sidebar({
         {/* Drawer Panel */}
         <aside
           id="app-sidebar"
-          className="relative z-50 flex h-full w-64 flex-col border-r border-border/60 shadow-2xl"
+          className="relative z-50 flex h-full w-72 max-w-[85vw] flex-col border-r border-border/60 shadow-2xl"
         >
           {content}
         </aside>

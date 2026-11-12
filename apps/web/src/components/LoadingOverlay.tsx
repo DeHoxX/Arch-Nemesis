@@ -34,11 +34,11 @@ export function LoadingOverlay({ className }: LoadingOverlayProps): React.ReactE
       aria-live="polite"
       aria-label="Generation in progress"
       className={cn(
-        "fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-md p-6 text-center select-none",
+        "fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/90 p-6 text-center select-none",
         className,
       )}
     >
-      <div className="relative flex flex-col items-center max-w-md rounded-2xl border border-border/60 bg-card/90 p-8 shadow-2xl backdrop-blur-sm">
+      <div className="relative flex flex-col items-center max-w-md rounded-2xl border border-border bg-card p-8 shadow-xl">
         {/* Spinner: honors prefers-reduced-motion */}
         <div className="mb-5 flex size-14 items-center justify-center rounded-full bg-brand-accent/10 border border-brand-accent/20">
           <Loader2 className="size-7 text-brand-accent animate-spin motion-reduce:animate-none" />

@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { z } from "zod";
 
 export const PINS_STORAGE_KEY = "archnemesis.pins.v1";
+export const MAX_PINS = 25;
 
 const pinsSchema = z.array(z.string());
 
@@ -48,13 +49,14 @@ function notifyStorageChange(): void {
 /**
  * Toggle pin status of a design ID.
  *
- * Rules (D-271):
+ * Rules (D-271, D-340):
  * - If already pinned, removes it
- * - If unpinned, prepends it (most recently pinned first)
+ * - If unpinned, prepends it (most recently pinned first) up to MAX_PINS (25)
+ * - Returns true if state toggled, false if blocked by MAX_PINS cap
  */
-export function togglePin(designId: string): void {
+export function togglePin(designId: string): boolean {
   if (typeof window === "undefined" || !designId) {
-    return;
+    return false;
   }
 
   try {
@@ -63,6 +65,9 @@ export function togglePin(designId: string): void {
     if (current.includes(designId)) {
       updated = current.filter((id) => id !== designId);
     } else {
+      if (current.length >= MAX_PINS) {
+        return false;
+      }
       updated = [designId, ...current.filter((id) => id !== designId)];
     }
 
@@ -71,8 +76,10 @@ export function togglePin(designId: string): void {
     cachedRaw = serialized;
     cachedPins = updated;
     notifyStorageChange();
+    return true;
   } catch {
     // Gracefully ignore storage quota or access errors
+    return false;
   }
 }
 

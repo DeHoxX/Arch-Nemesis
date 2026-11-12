@@ -12,7 +12,7 @@ export const SIDEBAR_COLLAPSE_STORAGE_KEY = "archnemesis.sidebar.collapsed";
 
 /**
  * Legacy storage helper retained for backwards compatibility with tests and callers.
- * Note: Under D-311, the sidebar is default-closed on desktop and state is not persisted.
+ * Note: Under D-345, the sidebar is default-closed on desktop and state is in-memory only.
  */
 export function loadSidebarCollapsedPreference(): boolean | null {
   if (typeof window === "undefined") {
@@ -52,19 +52,19 @@ interface AppShellInnerProps {
 function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
   const pathname = usePathname() || "/";
 
-  // Visibility rules (D-253, D-311):
+  // Visibility rules (D-253, D-311, D-345):
   // 1. /admin and /admin/*: completely hidden
-  // 2. All other routes: present and closed by default on desktop
+  // 2. All routes (including /): closed by default on desktop (D-345)
   const isAdmin = pathname.startsWith("/admin");
 
-  // Collapse state management: sidebar is always closed by default on desktop (D-311).
+  // Collapse state management: sidebar defaults to closed on EVERY route including "/" (D-345).
   // The state is in-memory for the current session and not persisted across page reloads.
   const [isCollapsed, setIsCollapsed] = useState<boolean>(true);
 
   // Mobile drawer state (< 768px)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  // Reset drawer and keep collapsed on route transition without cascading renders
+  // Reset drawer and keep default collapsed state on route transition
   const [prevPathname, setPrevPathname] = useState(pathname);
   if (prevPathname !== pathname) {
     setPrevPathname(pathname);
@@ -133,11 +133,9 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
   }, []);
 
   const handleToggleDesktop = () => {
-    setIsCollapsed((prev) => {
-      const next = !prev;
-      triggerCanvasResize();
-      return next;
-    });
+    const next = !isCollapsed;
+    setIsCollapsed(next);
+    triggerCanvasResize();
   };
 
   const handleOpenMobileDrawer = () => {

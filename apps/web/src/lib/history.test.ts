@@ -7,6 +7,7 @@ import {
   getHistory,
   saveHistoryEntry,
 } from "./history";
+import { MAX_PINS, getPins, togglePin } from "./pins";
 
 describe("History Helper Module", () => {
   beforeEach(() => {
@@ -136,5 +137,49 @@ describe("History Helper Module", () => {
     clearHistory();
     expect(getHistory()).toHaveLength(0);
     expect(localStorage.getItem(HISTORY_STORAGE_KEY)).toBeNull();
+  });
+
+  it("preserves pinned entries when history exceeds 200 items (D-340)", () => {
+    // Save design-1 first, then pin it
+    saveHistoryEntry({ design_id: "pinned-1", summary: "Critical Architecture" });
+    togglePin("pinned-1");
+    expect(getPins()).toContain("pinned-1");
+
+    // Save 205 other designs to push history over 200 items
+    for (let i = 1; i <= 205; i++) {
+      saveHistoryEntry({
+        design_id: `unpinned-${i}`,
+        summary: `Unpinned system ${i}`,
+      });
+    }
+
+    const items = getHistory();
+    expect(items).toHaveLength(HISTORY_MAX_ITEMS);
+    // Pinned entry was preserved despite being older than 205 subsequent items
+    const hasPinned = items.some((item) => item.design_id === "pinned-1");
+    expect(hasPinned).toBe(true);
+
+    // Oldest unpinned items (unpinned-1 through unpinned-6) were evicted instead
+    const hasOldestUnpinned = items.some((item) => item.design_id === "unpinned-1");
+    expect(hasOldestUnpinned).toBe(false);
+  });
+
+  it("enforces MAX_PINS cap of 25 in pins helper (D-340)", () => {
+    for (let i = 1; i <= MAX_PINS; i++) {
+      const res = togglePin(`pin-${i}`);
+      expect(res).toBe(true);
+    }
+    expect(getPins()).toHaveLength(MAX_PINS);
+
+    // 26th pin attempt is blocked
+    const overflowRes = togglePin("pin-26");
+    expect(overflowRes).toBe(false);
+    expect(getPins()).toHaveLength(MAX_PINS);
+    expect(getPins()).not.toContain("pin-26");
+
+    // Unpinning an existing pin succeeds and reduces count
+    const unpinRes = togglePin("pin-1");
+    expect(unpinRes).toBe(true);
+    expect(getPins()).toHaveLength(MAX_PINS - 1);
   });
 });

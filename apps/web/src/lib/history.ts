@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { historyListSchema } from "./api";
+import { getPins } from "./pins";
 import type { HistoryEntry } from "./types";
 
 export const HISTORY_STORAGE_KEY = "archnemesis.history.v1";
@@ -82,7 +83,25 @@ export function saveHistoryEntry(input: SaveHistoryInput): void {
 
     // Deduplicate by design_id and prepend newest
     const filtered = current.filter((item) => item.design_id !== input.design_id);
-    const updated = [entry, ...filtered].slice(0, HISTORY_MAX_ITEMS);
+    const combined = [entry, ...filtered];
+
+    // Evict oldest unpinned entries first if over limit (D-340)
+    let updated = combined;
+    if (combined.length > HISTORY_MAX_ITEMS) {
+      const pinnedIds = new Set(getPins());
+      const excess = combined.length - HISTORY_MAX_ITEMS;
+      const unpinnedEntries = combined.filter((item) => !pinnedIds.has(item.design_id));
+      const toEvictCount = Math.min(excess, unpinnedEntries.length);
+      const evictedSet = new Set(
+        unpinnedEntries
+          .slice(unpinnedEntries.length - toEvictCount)
+          .map((item) => item.design_id)
+      );
+      updated = combined.filter((item) => !evictedSet.has(item.design_id));
+      if (updated.length > HISTORY_MAX_ITEMS) {
+        updated = updated.slice(0, HISTORY_MAX_ITEMS);
+      }
+    }
 
     const serialized = JSON.stringify(updated);
     window.localStorage.setItem(HISTORY_STORAGE_KEY, serialized);

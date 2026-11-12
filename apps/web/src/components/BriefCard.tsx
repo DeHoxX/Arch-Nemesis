@@ -49,7 +49,7 @@ export function BriefCard({
     <Card
       aria-label="Requirement Brief"
       className={cn(
-        "rounded-2xl border border-border/80 bg-card/90 shadow-lg backdrop-blur-sm",
+        "rounded-xl border border-border bg-card shadow-xs",
         className,
       )}
     >

@@ -3523,6 +3523,74 @@ Decided by: user approved (Stage 1D plan)
 Status: active
 
 
+### D-338 — Stage H1 — design — Home studio hero redesign and Phase 4 copy supersede
+What: In `apps/web/src/app/page.tsx`, redesign the resting/empty state into a centered single-column system design studio layout: plain mono uppercase tag `"SYSTEM DESIGN STUDIO"` (no green dot, no `"- 01"`), `<h1>` headline `"What are we\nbuilding today?"` with `"building today?"` rendered in solid `--brand-accent` (`#b7c6c2`), subtitle `"Start with an idea. We'll work through the technical details together."`, an inline composer card with pencil icon, placeholder `"Describe the system you have in mind..."`, footer disclaimer ``Plain language · Up to ${MAX_INPUT_CHARS.toLocaleString("en-US")} characters`` with a square Sage `#b7c6c2` `ArrowUp` Send button (with live `{n} / 4,000` counter appended only when input length >= 3200), a `"NEED A STARTING POINT?"` divider with three domain starter buttons (`"E-commerce infrastructure"`, `"AI-powered support platform"`, `"Real-time monitoring system"` with domain icons and arrows that fill and focus the textarea with zero network requests), and a bottom step guide `"DESCRIBE → CLARIFY → GENERATE"`. When intake dialogue is active (`hasMessagesOrBrief`), transition seamlessly to the scrollable message stream and inline `BriefCard` above a flat bottom-docked composer bar with identical inputs and validation. This supersedes the Phase 4 home copy and layout in `BUILD_PLAN.md:446`.
+Why: Upgrades the user-facing home experience from a basic prototype chat bar to an intentional, high-craft pre-sales architecture studio matching the target reference design while strictly preserving all underlying intake turns, follow-up clarification, brief review, loading overlay, error retry, and session persistence flows.
+Alternatives considered:
+1. Retaining Anton uppercase hero and green dot pill: Rejected per user instruction to adopt the geometric reference aesthetic.
+2. Auto-submitting when clicking an example prompt button: Rejected because users must review, edit, and consciously initiate system generation.
+If we removed it: The home page would retain the prototype Phase 4 copy and bottom-docked layout with visual gaps.
+Decided by: user approved (Stage H0 plan and H1 answers)
+Status: active
+
+### D-339 — Stage H1 — design — Sidebar workspace search, BrandMark hex mark, route-specific 320px/256px width, relative timestamps, and desktop default-open on "/"
+What: In `apps/web/src/components/shell/Sidebar.tsx` and `AppShell.tsx`: (1) render `<BrandMark />` with inline SVG hex-network logo mark and mono uppercase `"ARCH-NEMESIS"` with a desktop collapse / mobile drawer close button, (2) replace `"New design"` with `"+ New architecture"` (linking to `/?new=1`), (3) add a `"YOUR WORKSPACE"` mono section with a live client-side `"Search projects..."` input filtering both Pinned and Recent designs by title with an accessible clear button and `"No matching projects"` empty state, (4) render each row with a `FileText` icon, title, and post-mount client-hydrated relative timestamp (`"Just now"`, `"2h ago"`, etc. via `relativeTime.ts`), keeping hover and keyboard focus-within Pin and Delete icon buttons with inline `"Remove? Yes / No"` confirmation, (5) default desktop sidebar width to `320px` on `"/"` while keeping `256px` default on `/design/[id]` and `/history` (all still resizable `240..420px`), and (6) start desktop sidebar expanded (`isCollapsed = false`) on `"/"` by default while keeping it collapsed by default on `/design/[id]` and `/history` (in-memory state, never persisted to localStorage). This supersedes D-311 desktop collapse behavior specifically on `"/"`.
+Why: Delivers the workspace navigation aesthetic from the reference design while keeping architecture canvases on `/design/[id]` spacious and unencumbered. Scoping `320px` default width and default-open state to `"/"` ensures the design page layout remains unchanged.
+Alternatives considered:
+1. Opening desktop sidebar by default on all routes: Rejected to prevent crowding React Flow diagram canvases on `/design/[id]`.
+2. Persisting open/closed state in localStorage: Rejected per D-311 in-memory transient state rule to avoid state drift.
+If we removed it: The home page would start with a closed sidebar lacking workspace search, hex branding, and relative timestamps.
+Decided by: user approved (Stage H0 plan and H1 answers)
+Status: active
+
+### D-340 — Stage H1 — design — History unpinned-first eviction protection, pins cap (MAX_PINS = 25), and zero schema change
+What: In `apps/web/src/lib/history.ts`, update `saveHistoryEntry` so that when history exceeds `HISTORY_MAX_ITEMS` (200), oldest UNPINNED entries are evicted first, ensuring pinned entries are never lost when new designs are created. Keep `archnemesis.pins.v1` in `apps/web/src/lib/pins.ts` as `string[]` IDs without schema changes or snapshot metadata. Enforce `MAX_PINS = 25` in `pins.ts` (disabling pin action or no-op with a short alert when attempting to exceed 25). Deleting an entry continues removing it from both history and pins storage.
+Why: Previously, `saveHistoryEntry` sliced `[entry, ...filtered].slice(0, 200)` naively, dropping oldest designs regardless of whether they were pinned. Protecting pinned entries during history eviction ensures user-pinned work remains permanent without requiring complex database-style migrations or redundant snapshot structures in localStorage.
+Alternatives considered:
+1. Upgrading `pins.ts` to v2 snapshot objects: Rejected per user instruction to keep pins storage minimal and simple as `string[]`.
+2. Uncapped pins: Rejected to prevent unbounded localStorage growth.
+If we removed it: Users with > 200 total designs would experience silent loss of pinned architecture designs.
+Decided by: user approved (Stage H1 approved answers)
+Status: active
+
+### D-341 — Stage H1 — design — Shared MAX_INPUT_CHARS = 4000 constant in types.ts mirrored from settings.py
+What: In `apps/web/src/lib/types.ts`, export `MAX_INPUT_CHARS = 4000`, mirroring backend `Settings.max_input_chars` (`apps/api/src/archnemesis/settings.py:32`). Replace hardcoded `4000` numbers in `apps/web/src/app/page.tsx` validation logic and use it in the input footer copy ``Plain language · Up to ${MAX_INPUT_CHARS.toLocaleString("en-US")} characters``.
+Why: Enforces single-source-of-truth contract consistency between frontend client input guards and backend Pydantic limits, matching existing limit constants (`LEAD_NOTE_MAX_CHARS`, `MAX_REFINEMENT_INPUT_CHARS`).
+Alternatives considered:
+1. Keeping hardcoded `4000` literals in page.tsx: Rejected to prevent drift if backend settings are adjusted.
+If we removed it: Frontend copy and validation bounds could diverge from backend validation rules.
+Decided by: user approved (Stage H0 plan and H1 answers)
+Status: active
+
+### D-342 — Stage H1 — design — Static studio grid, CSS-only staggered entry motion, and reusable studio tokens
+What: In `apps/web/src/app/globals.css`, introduce `.studio-grid-bg` rendering a static, subtle hairline grid on solid `#111111` (`--page-bg`) with zero radial glow, zero gradient, and zero blur. Define CSS-only staggered fade-up keyframes (`@keyframes studioFadeUp`) and utility classes for initial hero mount (`260ms` duration, staggered `animation-delay` from 0ms to 240ms), completely disabled under `@media (prefers-reduced-motion: reduce)`. Expose reusable studio surface and border tokens for subsequent Stage H2 reuse on the design page.
+Why: Satisfies the strict visual directive for no glow, no gradient, and no blur while providing polished, accessible CSS-only entrance transitions without adding npm dependencies.
+Alternatives considered:
+1. Using reactbits, framer-motion, or external canvas waves: Rejected per strict no-new-dependency and no-reactbits rules.
+2. Animated SVG background grids: Rejected to prevent GPU drain and maintain a calm engineering tool environment.
+If we removed it: The home page would retain radial gradients or appear flat and unrefined without accessible entrance cues.
+Decided by: user approved (Stage H0 plan and H1 answers)
+Status: active
+
+### D-343 — Stage H1 — design — Plus_Jakarta_Sans font reuse on Home hero headline (D-308)
+What: In `apps/web/src/app/page.tsx`, use existing loaded `Plus_Jakarta_Sans` (`font-heading`, weight 600/700 with tight tracking `-0.025em`) for the new `<h1>` `"What are we\nbuilding today?"`, replacing Anton uppercase. Retain `--font-anton` in `layout.tsx` and `globals.css` without removal so no global font configurations break.
+Why: Matches the geometric grotesk aesthetic of the reference design while adhering to D-308 by avoiding new `next/font/google` imports that would require outbound internet access during `next build`.
+Alternatives considered:
+1. Adding `Inter` via `next/font/google`: Rejected per D-308 and user answer to prevent build-time network requirements.
+2. Keeping Anton on the Home `<h1>`: Rejected because Anton's condensed heavy uppercase contradicts the reference studio design.
+If we removed it: Font configuration could cause offline build failures or visual mismatch against the reference design.
+Decided by: user approved (Stage H0 plan and H1 answers)
+Status: active
+
+### D-344 — Stage H1 — design — Flat aesthetic and removal of backdrop blur and heavy shadows from Home components
+What: In `apps/web/src/components/BriefCard.tsx` and `apps/web/src/components/LoadingOverlay.tsx`, remove `backdrop-blur-sm` and `backdrop-blur-md`, replacing semi-transparent glass backgrounds with crisp opaque/semi-opaque card surfaces (`bg-card border border-border`), and remove heavy `shadow-lg`/`shadow-2xl` in favor of subtle border contrast.
+Why: Enforces the architectural rule of "no glow, no gradient, no blur anywhere on `/`", eliminating hazy glassmorphism and providing crisp, modern technical studio ergonomics.
+Alternatives considered:
+1. Retaining blur on modals: Rejected per explicit user instruction to flatten LoadingOverlay and BriefCard.
+If we removed it: Blurred surfaces on brief cards and loading overlays would clash with the flat static studio aesthetic.
+Decided by: user approved (Stage H1 approved answers)
+Status: active
+
 ## Phase 3 Summary
 
 Phase 3 delivered the end-to-end intake dialogue and architecture generator engine:
@@ -3540,3 +3608,100 @@ Phase 1 established the end-to-end technical foundation for Arch-Nemesis:
 2. **Frontend Foundation (`apps/web`):** Initialized Next.js 16 (App Router), React 19, Tailwind CSS v4, and classic shadcn/ui configured with Radix UI base and neutral OKLCH palette. Built client-side TanStack Query provider, `System Health` card querying `/api/health` with clean error state exclusivity, and comprehensive unit tests with Vitest and Testing Library.
 3. **Operational Tooling (`scripts/`):** Implemented `dev.ps1` for local multi-service launch, `check.ps1` for unified static analysis and testing across both apps, and `llm_smoke.py` for safe manual live LLM verification.
 4. **Validation:** 39 backend tests passed, 3 frontend tests passed, Ruff check/format clean, Mypy strict mode clean across all source files, import-linter architectural contracts verified.
+
+
+### D-345 — Stage H-FIX — design — Desktop sidebar collapsed by default across all routes including "/" and removal of row timestamps
+What: In `apps/web/src/components/shell/AppShell.tsx` and `Sidebar.tsx`: (1) default desktop sidebar to collapsed (`isCollapsed = true`) on every route including `/` (in-memory only, no persistence), reversing the desktop default-open on `/` portion of D-339, (2) standardize sidebar width to `256px` everywhere (removing `SIDEBAR_DEFAULT_WIDTH_HOME = 320`), keeping resize bounds `240..420px`, (3) remove relative time strings (`"2h ago"`, `"Just now"`) from sidebar rows, showing title only with the `FileText` icon, and (4) safely delete `relativeTime.ts` and `relativeTime.test.ts` as they have zero remaining callers in the codebase.
+Why: Ensures clean, uncrowded canvas space across the application upon entry and eliminates transient relative time hydration rendering overhead in sidebar lists.
+Alternatives considered:
+1. Keeping default open on `/`: Rejected per user instruction.
+2. Keeping 320px width on `/`: Rejected in favor of uniform 256px base width.
+If we removed it: The home page would start with an open sidebar and render timestamp badges next to design titles.
+Decided by: user approved (Stage H-FIX)
+Status: active
+
+### D-346 — Stage H-FIX — design — Externalized 9-prompt starter catalog, post-mount 3-card selection, and horizontal 3-column desktop row layout
+What: In `apps/web/src/lib/examplePrompts.ts` and `apps/web/src/app/page.tsx`: (1) define a 9-prompt architectural starter catalog with domain icons, each `<= 4000` chars (`MAX_INPUT_CHARS`), explicit data/user specifications, human approval gates/audit rules, and daily volume scales with zero cost/effort/timeline figures and zero legal compliance claims, (2) select 3 random prompts on client mount via `useEffect` using `pickRandomExamplePrompts`, rendering 3 empty placeholder slots of identical height prior to hydration to eliminate both label flash and Cumulative Layout Shift (CLS), (3) render the 3 starter buttons in one horizontal row (`grid-cols-1 md:grid-cols-3`, stacking on narrow screens) matching the composer card footprint, with `ArrowUpRight` (`↗`) icons, and (4) clicking fills the textarea and focuses it without making any network requests.
+Why: Matches the reference layout and provides diverse architectural starting points for pre-sales exploration without causing layout shifts or SSR hydration warnings.
+Alternatives considered:
+1. Server-randomized prompts: Rejected due to hydration mismatch between SSR and client render.
+2. Inlining prompts in page.tsx: Rejected to maintain separation of catalog data and testability.
+If we removed it: The home page would show only 3 hardcoded starters stacked vertically.
+Decided by: user approved (Stage H-FIX)
+Status: active
+
+### D-347 — Stage H-FIX — design — Static micro-dot canvas, inline SVG corner circuit lines, capsule studio eyebrow, and sage headline gradient
+What: In `apps/web/src/app/globals.css`, `apps/web/src/components/studio/StudioCornerCircuits.tsx`, and `apps/web/src/app/page.tsx`: (1) update `.studio-grid-bg` to render a static, faint micro-dot pattern (`~25px` spacing, `rgba(255, 255, 255, 0.05)`) on solid `#111111` instead of cross-grid lines, (2) introduce `<StudioCornerCircuits />` rendering inline static SVGs in top-left and bottom-right of `<main>` with 1px stroke `rgba(255, 255, 255, 0.09)`, rounded 90-degree corners, and 45-degree diagonal cuts matching reference crops (`ref-corner-top-left.png`, `ref-corner-bottom-right.png`), marked `aria-hidden="true"`, `pointer-events-none`, with zero animation and zero green dots, (3) wrap `"SYSTEM DESIGN STUDIO"` in a subtle capsule border (`rounded-full border border-white/10 bg-[#161618]`), and (4) render `"building today?"` with a subtle sage text gradient (`#d3e1dd` to `#98aba6`), superseding D-342 for this one element only.
+Why: Faithfully matches the exact reference aesthetic of the technical studio without adding heavy assets or external CSS libraries.
+Alternatives considered:
+1. Animated canvas circuits: Rejected to keep CPU/GPU footprint minimal and deterministic.
+2. Flat solid accent on heading: Rejected per user instruction approving the subtle sage gradient on "building today?".
+If we removed it: The home page would display grid lines, lack corner circuit accents, and have a flat monochrome appearance.
+Decided by: user approved (Stage H-FIX)
+Status: active
+
+### D-348 — Stage H-FIX — bugfix — Non-optimistic intake submission, sessionStorage failed-request persistence, and refresh Retry recovery
+What: In `apps/web/src/lib/intakeStorage.ts` and `apps/web/src/app/page.tsx`: (1) change intake submission to non-optimistic: user message is committed into `messages` state only inside `intakeMutation.onSuccess`, leaving `inputText` intact in the textarea during flight and on failure, (2) persist `failedRequest: { kind: "intake" | "design", message: string, text?: string } | null` into `sessionStorage` (`archnemesis.intake.v1`), keeping the field optional so existing stored sessions load cleanly, (3) on live intake failure, display the API's specific error message with a `Retry` button, (4) on post-refresh restoration with an active `failedRequest`, display `"The last request failed. Please retry."` with a working `Retry` button, (5) guard against rapid double-clicks using `isPending`, (6) read current textarea text on intake retry, and (7) exclude `Retry` for `409 SESSION_CLOSED`.
+Why: Prevents orphaned user chat bubbles and loss of user prompt text when upstream LLM calls fail or network errors occur, providing clear and robust recovery both in-session and across browser page refreshes.
+Alternatives considered:
+1. Optimistic bubble with rollback on error: Rejected because rolling back chat turns causes jarring UI jumps and potential state sync races.
+2. Storing failed request in localStorage: Rejected per Rule 6 and Rule 10 to keep prompt text strictly scoped to tab-level sessionStorage.
+If we removed it: A 503 LLM failure would commit a user bubble without an answer, clear the user's prompt text, and leave an unrecoverable half-session upon refresh.
+Decided by: user approved (Stage H-FIX)
+Status: active
+
+### D-349 — Stage H-FIX2 — bugfix — Fix corner circuit stacking visibility inside isolated main pane and raise stroke contrast to rgba(255,255,255,0.14)
+What: Isolate the stacking context on `<main>` in `apps/web/src/app/page.tsx` (`isolate`), move `<StudioCornerCircuits />` from `-z-10` to `z-0` with explicit `z-10` on foreground content, and raise stroke contrast from `text-white/[0.09]` to `text-white/[0.14]`.
+Why: Without `isolate` on `<main>`, `-z-10` caused `StudioCornerCircuits` to render behind `<main>`'s opaque `bg-page-bg` (`#111111`) background, making the SVGs completely invisible in the browser. Raising opacity slightly to `0.14` keeps the traces subtle yet visible against `#111111`.
+Alternatives considered:
+1. Moving circuits onto the foreground content layer: Rejected because background ornaments must stay non-interactive at `z-0` beneath content (`z-10`).
+If we removed it: Corner circuit lines would remain hidden behind the page background.
+Decided by: user approved (Stage H-FIX2)
+Status: active
+
+### D-350 — Stage H-FIX2 — bugfix — Remove duplicate "+" prefix from New architecture sidebar link label
+What: In `apps/web/src/components/shell/Sidebar.tsx`, change the link label text from `"+ New architecture"` to `"New architecture"` while retaining the `<Plus />` icon, eliminating the redundant `"+ + New architecture"` rendering.
+Why: Prevents visual duplication of the plus sign alongside the Lucide `<Plus />` icon.
+Alternatives considered:
+1. Removing the `<Plus />` icon instead: Rejected because keeping the aligned vector icon matches sidebar action styling.
+If we removed it: Users would continue seeing two plus signs next to New architecture.
+Decided by: user approved (Stage H-FIX2)
+Status: active
+
+### D-351 — Stage H-FIX2 — design — Add React Bits WebGL2 Waves background layer on home "/" only with post-mount viewport and reduced-motion guards
+What: Convert the configured React Bits `Waves` component (`docs/design/waves-reactbits.txt.txt`) to TypeScript (`apps/web/src/components/studio/Waves.tsx` and `Waves.css`) using only `'react'` and `'./Waves.css'`, preserving all configured prop values (`lineColor="#ffffff"`, `spacing={5}`, `amplitude={13}`, `twist={0}`, `speed={0.45}`, `mouseRadius={100}`, `mouseStrength={0.3}`, `accentColor="#10b981"`, `lineStyle="dashed"`, `lineWidth={0.5}`, `scale={0.7}`, `bounce={0.3}`, `returnDuration={1}`, `opacity={0.55}`, `lightMode`). Mount inside an `aria-hidden="true" pointer-events-none absolute inset-0 z-0` container strictly on `"/"` inside `<main>`, gated post-mount so it is unmounted below `768px` or when `prefers-reduced-motion: reduce` is enabled.
+Why: Adds interactive ambient WebGL2 wave motion behind the studio hero on desktop while respecting reduced-motion preferences, mobile performance boundaries, SSR hydration consistency, and sidebar isolation.
+Alternatives considered:
+1. CSS-only wave animation or installing an npm package: Rejected per no-new-dependency rule and explicit React Bits component source.
+If we removed it: The home studio canvas would render static micro-dots and corner circuits without interactive ambient waves.
+Decided by: user approved (Stage H-FIX2)
+Status: active
+
+### D-352 — Stage H-FIX3 — bugfix — Prevent cross-component setState during AppShellInner render by separating triggerCanvasResize and removing redundant window resize listener
+What: In `apps/web/src/components/shell/AppShell.tsx`, move `triggerCanvasResize()` outside `setIsCollapsed` state updater into the `handleToggleDesktop` handler body (`const next = !isCollapsed; setIsCollapsed(next); triggerCanvasResize();`). In `apps/web/src/app/page.tsx`, remove the window `"resize"` listener from the Waves background gate `useEffect`, retaining `matchMedia` `"change"` listeners and the initial mount check.
+Why: Previously, `handleToggleDesktop` executed `triggerCanvasResize()` inside `setIsCollapsed((prev) => { ... })`. Because React executes state updaters during render, the synchronous `window.dispatchEvent(new Event("resize"))` invoked `HomeContent`'s window resize listener mid-render, which called `setShowWaves` and threw React's "Cannot update a component (HomeContent) while rendering a different component (AppShellInner)". Moving side effects out of the updater and removing the redundant window resize listener in `HomeContent` eliminates the warning while preserving diagram canvas refitting on toggle.
+Alternatives considered:
+1. Deferring `triggerCanvasResize` in `setTimeout(..., 0)` inside updater: Rejected because state updater functions must remain pure without side effects.
+2. Relying only on `ResizeObserver`: Diagram view canvases use React Flow which needs the window resize event to trigger layout recalculation.
+If we removed it: Toggling the desktop navigation sidebar on "/" would log React console errors and risk state desynchronization.
+Decided by: user approved (Stage H-FIX3)
+Status: active
+
+### D-353 — Stage H-FIX4 — diagnosis — Record static audit of post-mount white-screen and broken-image report with no proven code cause
+What: Document static and compiled-chunk audit across `page.tsx`, `AppShell.tsx`, `globals.css`, `Waves.tsx`, `Waves.css`, `StudioCornerCircuits.tsx`, `layout.tsx`, and `.next/dev/static/chunks/`. Add DOM regression guard in `apps/web/src/app/page.test.tsx` asserting zero `<img>` elements, preserved dark `<main>` classes (`bg-page-bg`, `studio-grid-bg`, `isolate`), and proper `z-0`/`z-10` layering on `"/"`. No speculative production edits applied.
+Why: Static source and compiled `.next/dev` CSS/JS contain zero `<img>` tags, zero `url(...)`/`data:image`/`docs/design` asset references, zero `bg-white`/`#ffffff` background fills, zero `color-scheme`/`filter`/`mix-blend-mode`/`backdrop-filter` overrides, and `Waves.tsx` uses transparent WebGL2 clear color (`0,0,0,0`). Neither the white `<main>` fill nor the top-left broken-image icon can be proven without live browser DevTools inspection or an isolated `<Waves />` toggle test.
+Alternatives considered:
+1. Deleting `<Waves />` or `<StudioCornerCircuits />` speculatively: Rejected per Stage H-FIX4 rules requiring user confirmation before deleting `<Waves />` or altering props without a proven cause.
+If we removed it: Would lose the DOM regression assertion confirming zero `<img>` injection and layer isolation on `/`.
+Decided by: user approved investigation (Stage H-FIX4, pending browser experiment)
+Status: active
+
+### D-354 — Stage H-FIX5 — bugfix — Remove destructive WEBGL_lose_context.loseContext() from Waves cleanup and handle context loss safely for React StrictMode
+What: In `apps/web/src/components/studio/Waves.tsx`, remove `gl.getExtension('WEBGL_lose_context')?.loseContext()` from the `useEffect` cleanup, add a `webglcontextlost` listener calling `event.preventDefault()`, guard cleanup GPU calls with `!gl.isContextLost()` (clearing `(0, 0, 0, 0)` on unmount), and check `!gl.isContextLost()` on initialization. Keep all `<Waves />` prop values in `apps/web/src/app/page.tsx` unchanged (including `lightMode`). Add a non-empty jsdom regression guard in `apps/web/src/app/page.test.tsx` verifying `Waves` cleanup on unmount does not call `WEBGL_lose_context.loseContext()` and preserves transparent container styling.
+Why: In Next.js 16 dev mode (`React.StrictMode`), `useEffect` mounts, runs cleanup, and immediately remounts against the same `<canvas>` DOM node. Calling `WEBGL_lose_context.loseContext()` in cleanup permanently marks the canvas's WebGL2 context as lost, so the remounted `useEffect` receives a lost context, fails shader linking (`link(gl)` returns `null`), and aborts before starting animation or observers. On Windows Chromium, a lost WebGL2 surface covering `inset: 0` is also a candidate for opaque compositor fallback, whereas preserving the context across StrictMode remounts allows normal transparent clear `(0, 0, 0, 0)` and animated wave rendering.
+Alternatives considered:
+1. Removing `<Waves />` or adding a feature flag: Rejected per Stage H-FIX5 rules requiring `<Waves />` to remain mounted with existing props.
+2. Dynamically recreating the `<canvas>` DOM element in `useEffect` on every mount: Rejected as more intrusive than removing the non-StrictMode-safe `loseContext()` call (unmounting naturally frees the detached `<canvas>`).
+If we removed it: React StrictMode double-invoke in `next dev` would immediately lose the WebGL2 context on every `/` load and prevent `<Waves />` from rendering.
+Decided by: user approved fix scope (Stage H-FIX5)
+Status: active

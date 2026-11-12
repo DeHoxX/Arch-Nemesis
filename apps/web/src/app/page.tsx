@@ -3,41 +3,52 @@
 import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { AlertCircle, ArrowUp, RefreshCw } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowUp,
+  ArrowUpRight,
+  Pencil,
+  RefreshCw,
+} from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BriefCard } from "@/components/BriefCard";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { StudioCornerCircuits } from "@/components/studio/StudioCornerCircuits";
+import Waves from "@/components/studio/Waves";
 import { ApiError, createDesign, sendIntakeTurn } from "@/lib/api";
+import {
+  EXAMPLE_PROMPTS,
+  EXAMPLE_PROMPT_ICONS,
+  pickRandomExamplePrompts,
+  type ExamplePrompt,
+} from "@/lib/examplePrompts";
 import { saveHistoryEntry } from "@/lib/history";
-import type { RequirementBrief } from "@/lib/types";
+import { MAX_INPUT_CHARS, type RequirementBrief } from "@/lib/types";
 
 import {
   clearIntakeState,
   loadIntakeState,
   saveIntakeState,
   type StoredChatMessage,
+  type StoredFailedRequest,
 } from "../lib/intakeStorage";
 
 type ChatMessage = StoredChatMessage;
 
 function HomeLoading(): React.ReactElement {
   return (
-    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground selection:bg-brand-accent selection:text-brand-accent-ink home-hero-bg">
-      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center pb-24 md:pb-32">
+    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-page-bg text-foreground selection:bg-brand-accent selection:text-brand-accent-ink studio-grid-bg">
+      <div className="flex flex-1 flex-col items-center justify-center p-4 text-center">
         <div className="mx-auto flex w-full max-w-2xl flex-col items-center space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
-            <span className="size-2 rounded-full bg-brand-accent" />
-            Arch-Nemesis System Architect
+          <div className="font-mono text-[11px] tracking-widest text-muted-foreground/60 uppercase">
+            SYSTEM DESIGN STUDIO
           </div>
-          <h1 className="font-[family-name:var(--font-anton)] text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-normal uppercase tracking-normal text-foreground max-w-4xl">
-            Describe the system you need
-          </h1>
-          <p className="max-w-lg text-sm text-muted-foreground md:text-base">
-            Plain language intake dialogue turns your business need into a validated, interactive architecture diagram.
-          </p>
+          <div className="h-12 w-3/4 rounded-lg bg-card/60 animate-pulse" />
+          <div className="h-4 w-1/2 rounded bg-card/40 animate-pulse" />
+          <div className="mt-8 h-32 w-full rounded-xl border border-border/40 bg-card/40 animate-pulse" />
         </div>
       </div>
     </main>
@@ -67,7 +78,53 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     if (isNew || typeof window === "undefined") return null;
     return loadIntakeState()?.brief ?? null;
   });
+
+  // Failed request persistence: live or restored from sessionStorage (D-348)
+  const [failedRequest, setFailedRequest] = useState<StoredFailedRequest | null>(() => {
+    if (isNew || typeof window === "undefined") return null;
+    return loadIntakeState()?.failedRequest ?? null;
+  });
+
+  // Client-side validation errors (e.g. char limit), distinct from retryable server failures
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Post-mount random 3 example prompts (before mount: 3 empty placeholder slots of identical height)
+  const [randomPrompts, setRandomPrompts] = useState<ExamplePrompt[] | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRandomPrompts(pickRandomExamplePrompts(EXAMPLE_PROMPTS, 3));
+  }, []);
+
+  // Post-mount Waves background visibility: ON only on "/" desktop (>= 768px) and not reduced motion (D-351)
+  const [showWaves, setShowWaves] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const motionQuery =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-reduced-motion: reduce)")
+        : null;
+    const desktopQuery =
+      typeof window.matchMedia === "function"
+        ? window.matchMedia("(min-width: 768px)")
+        : null;
+
+    const update = () => {
+      const reduced = motionQuery ? motionQuery.matches : false;
+      const isDesktop = desktopQuery
+        ? desktopQuery.matches
+        : window.innerWidth >= 768;
+      setShowWaves(!reduced && isDesktop);
+    };
+
+    update();
+    motionQuery?.addEventListener?.("change", update);
+    desktopQuery?.addEventListener?.("change", update);
+
+    return () => {
+      motionQuery?.removeEventListener?.("change", update);
+      desktopQuery?.removeEventListener?.("change", update);
+    };
+  }, []);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -76,7 +133,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     messagesEndRef.current?.scrollIntoView({ behavior });
   }, []);
 
-  // Mutation for intake turns (initial prompt and answering follow-ups)
+  // Mutation for intake turns: NON-OPTIMISTIC (user message committed only in onSuccess)
   const intakeMutation = useMutation({
     mutationFn: async (text: string) => {
       return sendIntakeTurn({
@@ -84,13 +141,22 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
         text,
       });
     },
-    onSuccess: (data) => {
+    onSuccess: (data, submittedText) => {
       setSessionId(data.session_id);
       setValidationError(null);
+      setFailedRequest(null);
+      setInputText("");
+
+      const userMsg: ChatMessage = {
+        id: `msg-${Date.now()}-user`,
+        sender: "user",
+        text: submittedText,
+      };
 
       if (data.status === "needs_info") {
         setMessages((prev) => [
           ...prev,
+          userMsg,
           {
             id: `msg-${Date.now()}-assistant`,
             sender: "assistant",
@@ -98,22 +164,32 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
           },
         ]);
       } else if (data.status === "ready" && data.brief) {
+        setMessages((prev) => [...prev, userMsg]);
         setBrief(data.brief);
       }
     },
-    onError: (err: unknown) => {
+    onError: (err: unknown, submittedText) => {
       if (err instanceof ApiError) {
         if (err.status === 409 || err.code === "SESSION_CLOSED") {
+          // Terminal non-retryable error
           setValidationError(
-            "This design request is finished. Use New design to start another.",
+            "This design request is finished. Use New architecture to start another.",
           );
-        } else {
-          setValidationError(err.message);
+          setFailedRequest(null);
+          return;
         }
+
+        setFailedRequest({
+          kind: "intake",
+          message: err.message,
+          text: submittedText,
+        });
       } else {
-        setValidationError(
-          err instanceof Error ? err.message : "An unexpected error occurred.",
-        );
+        setFailedRequest({
+          kind: "intake",
+          message: err instanceof Error ? err.message : "An unexpected error occurred.",
+          text: submittedText,
+        });
       }
     },
   });
@@ -126,6 +202,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       });
     },
     onSuccess: (data) => {
+      setFailedRequest(null);
       saveHistoryEntry({
         design_id: data.id,
         title: data.title,
@@ -137,8 +214,21 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
         messages,
         brief,
         designId: data.id,
+        failedRequest: null,
       });
       router.push(`/design/${encodeURIComponent(data.id)}`);
+    },
+    onError: (err: unknown) => {
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : "Could not produce a design that passes all checks.";
+      setFailedRequest({
+        kind: "design",
+        message: msg,
+      });
     },
   });
 
@@ -150,12 +240,12 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     }
   }, [isNew, router]);
 
-  // Persist updated state to sessionStorage (D-194)
+  // Persist updated state to sessionStorage (D-194, D-348)
   useEffect(() => {
     if (isNew) {
       return;
     }
-    if (!sessionId && messages.length === 0 && !brief && !inputText) {
+    if (!sessionId && messages.length === 0 && !brief && !inputText && !failedRequest) {
       clearIntakeState();
       return;
     }
@@ -164,8 +254,9 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       inputText,
       messages,
       brief,
+      failedRequest,
     });
-  }, [sessionId, inputText, messages, brief, isNew]);
+  }, [sessionId, inputText, messages, brief, failedRequest, isNew]);
 
   // Auto-scroll on messages change or brief shown
   useEffect(() => {
@@ -189,6 +280,8 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
   }, [inputText]);
 
   const handleSend = () => {
+    if (intakeMutation.isPending) return;
+
     const trimmed = inputText.trim();
 
     if (trimmed.length < 1) {
@@ -196,24 +289,13 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       return;
     }
 
-    if (trimmed.length > 4000) {
-      setValidationError("Input must not exceed 4000 characters.");
+    if (trimmed.length > MAX_INPUT_CHARS) {
+      setValidationError(`Input must not exceed ${MAX_INPUT_CHARS} characters.`);
       return;
     }
 
     setValidationError(null);
-
-    // Append user message to chat state
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: `msg-${Date.now()}-user`,
-        sender: "user",
-        text: trimmed,
-      },
-    ]);
-
-    setInputText("");
+    setFailedRequest(null);
     intakeMutation.mutate(trimmed);
   };
 
@@ -226,9 +308,40 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     }
   };
 
-  const handleRetryGenerate = () => {
-    if (sessionId) {
-      designMutation.mutate(sessionId);
+  // Retry failed request: reads current textarea text for intake (D-348)
+  const handleRetryFailedRequest = () => {
+    if (intakeMutation.isPending || designMutation.isPending) return;
+
+    if (failedRequest?.kind === "design" || designMutation.isError) {
+      if (sessionId) {
+        setFailedRequest(null);
+        designMutation.mutate(sessionId);
+      }
+      return;
+    }
+
+    const textToRetry = inputText.trim() || failedRequest?.text?.trim() || "";
+    if (textToRetry.length < 1) {
+      setValidationError("Input must be at least 1 character long.");
+      return;
+    }
+    if (textToRetry.length > MAX_INPUT_CHARS) {
+      setValidationError(`Input must not exceed ${MAX_INPUT_CHARS} characters.`);
+      return;
+    }
+
+    setValidationError(null);
+    setFailedRequest(null);
+    intakeMutation.mutate(textToRetry);
+  };
+
+  const handleSelectStarter = (promptText: string) => {
+    setInputText(promptText);
+    setValidationError(null);
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.selectionStart = promptText.length;
+      textareaRef.current.selectionEnd = promptText.length;
     }
   };
 
@@ -243,36 +356,219 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
 
   const hasMessagesOrBrief = messages.length > 0 || brief !== null;
 
+  // Character counter display helper: static disclaimer at rest, live counter appended only when length >= 3200
+  const counterText =
+    inputText.length >= 3200
+      ? `Plain language · Up to ${MAX_INPUT_CHARS.toLocaleString("en-US")} characters · ${inputText.length.toLocaleString("en-US")} / ${MAX_INPUT_CHARS.toLocaleString("en-US")}`
+      : `Plain language · Up to ${MAX_INPUT_CHARS.toLocaleString("en-US")} characters`;
+
+  // Failure message helper: live intake failure shows specific API message; after refresh shows exact mandated text
+  const isPostRefreshIntakeError = Boolean(failedRequest && !intakeMutation.isError && !designMutation.isError);
+  const failureAlertMessage = isPostRefreshIntakeError
+    ? "The last request failed. Please retry."
+    : failedRequest?.message || "The last request failed. Please retry.";
+
   return (
-    <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-background text-foreground selection:bg-brand-accent selection:text-brand-accent-ink home-hero-bg">
-      {/* Generation Loading Overlay */}
+    <main className="relative isolate flex h-[100dvh] w-full flex-col overflow-hidden bg-page-bg text-foreground selection:bg-brand-accent selection:text-brand-accent-ink studio-grid-bg">
+      {/* Interactive WebGL2 Waves layer (D-351): "/" desktop only, off on reduced motion & <768px */}
+      {showWaves && (
+        <div
+          aria-hidden="true"
+          data-testid="home-waves-layer"
+          className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
+        >
+          <Waves
+            lineColor="#ffffff"
+            spacing={5}
+            amplitude={13}
+            twist={0}
+            speed={0.45}
+            mouseRadius={100}
+            mouseStrength={0.3}
+            accentColor="#10b981"
+            lineStyle="dashed"
+            lineWidth={0.5}
+            scale={0.7}
+            bounce={0.3}
+            returnDuration={1}
+            opacity={0.55}
+            lightMode
+          />
+        </div>
+      )}
+
+      {/* Decorative static corner circuit lines (D-347, D-349) */}
+      <StudioCornerCircuits />
+
+      {/* Generation Loading Overlay (flat, no blur) */}
       {designMutation.isPending && <LoadingOverlay />}
 
-      {/* Scrollable Upper Region: Empty State Hero OR Conversation Stream */}
-      <div className="relative flex flex-1 flex-col overflow-y-auto px-4 py-6">
+      {/* Main Region: Empty Studio Hero OR Active Conversation Stream */}
+      <div className="relative z-10 flex flex-1 flex-col overflow-y-auto px-4 py-6">
         {!hasMessagesOrBrief ? (
-          /* Empty State Hero (exact BUILD_PLAN.md:446 copy) */
-          <div className="my-auto flex flex-1 flex-col items-center justify-center text-center pb-24 md:pb-32">
-            <div className="mx-auto flex w-full max-w-2xl flex-col items-center space-y-4">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
-                <span className="size-2 rounded-full bg-brand-accent" />
-                Arch-Nemesis System Architect
+          /* Empty Studio Hero (Stage H-FIX / Reference Aesthetic) */
+          <div className="my-auto flex flex-1 flex-col items-center justify-center text-center py-8">
+            <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
+              {/* Mono studio tag in subtle capsule pill: no dot, no - 01 */}
+              <div className="animate-studio-fade-up inline-flex items-center rounded-full border border-white/10 bg-[#161618] px-3.5 py-1 font-mono text-[11px] font-semibold tracking-widest text-muted-foreground/80 uppercase">
+                SYSTEM DESIGN STUDIO
               </div>
-              <h1 className="font-[family-name:var(--font-anton)] text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-normal uppercase tracking-normal text-foreground max-w-4xl">
-                Describe the system you need
+
+              {/* Headline: Plus_Jakarta_Sans, second line subtle sage gradient (D-347) */}
+              <h1
+                style={{ animationDelay: "60ms" }}
+                className="animate-studio-fade-up mt-4 font-heading text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-foreground leading-[1.12]"
+              >
+                What are we
+                <span className="block bg-gradient-to-b from-[#d3e1dd] via-[#b7c6c2] to-[#98aba6] bg-clip-text text-transparent font-semibold">
+                  building today?
+                </span>
               </h1>
-              <p className="max-w-lg text-sm text-muted-foreground md:text-base">
-                Plain language intake dialogue turns your business need into a validated, interactive architecture diagram.
+
+              {/* Subtitle */}
+              <p
+                style={{ animationDelay: "120ms" }}
+                className="animate-studio-fade-up mt-3 max-w-lg text-sm text-muted-foreground md:text-base leading-relaxed"
+              >
+                Start with an idea. We&apos;ll work through the technical details together.
               </p>
+
+              {/* Inline Studio Composer Card */}
+              <div
+                style={{ animationDelay: "180ms" }}
+                className="animate-studio-fade-up mt-8 w-full max-w-2xl text-left"
+              >
+                {/* Client validation error */}
+                {validationError && (
+                  <Alert
+                    variant="destructive"
+                    className="mb-3 rounded-xl border-destructive/60 bg-destructive/10 text-destructive-foreground"
+                  >
+                    <AlertCircle className="size-4" />
+                    <AlertDescription className="text-sm font-medium">
+                      {validationError}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Live or Restored Request Failure Alert with Retry button */}
+                {failedRequest && (
+                  <Alert
+                    variant="destructive"
+                    className="mb-3 rounded-xl border-destructive/60 bg-destructive/10 text-destructive-foreground"
+                  >
+                    <AlertCircle className="size-4" />
+                    <div className="flex flex-1 items-center justify-between gap-3">
+                      <AlertDescription className="text-sm font-medium">
+                        {failureAlertMessage}
+                      </AlertDescription>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRetryFailedRequest}
+                        disabled={intakeMutation.isPending || designMutation.isPending}
+                        className="gap-1.5 border-destructive/40 text-xs font-semibold hover:bg-destructive/20 shrink-0"
+                      >
+                        <RefreshCw className="size-3.5" />
+                        Retry
+                      </Button>
+                    </div>
+                  </Alert>
+                )}
+
+                <div className="relative w-full rounded-xl border border-white/10 bg-[#161618] p-3 shadow-xs transition-colors focus-within:border-brand-accent/55 focus-within:ring-1 focus-within:ring-brand-accent/35">
+                  <div className="flex items-start gap-2.5">
+                    <Pencil className="size-4 text-muted-foreground/60 shrink-0 mt-2 ml-1" />
+                    <Textarea
+                      ref={textareaRef}
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Describe the system you have in mind..."
+                      disabled={intakeMutation.isPending}
+                      rows={1}
+                      className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1 text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 md:text-base flex-1"
+                    />
+                  </div>
+
+                  <div className="mt-2 flex items-center justify-between border-t border-border/40 px-1 pt-2">
+                    <span className="font-mono text-[11px] text-muted-foreground/70">
+                      {counterText}
+                    </span>
+
+                    <Button
+                      type="button"
+                      onClick={handleSend}
+                      disabled={intakeMutation.isPending || !inputText.trim()}
+                      aria-label="Send"
+                      className="size-8 rounded-lg bg-brand-accent p-0 text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60 flex items-center justify-center shrink-0"
+                    >
+                      <ArrowUp className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Starter Divider */}
+              <div
+                style={{ animationDelay: "240ms" }}
+                className="animate-studio-fade-up my-7 flex items-center gap-3 w-full max-w-2xl text-[10px] font-mono tracking-widest text-muted-foreground/60 uppercase"
+              >
+                <span className="flex-1 h-px bg-border/40" />
+                <span>NEED A STARTING POINT?</span>
+                <span className="flex-1 h-px bg-border/40" />
+              </div>
+
+              {/* Example Starter Buttons in ONE horizontal 3-column row on desktop (D-346) */}
+              <div
+                style={{ animationDelay: "240ms" }}
+                className="animate-studio-fade-up w-full max-w-2xl grid grid-cols-1 md:grid-cols-3 gap-2.5"
+              >
+                {!randomPrompts
+                  ? [0, 1, 2].map((slotIdx) => (
+                      <div
+                        key={`placeholder-slot-${slotIdx}`}
+                        aria-hidden="true"
+                        className="h-10 rounded-lg border border-white/[0.09] bg-[#151517]"
+                      />
+                    ))
+                  : randomPrompts.map((starter) => {
+                      const Icon = EXAMPLE_PROMPT_ICONS[starter.iconKey];
+                      return (
+                        <button
+                          key={starter.id}
+                          type="button"
+                          onClick={() => handleSelectStarter(starter.prompt)}
+                          className="group flex h-10 w-full items-center justify-between rounded-lg border border-white/[0.09] bg-[#151517] px-3 py-2 text-xs text-foreground/90 transition-colors hover:border-brand-accent/45 hover:bg-[#191b1a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-accent/60"
+                        >
+                          <div className="flex items-center gap-2 truncate min-w-0">
+                            <Icon className="size-3.5 text-brand-accent/70 shrink-0 transition-colors" />
+                            <span className="font-medium text-foreground/90 truncate">
+                              {starter.title}
+                            </span>
+                          </div>
+                          <ArrowUpRight className="size-3.5 text-muted-foreground/50 group-hover:text-foreground shrink-0 transition-colors ml-1" />
+                        </button>
+                      );
+                    })}
+              </div>
+
+              {/* Step Flow Guide */}
+              <div
+                style={{ animationDelay: "300ms" }}
+                className="animate-studio-fade-up mt-8 font-mono text-[11px] tracking-widest text-muted-foreground/50 uppercase select-none"
+              >
+                DESCRIBE → CLARIFY → GENERATE
+              </div>
             </div>
           </div>
         ) : (
           /* Active Chat Stream */
           <div className="mx-auto w-full max-w-2xl space-y-6 pb-4">
-            {/* Header pill when messages are active */}
+            {/* Header label when messages are active: plain mono label, no dot */}
             <div className="flex justify-center pt-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-card-elevated px-3 py-1 text-xs font-mono text-muted-foreground shadow-xs">
-                <span className="size-1.5 rounded-full bg-brand-accent" />
+              <div className="font-mono text-[11px] font-semibold tracking-widest text-muted-foreground/80 uppercase">
                 System Architect Session
               </div>
             </div>
@@ -324,7 +620,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
             )}
 
             {/* Design Generation Error Alert */}
-            {designMutation.isError && (
+            {(designMutation.isError || failedRequest?.kind === "design") && (
               <Alert
                 variant="destructive"
                 className="rounded-xl border-destructive/60 bg-destructive/10 text-destructive-foreground"
@@ -334,6 +630,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                 <AlertDescription className="mt-1 space-y-2 text-sm">
                   <p>
                     {designError?.message ||
+                      failedRequest?.message ||
                       (designMutation.error instanceof Error
                         ? designMutation.error.message
                         : "Could not produce a design that passes all checks.")}
@@ -355,7 +652,8 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={handleRetryGenerate}
+                      onClick={handleRetryFailedRequest}
+                      disabled={designMutation.isPending}
                       className="gap-1.5 border-destructive/40 text-xs font-semibold hover:bg-destructive/20"
                     >
                       <RefreshCw className="size-3.5" />
@@ -371,52 +669,80 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
         )}
       </div>
 
-      {/* Docked Bottom Chat Input Bar (stays enabled after brief is shown) */}
-      <div className="shrink-0 border-t border-border bg-card/40 backdrop-blur-md px-4 py-3">
-        <div className="mx-auto w-full max-w-2xl space-y-2">
-          {/* Validation or Turn Error Alert */}
-          {validationError && (
-            <Alert
-              variant="destructive"
-              className="rounded-xl border-destructive/60 bg-destructive/10 text-destructive-foreground"
-            >
-              <AlertCircle className="size-4" />
-              <AlertDescription className="text-sm font-medium">
-                {validationError}
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="relative w-full rounded-2xl border border-white/16 bg-card-elevated p-2.5 shadow-xl transition-all focus-within:border-brand-accent/60 focus-within:ring-1 focus-within:ring-brand-accent/60">
-            <Textarea
-              ref={textareaRef}
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="For example: a support assistant that answers customers from our help articles and hands hard cases to a person."
-              disabled={intakeMutation.isPending}
-              rows={1}
-              className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1.5 text-sm text-foreground placeholder:text-muted-foreground/70 focus-visible:outline-none focus-visible:ring-0 md:text-base"
-            />
-
-            <div className="mt-1 flex items-center justify-between border-t border-border/40 px-1 pt-1.5">
-              <span className="font-mono text-[11px] text-muted-foreground">
-                {inputText.length} / 4000 characters
-              </span>
-
-              <Button
-                type="button"
-                onClick={handleSend}
-                disabled={intakeMutation.isPending || !inputText.trim()}
-                className="h-8 gap-1.5 bg-brand-accent px-3.5 py-1.5 text-xs font-semibold text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60"
+      {/* Docked Bottom Chat Input Bar (only visible when in active dialogue mode) */}
+      {hasMessagesOrBrief && (
+        <div className="relative z-10 shrink-0 border-t border-border bg-page-bg px-4 py-3">
+          <div className="mx-auto w-full max-w-2xl space-y-2">
+            {/* Validation Error Alert */}
+            {validationError && (
+              <Alert
+                variant="destructive"
+                className="rounded-xl border-destructive/60 bg-destructive/10 text-destructive-foreground"
               >
-                Send
-                <ArrowUp className="size-3.5" />
-              </Button>
+                <AlertCircle className="size-4" />
+                <AlertDescription className="text-sm font-medium">
+                  {validationError}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* In-dialogue intake retry alert */}
+            {failedRequest?.kind === "intake" && (
+              <Alert
+                variant="destructive"
+                className="rounded-xl border-destructive/60 bg-destructive/10 text-destructive-foreground"
+              >
+                <AlertCircle className="size-4" />
+                <div className="flex flex-1 items-center justify-between gap-3">
+                  <AlertDescription className="text-sm font-medium">
+                    {failureAlertMessage}
+                  </AlertDescription>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRetryFailedRequest}
+                    disabled={intakeMutation.isPending}
+                    className="gap-1.5 border-destructive/40 text-xs font-semibold hover:bg-destructive/20 shrink-0"
+                  >
+                    <RefreshCw className="size-3.5" />
+                    Retry
+                  </Button>
+                </div>
+              </Alert>
+            )}
+
+            <div className="relative w-full rounded-xl border border-border bg-card p-2.5 shadow-xs transition-colors focus-within:border-brand-accent/60 focus-within:ring-1 focus-within:ring-brand-accent/60">
+              <Textarea
+                ref={textareaRef}
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Describe the system you have in mind..."
+                disabled={intakeMutation.isPending}
+                rows={1}
+                className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1 text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 md:text-base"
+              />
+
+              <div className="mt-1 flex items-center justify-between border-t border-border/40 px-1 pt-1.5">
+                <span className="font-mono text-[11px] text-muted-foreground/70">
+                  {counterText}
+                </span>
+
+                <Button
+                  type="button"
+                  onClick={handleSend}
+                  disabled={intakeMutation.isPending || !inputText.trim()}
+                  aria-label="Send"
+                  className="size-8 rounded-lg bg-brand-accent p-0 text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60 flex items-center justify-center shrink-0"
+                >
+                  <ArrowUp className="size-4" />
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }

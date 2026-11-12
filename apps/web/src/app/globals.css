@@ -227,6 +227,37 @@
   }
 }
 
+/* Studio static faint dot pattern: 25px spacing, faint rgba(255,255,255,0.05), no lines, no blur (D-347) */
+.studio-grid-bg {
+  background-color: var(--page-bg);
+  background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 25px 25px;
+}
+
+/* CSS-only staggered entry animation for Studio Home Hero (D-342) */
+@keyframes studioFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-studio-fade-up {
+  animation: studioFadeUp 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-studio-fade-up {
+    animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
 /* Subtle background token grid for Results, History, and Admin pages (D-312) */
 .page-grid-bg {
   background-image:

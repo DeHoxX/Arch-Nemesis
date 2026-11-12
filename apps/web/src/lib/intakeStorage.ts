@@ -19,6 +19,14 @@ export const storedChatMessageSchema = z.object({
   questions: z.array(z.string()).optional(),
 });
 
+export const storedFailedRequestSchema = z.object({
+  kind: z.enum(["intake", "design"]),
+  message: z.string(),
+  text: z.string().optional(),
+});
+
+export type StoredFailedRequest = z.infer<typeof storedFailedRequestSchema>;
+
 export const intakeStorageSchema = z.object({
   version: z.literal("v1"),
   sessionId: z.string().nullable(),
@@ -26,6 +34,7 @@ export const intakeStorageSchema = z.object({
   messages: z.array(storedChatMessageSchema).default([]),
   brief: requirementBriefSchema.nullable().default(null),
   designId: z.string().nullable().optional(),
+  failedRequest: storedFailedRequestSchema.nullable().optional().default(null),
 });
 
 export type IntakeStorageData = z.infer<typeof intakeStorageSchema>;
@@ -36,6 +45,7 @@ export interface SaveIntakeInput {
   messages: StoredChatMessage[];
   brief: RequirementBrief | null;
   designId?: string | null;
+  failedRequest?: StoredFailedRequest | null;
 }
 
 /**
@@ -91,6 +101,7 @@ export function saveIntakeState(input: SaveIntakeInput): void {
       messages: input.messages ?? [],
       brief: input.brief ?? null,
       designId: input.designId ?? null,
+      failedRequest: input.failedRequest ?? null,
     };
 
     const serialized = JSON.stringify(payload);
@@ -125,4 +136,3 @@ export function clearIntakeState(): void {
     // Gracefully ignore
   }
 }
-

@@ -206,6 +206,9 @@ export interface HistoryEntry {
 // Phase 7 Refinement & Patch Types
 // ---------------------------------------------------------------------------
 
+// Mirrored from apps/api/src/archnemesis/settings.py:32
+export const MAX_INPUT_CHARS = 4000;
+
 // Mirrored from apps/api/src/archnemesis/modules/refinement/schemas.py:17
 export const MAX_REFINEMENT_INPUT_CHARS = 1000;
 

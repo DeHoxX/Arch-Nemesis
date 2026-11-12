@@ -8,6 +8,7 @@ import {
   SIDEBAR_MIN_WIDTH,
   SIDEBAR_WIDTH_STORAGE_KEY,
   Sidebar,
+  getDefaultSidebarWidth,
   shortTitle,
 } from "./Sidebar";
 import { AppShell, SIDEBAR_COLLAPSE_STORAGE_KEY } from "./AppShell";
@@ -27,12 +28,14 @@ describe("Sidebar component", () => {
     window.localStorage.clear();
   });
 
-  it("renders 'New design' button linking to /?new=1", () => {
+  it("renders 'New architecture' button without duplicate plus linking to /?new=1 (D-350)", () => {
+    expect(SIDEBAR_DEFAULT_WIDTH).toBe(256);
     render(<Sidebar />);
 
-    const newDesignLink = screen.getByRole("link", { name: /new design/i });
+    const newDesignLink = screen.getByRole("link", { name: "New architecture" });
     expect(newDesignLink).toBeDefined();
     expect(newDesignLink.getAttribute("href")).toBe("/?new=1");
+    expect(newDesignLink.textContent).not.toContain("+");
   });
 
   it("displays empty state 'No past designs yet' when localStorage history is empty", () => {
@@ -41,17 +44,17 @@ describe("Sidebar component", () => {
     expect(screen.getByText("No past designs yet")).toBeDefined();
   });
 
-  it("renders past designs list from localStorage sorted newest first with shortened plain text titles and full title tooltip", () => {
+  it("renders past designs list from localStorage sorted newest first with shortened plain text titles, no timestamps, and full title tooltip (D-345)", () => {
     const historyData = [
       {
         design_id: "des-001",
         title: "Customer Support Assistant Architecture",
-        created_at: "2026-10-25T10:00:00Z",
+        created_at: new Date(Date.now() - 2 * 3600_000).toISOString(),
       },
       {
         design_id: "des-002",
         title: "Inventory Sync Pipeline",
-        created_at: "2026-10-24T08:00:00Z",
+        created_at: new Date(Date.now() - 5 * 60_000).toISOString(),
       },
     ];
     window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
@@ -74,10 +77,12 @@ describe("Sidebar component", () => {
     expect(designLinks[1]?.getAttribute("href")).toBe("/design/des-002");
     expect(designLinks[1]?.getAttribute("title")).toBe("Inventory Sync Pipeline");
 
-    // Row shows title only: "Recents" heading exists and no date text appears
-    expect(screen.getByText("Recents")).toBeDefined();
-    expect(screen.queryByText(/2026/)).toBeNull();
-    expect(screen.queryByText(/\d{1,2}\/\d{1,2}/)).toBeNull();
+    // Section heading is RECENT PROJECTS (D-339)
+    expect(screen.getByText("RECENT PROJECTS")).toBeDefined();
+
+    // Zero relative timestamp badges or text rendered (D-345)
+    expect(screen.queryByText(/ago/i)).toBeNull();
+    expect(screen.queryByText(/just now/i)).toBeNull();
   });
 
   it("renders desktop collapse button and fires callback", async () => {
@@ -123,18 +128,18 @@ describe("Sidebar component", () => {
     const handle = screen.getByRole("separator", { name: "Resize sidebar" });
     expect(handle).toBeDefined();
     expect(handle.getAttribute("aria-orientation")).toBe("vertical");
-    expect(handle.getAttribute("aria-valuenow")).toBe(String(SIDEBAR_DEFAULT_WIDTH));
+    expect(handle.getAttribute("aria-valuenow")).toBe(String(getDefaultSidebarWidth()));
     expect(handle.getAttribute("aria-valuemin")).toBe(String(SIDEBAR_MIN_WIDTH));
     expect(handle.getAttribute("aria-valuemax")).toBe(String(SIDEBAR_MAX_WIDTH));
   });
 
-  it("ignores corrupt non-numeric width in localStorage and falls back to default 256 px", () => {
+  it("ignores corrupt non-numeric width in localStorage and falls back to route default", () => {
     window.localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, "invalid_nan");
 
     render(<Sidebar isMobileDrawer={false} />);
 
     const handle = screen.getByRole("separator", { name: "Resize sidebar" });
-    expect(handle.getAttribute("aria-valuenow")).toBe(String(SIDEBAR_DEFAULT_WIDTH));
+    expect(handle.getAttribute("aria-valuenow")).toBe(String(getDefaultSidebarWidth()));
   });
 
   it("clamps width from localStorage within 200 and 420 px", () => {
@@ -210,7 +215,7 @@ describe("Sidebar component", () => {
       </TestWatcher>,
     );
 
-    // Initial render (captured in useLayoutEffect before useEffect) matches default 256
+    // Initial render matches default 256
     expect(initialAriaValueNow).toBe("256");
     expect(initialStyleWidth).toContain("width: 256px");
 
@@ -259,9 +264,9 @@ describe("Sidebar component", () => {
 
     render(<Sidebar />);
 
-    // Initially all under Recents, no Pinned group
-    expect(screen.queryByText("Pinned")).toBeNull();
-    expect(screen.getByText("Recents")).toBeDefined();
+    // Initially all under RECENT PROJECTS, no PINNED group
+    expect(screen.queryByText("PINNED")).toBeNull();
+    expect(screen.getByText("RECENT PROJECTS")).toBeDefined();
 
     const pinButtons = screen.getAllByRole("button", { name: "Pin design" });
     expect(pinButtons).toHaveLength(2);
@@ -270,7 +275,7 @@ describe("Sidebar component", () => {
     await user.click(pinButtons[1]!);
 
     // Pinned section now exists with Second Design
-    expect(screen.getByText("Pinned")).toBeDefined();
+    expect(screen.getByText("PINNED")).toBeDefined();
     expect(window.localStorage.getItem(PINS_STORAGE_KEY)).toBe(JSON.stringify(["des-2"]));
   });
 
@@ -285,7 +290,7 @@ describe("Sidebar component", () => {
 
     // Renders cleanly without throwing
     expect(screen.getByText("First Design")).toBeDefined();
-    expect(screen.queryByText("Pinned")).toBeNull();
+    expect(screen.queryByText("PINNED")).toBeNull();
   });
 
   it("remove asks confirmation, removes only after Yes, and does not call fetch", async () => {
@@ -397,6 +402,42 @@ describe("Sidebar component", () => {
     expect(container.querySelectorAll("script")).toHaveLength(0);
     expect(screen.getByText(/<script>alert\('xss'\)<\/script>/)).toBeDefined();
   });
+
+  it("filters designs by search query and shows 'No matching projects' when query yields no results (D-339)", async () => {
+    const user = userEvent.setup();
+    const historyData = [
+      { design_id: "des-1", title: "Billing Pipeline Service", created_at: "2026-10-25T10:00:00Z" },
+      { design_id: "des-2", title: "Customer Chat Assistant", created_at: "2026-10-25T09:00:00Z" },
+    ];
+    window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(historyData));
+
+    render(<Sidebar />);
+
+    const searchInput = screen.getByPlaceholderText("Search projects...");
+    expect(searchInput).toBeDefined();
+
+    // Type query matching one item
+    await user.type(searchInput, "billing");
+    expect(screen.getByText("Billing Pipeline Service")).toBeDefined();
+    expect(screen.queryByText("Customer Chat Assistant")).toBeNull();
+
+    // Clear search using clear button
+    const clearBtn = screen.getByRole("button", { name: "Clear search" });
+    await user.click(clearBtn);
+    expect(screen.getByText("Billing Pipeline Service")).toBeDefined();
+    expect(screen.getByText("Customer Chat Assistant")).toBeDefined();
+
+    // Type query matching nothing
+    await user.type(searchInput, "nonexistent-keyword-xyz");
+    expect(screen.getByText("No matching projects")).toBeDefined();
+    expect(screen.queryByText("Billing Pipeline Service")).toBeNull();
+  });
+
+  it("renders BrandMark with hex logo and mono ARCH-NEMESIS (D-339)", () => {
+    render(<Sidebar />);
+    expect(screen.getByText("ARCH-NEMESIS")).toBeDefined();
+    expect(screen.getByText("YOUR WORKSPACE")).toBeDefined();
+  });
 });
 
 describe("AppShell component", () => {
@@ -452,7 +493,7 @@ describe("AppShell component", () => {
     expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("defaults to closed on desktop on every page load and ignores pre-saved open value in localStorage", () => {
+  it("defaults to collapsed across every route including '/' on desktop and ignores localStorage (D-345)", () => {
     mockPathname = "/";
     window.localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, "false");
 
@@ -462,16 +503,17 @@ describe("AppShell component", () => {
       </AppShell>,
     );
 
-    // Sidebar should be collapsed by default even if localStorage had "false"
+    // Sidebar should start collapsed on "/" even if localStorage had "false"
     expect(screen.getByText("Home Content")).toBeDefined();
     expect(screen.queryByRole("button", { name: "Collapse sidebar" })).toBeNull();
 
+    // Toggle button visible with aria-expanded="false"
     const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
     expect(toggleBtn).toBeDefined();
     expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("expands sidebar when toggle button is clicked and closes when clicked again (in-memory, not persisted)", async () => {
+  it("toggles sidebar on desktop (in-memory, not persisted)", async () => {
     const user = userEvent.setup();
     mockPathname = "/";
     window.localStorage.removeItem(SIDEBAR_COLLAPSE_STORAGE_KEY);
@@ -482,18 +524,22 @@ describe("AppShell component", () => {
       </AppShell>,
     );
 
+    // Starts collapsed on "/" (D-345)
     const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
-    await user.click(toggleBtn);
+    expect(toggleBtn).toBeDefined();
+    expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
 
-    // Now open
+    // Open it
+    await user.click(toggleBtn);
     const collapseBtn = screen.getByRole("button", { name: "Collapse sidebar" });
     expect(collapseBtn).toBeDefined();
-    // Verify no persistence to localStorage
+    expect(toggleBtn.getAttribute("aria-expanded")).toBe("true");
     expect(window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)).toBeNull();
 
-    // Toggle close via Collapse button
+    // Collapse it again
     await user.click(collapseBtn);
     expect(screen.queryByRole("button", { name: "Collapse sidebar" })).toBeNull();
+    expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
     expect(window.localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)).toBeNull();
   });
 

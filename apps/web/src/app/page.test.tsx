@@ -4,6 +4,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "./page";
+import { AppShell } from "../components/shell/AppShell";
 import { INTAKE_STORAGE_KEY } from "../lib/intakeStorage";
 
 const mockPush = vi.fn();
@@ -16,6 +17,20 @@ vi.mock("next/navigation", () => ({
     replace: mockReplace,
   }),
   useSearchParams: () => mockSearchParams,
+  usePathname: () => "/",
+}));
+
+// jsdom does not implement WebGL2; mock Waves component cleanly
+vi.mock("../components/studio/Waves", () => ({
+  default: (props: Record<string, unknown>) => (
+    <div
+      data-testid="waves-mock"
+      aria-hidden="true"
+      data-line-color={String(props.lineColor ?? "")}
+      data-accent-color={String(props.accentColor ?? "")}
+      data-line-style={String(props.lineStyle ?? "")}
+    />
+  ),
 }));
 
 function renderWithClient(ui: React.ReactElement) {
@@ -33,6 +48,8 @@ function renderWithClient(ui: React.ReactElement) {
 describe("HomePage Component", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    window.innerWidth = 1024;
     mockPush.mockClear();
     mockReplace.mockClear();
     mockSearchParams = new URLSearchParams();
@@ -40,24 +57,96 @@ describe("HomePage Component", () => {
     window.localStorage.clear();
   });
 
-  it("renders exact heading, placeholder, and Send button from the Build Plan", () => {
+  it("renders exact heading, placeholder, capsule tag, corner circuits, waves, and Send button (D-347, D-349, D-351)", async () => {
     renderWithClient(<HomePage />);
 
     expect(
       screen.getByRole("heading", {
-        name: "Describe the system you need",
+        name: "What are we building today?",
         level: 1,
       }),
     ).toBeDefined();
 
-    const expectedPlaceholder =
-      "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.";
+    expect(screen.getByText("SYSTEM DESIGN STUDIO")).toBeDefined();
+    expect(screen.getByText(/Start with an idea/)).toBeDefined();
+
+    const expectedPlaceholder = "Describe the system you have in mind...";
     expect(screen.getByPlaceholderText(expectedPlaceholder)).toBeDefined();
 
-    expect(screen.getByRole("button", { name: /send/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Send" })).toBeDefined();
+    expect(screen.getByText("Plain language · Up to 4,000 characters")).toBeDefined();
+    expect(screen.getByText("NEED A STARTING POINT?")).toBeDefined();
+    expect(screen.getByText("DESCRIBE → CLARIFY → GENERATE")).toBeDefined();
+
+    // Corner circuits element present with aria-hidden, pointer-events-none, and z-0 (D-349)
+    const circuits = screen.getByTestId("studio-corner-circuits");
+    expect(circuits.getAttribute("aria-hidden")).toBe("true");
+    expect(circuits.className).toContain("pointer-events-none");
+    expect(circuits.className).toContain("z-0");
+    expect(circuits.className).not.toContain("-z-10");
+
+    // Waves layer mounted on desktop when reduced-motion is not set (D-351)
+    await waitFor(() => {
+      const wavesLayer = screen.getByTestId("home-waves-layer");
+      expect(wavesLayer.getAttribute("aria-hidden")).toBe("true");
+      expect(wavesLayer.className).toContain("pointer-events-none");
+      expect(wavesLayer.className).toContain("z-0");
+      expect(screen.getByTestId("waves-mock")).toBeDefined();
+    });
+
+    // 3 starter buttons populated post-mount in horizontal grid
+    await waitFor(() => {
+      const starterButtons = screen.getAllByRole("button").filter((btn) =>
+        btn.querySelector(".lucide-arrow-up-right"),
+      );
+      expect(starterButtons).toHaveLength(3);
+    });
   });
 
-  it("handles intake turn and displays follow-up questions in the message stream", async () => {
+  it("does NOT render Waves layer when prefers-reduced-motion: reduce is active (D-351)", async () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("prefers-reduced-motion") || query.includes("min-width: 768px"),
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    renderWithClient(<HomePage />);
+
+    // Heading and composer still render normally
+    expect(screen.getByRole("heading", { name: "What are we building today?" })).toBeDefined();
+    expect(screen.getByPlaceholderText(/Describe the system/)).toBeDefined();
+
+    // Waves layer must remain absent
+    expect(screen.queryByTestId("home-waves-layer")).toBeNull();
+    expect(screen.queryByTestId("waves-mock")).toBeNull();
+  });
+
+  it("does NOT render Waves layer below 768px viewport width (D-351)", async () => {
+    window.innerWidth = 500;
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      })),
+    );
+
+    renderWithClient(<HomePage />);
+
+    expect(screen.getByRole("heading", { name: "What are we building today?" })).toBeDefined();
+    expect(screen.getByPlaceholderText(/Describe the system/)).toBeDefined();
+
+    expect(screen.queryByTestId("home-waves-layer")).toBeNull();
+    expect(screen.queryByTestId("waves-mock")).toBeNull();
+  });
+
+  it("handles intake turn non-optimistically and displays follow-up questions in message stream", async () => {
     const user = userEvent.setup();
 
     global.fetch = vi.fn().mockResolvedValue({
@@ -77,7 +166,7 @@ describe("HomePage Component", () => {
 
     renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     await user.type(textarea, "I need a customer support bot.");
 
     const sendButton = screen.getByRole("button", { name: /send/i });
@@ -88,6 +177,8 @@ describe("HomePage Component", () => {
       expect(
         screen.getByText("What databases or external APIs are connected?"),
       ).toBeDefined();
+      // Committed user message present after success
+      expect(screen.getByText("I need a customer support bot.")).toBeDefined();
     });
   });
 
@@ -121,7 +212,7 @@ describe("HomePage Component", () => {
 
     renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     await user.type(textarea, "Build a legal precedent search engine.");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
@@ -170,7 +261,7 @@ describe("HomePage Component", () => {
 
     const { container } = renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     await user.type(textarea, "Testing XSS resistance");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
@@ -266,19 +357,16 @@ describe("HomePage Component", () => {
 
     renderWithClient(<HomePage />);
 
-    // Step 1: Submit intake turn to get ready brief
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     await user.type(textarea, "Need a telemetry ingestion system");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
-    // Step 2: Click "Generate design" button on brief card
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
     });
 
     await user.click(screen.getByRole("button", { name: "Generate design" }));
 
-    // Step 3: Assert router.push was invoked with /design/design_abc_123
     await waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith("/design/design_abc_123");
     });
@@ -334,7 +422,7 @@ describe("HomePage Component", () => {
 
     renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     await user.type(textarea, "Create edge cluster");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
@@ -361,7 +449,7 @@ describe("HomePage Component", () => {
     });
   });
 
-  it("displays friendly error message and Retry button on LLM service error", async () => {
+  it("displays friendly error message and Retry button on design LLM service error", async () => {
     const user = userEvent.setup();
 
     global.fetch = vi.fn().mockImplementation(async (url: string) => {
@@ -407,7 +495,7 @@ describe("HomePage Component", () => {
 
     renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     await user.type(textarea, "Financial trading system");
     await user.click(screen.getByRole("button", { name: /send/i }));
 
@@ -427,12 +515,140 @@ describe("HomePage Component", () => {
     });
   });
 
+  it("non-optimistic intake failure: keeps inputText, shows live error and Retry, commits zero bubbles (D-348)", async () => {
+    const user = userEvent.setup();
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => ({
+        error: {
+          code: "LLM_UNAVAILABLE",
+          message: "LLM service is currently unavailable. Please try again shortly.",
+        },
+      }),
+    } as unknown as Response);
+
+    renderWithClient(<HomePage />);
+
+    const textarea = screen.getByPlaceholderText(/Describe the system/) as HTMLTextAreaElement;
+    await user.type(textarea, "Telemetry logging pipeline");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("LLM service is currently unavailable. Please try again shortly."),
+      ).toBeDefined();
+      expect(screen.getByRole("button", { name: /retry/i })).toBeDefined();
+    });
+
+    expect(textarea.value).toBe("Telemetry logging pipeline");
+    expect(screen.queryByText("System Architect Session")).toBeNull();
+    expect(screen.queryByText("You")).toBeNull();
+
+    const stored = JSON.parse(window.sessionStorage.getItem(INTAKE_STORAGE_KEY) || "{}");
+    expect(stored.failedRequest?.kind).toBe("intake");
+    expect(stored.failedRequest?.message).toBe(
+      "LLM service is currently unavailable. Please try again shortly.",
+    );
+  });
+
+  it("refresh after intake failure shows exact 'The last request failed. Please retry.' and Retry resubmits (D-348)", async () => {
+    const user = userEvent.setup();
+
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: null,
+        inputText: "Saved failed requirement text",
+        messages: [],
+        brief: null,
+        failedRequest: {
+          kind: "intake",
+          message: "Original backend error message",
+          text: "Saved failed requirement text",
+        },
+      }),
+    );
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: "ready",
+        session_id: "sess_recovered_1",
+        round: 1,
+        questions: [],
+        brief: {
+          summary: "Recovered System",
+          users: "Ops",
+          data_involved: [],
+          domain_hint: "",
+          stated_constraints: [],
+          assumptions: [],
+          numbers_given: [],
+          unverifiable_requirements: [],
+        },
+      }),
+    } as unknown as Response);
+
+    renderWithClient(<HomePage />);
+
+    const textarea = screen.getByPlaceholderText(/Describe the system/) as HTMLTextAreaElement;
+    expect(textarea.value).toBe("Saved failed requirement text");
+
+    expect(screen.getByText("The last request failed. Please retry.")).toBeDefined();
+
+    const retryBtn = screen.getByRole("button", { name: /retry/i });
+    await user.click(retryBtn);
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Requirement Brief")).toBeDefined();
+      expect(screen.getByText("Recovered System")).toBeDefined();
+    });
+
+    const stored = JSON.parse(window.sessionStorage.getItem(INTAKE_STORAGE_KEY) || "{}");
+    expect(stored.failedRequest).toBeNull();
+  });
+
+  it("409 SESSION_CLOSED shows guidance and does NOT render Retry button (D-348)", async () => {
+    const user = userEvent.setup();
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      json: async () => ({
+        error: {
+          code: "SESSION_CLOSED",
+          message: "Session is finished.",
+        },
+      }),
+    } as unknown as Response);
+
+    renderWithClient(<HomePage />);
+
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
+    await user.type(textarea, "Post closure inquiry");
+    await user.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "This design request is finished. Use New architecture to start another.",
+        ),
+      ).toBeDefined();
+      expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
+    });
+  });
+
   it("enforces 4000 character input limit and displays validation error", async () => {
     const user = userEvent.setup();
 
     renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     const longInput = "a".repeat(4001);
 
     fireEvent.change(textarea, { target: { value: longInput } });
@@ -444,12 +660,12 @@ describe("HomePage Component", () => {
   });
 
   it("home page without fresh-start flag keeps existing state and does not call router.replace", () => {
-    mockSearchParams = new URLSearchParams(); // empty / no flag
+    mockSearchParams = new URLSearchParams();
 
     renderWithClient(<HomePage />);
 
     expect(mockReplace).not.toHaveBeenCalled();
-    expect(screen.getByRole("heading", { name: "Describe the system you need" })).toBeDefined();
+    expect(screen.getByRole("heading", { name: "What are we building today?" })).toBeDefined();
   });
 
   it("home page with new=1 fresh-start flag clears state and cleans URL with router.replace", async () => {
@@ -460,7 +676,7 @@ describe("HomePage Component", () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith("/", { scroll: false });
     });
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     expect((textarea as HTMLTextAreaElement).value).toBe("");
   });
 
@@ -499,7 +715,7 @@ describe("HomePage Component", () => {
       expect(screen.getByText("What is the expected throughput?")).toBeDefined();
       expect(screen.getByText("Automated Claims Validation Pipeline")).toBeDefined();
       expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
       expect(textarea).toBeDefined();
       expect(textarea.getAttribute("disabled")).toBeNull();
     });
@@ -522,7 +738,7 @@ describe("HomePage Component", () => {
     renderWithClient(<HomePage />);
 
     await waitFor(() => {
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
       expect((textarea as HTMLTextAreaElement).value).toBe("Restored draft requirement text");
       expect(screen.getByText("Claims processing pipeline")).toBeDefined();
       expect(screen.queryByRole("button", { name: "Generate design" })).toBeNull();
@@ -548,48 +764,19 @@ describe("HomePage Component", () => {
       expect(mockReplace).toHaveBeenCalledWith("/", { scroll: false });
     });
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     expect((textarea as HTMLTextAreaElement).value).toBe("");
     expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
   });
 
-  it("gracefully ignores corrupt JSON or invalid schema in sessionStorage", async () => {
+  it("gracefully ignores corrupt JSON or invalid schema in sessionStorage", () => {
     window.sessionStorage.setItem(INTAKE_STORAGE_KEY, "not-valid-json{{{");
 
     renderWithClient(<HomePage />);
 
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+    const textarea = screen.getByPlaceholderText(/Describe the system/);
     expect((textarea as HTMLTextAreaElement).value).toBe("");
     expect(screen.queryByText("not-valid-json")).toBeNull();
-  });
-
-  it("displays friendly guidance when intake turn returns 409 SESSION_CLOSED", async () => {
-    const user = userEvent.setup();
-
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 409,
-      json: async () => ({
-        error: {
-          code: "SESSION_CLOSED",
-          message: "Session 'session_closed_1' is already ready.",
-        },
-      }),
-    } as unknown as Response);
-
-    renderWithClient(<HomePage />);
-
-    const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
-    await user.type(textarea, "Another query after closure");
-    await user.click(screen.getByRole("button", { name: /send/i }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "This design request is finished. Use New design to start another.",
-        ),
-      ).toBeDefined();
-    });
   });
 
   it("navigates to existing design when Generate design is clicked on restored brief", async () => {
@@ -708,7 +895,7 @@ describe("HomePage Component", () => {
     renderWithClient(<HomePage />);
 
     await waitFor(() => {
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
       expect((textarea as HTMLTextAreaElement).value).toBe(hostileDraft);
       expect(screen.getByText(hostileMessage)).toBeDefined();
     });
@@ -735,7 +922,7 @@ describe("HomePage Component", () => {
     renderWithClient(<HomePage />);
 
     await waitFor(() => {
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
       expect((textarea as HTMLTextAreaElement).value).toBe(sensitiveDraft);
       expect(screen.getByText(sensitiveMessage)).toBeDefined();
     });
@@ -766,14 +953,12 @@ describe("HomePage Component", () => {
       expect(screen.queryByRole("link", { name: "Past designs" })).toBeNull();
       expect(
         screen.getByRole("heading", {
-          name: "Describe the system you need",
+          name: "What are we building today?",
           level: 1,
         }),
       ).toBeDefined();
       expect(
-        screen.getByPlaceholderText(
-          "For example: a support assistant that answers customers from our help articles and hands hard cases to a person.",
-        ),
+        screen.getByPlaceholderText("Describe the system you have in mind..."),
       ).toBeDefined();
     });
 
@@ -794,13 +979,11 @@ describe("HomePage Component", () => {
 
       renderWithClient(<HomePage />);
 
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
 
-      // Typing with Shift+Enter does NOT send
       await user.type(textarea, "Line 1{Shift>}{Enter}{/Shift}Line 2");
       expect(global.fetch).not.toHaveBeenCalled();
 
-      // Pressing plain Enter sends
       await user.type(textarea, "{Enter}");
       await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -823,20 +1006,18 @@ describe("HomePage Component", () => {
       const sendBtn = screen.getByRole("button", { name: /send/i });
       expect(sendBtn.getAttribute("disabled")).toBeDefined();
 
-      // Whitespace only
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
       await user.type(textarea, "   ");
       await user.click(sendBtn);
       expect(global.fetch).not.toHaveBeenCalled();
 
-      // Exceeds 4000 characters
       fireEvent.change(textarea, { target: { value: "a".repeat(4001) } });
       await user.click(sendBtn);
       expect(global.fetch).not.toHaveBeenCalled();
       expect(screen.getByText("Input must not exceed 4000 characters.")).toBeDefined();
     });
 
-    it("renders messages in order and renders BriefCard inline while keeping input enabled", async () => {
+    it("renders messages in order and renders BriefCard inline while keeping input enabled", () => {
       window.sessionStorage.setItem(
         INTAKE_STORAGE_KEY,
         JSON.stringify({
@@ -863,21 +1044,18 @@ describe("HomePage Component", () => {
 
       renderWithClient(<HomePage />);
 
-      // Messages in order
       expect(screen.getByText("First requirement")).toBeDefined();
       expect(screen.getByText("Clarification 1?")).toBeDefined();
       expect(screen.getByText("Clarification reply")).toBeDefined();
 
-      // BriefCard rendered inline
       expect(screen.getByText("Inline Synthesized System")).toBeDefined();
       expect(screen.getByRole("button", { name: "Generate design" })).toBeDefined();
 
-      // Input remains enabled after brief is shown
-      const textarea = screen.getByPlaceholderText(/For example: a support assistant/);
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
       expect(textarea.getAttribute("disabled")).toBeNull();
     });
 
-    it("restores intake dialogue from sessionStorage, and ?new=1 resets state", async () => {
+    it("restores intake dialogue from sessionStorage, and ?new=1 resets state", () => {
       window.sessionStorage.setItem(
         INTAKE_STORAGE_KEY,
         JSON.stringify({
@@ -891,22 +1069,20 @@ describe("HomePage Component", () => {
         }),
       );
 
-      // Render default: restores state
       const { unmount } = renderWithClient(<HomePage />);
       expect(screen.getByText("Restored dialogue prompt")).toBeDefined();
       expect(
-        (screen.getByPlaceholderText(/For example: a support assistant/) as HTMLTextAreaElement)
+        (screen.getByPlaceholderText(/Describe the system/) as HTMLTextAreaElement)
           .value,
       ).toBe("Saved input text");
       unmount();
 
-      // Now navigate with ?new=1: clears state
       mockSearchParams = new URLSearchParams("new=1");
       renderWithClient(<HomePage />);
 
       expect(screen.queryByText("Restored dialogue prompt")).toBeNull();
       expect(
-        (screen.getByPlaceholderText(/For example: a support assistant/) as HTMLTextAreaElement)
+        (screen.getByPlaceholderText(/Describe the system/) as HTMLTextAreaElement)
           .value,
       ).toBe("");
       expect(window.sessionStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
@@ -932,6 +1108,109 @@ describe("HomePage Component", () => {
 
       expect(screen.getByText(hostileText)).toBeDefined();
       expect(document.querySelector("script[src*='alert']")).toBeNull();
+    });
+
+    it("clicking an example starter button fills textarea, moves focus to textarea, and makes 0 fetch calls (D-346)", async () => {
+      const user = userEvent.setup();
+      const fetchSpy = vi.spyOn(global, "fetch");
+
+      renderWithClient(<HomePage />);
+
+      await waitFor(() => {
+        const starters = screen.getAllByRole("button").filter((btn) =>
+          btn.querySelector(".lucide-arrow-up-right"),
+        );
+        expect(starters.length).toBe(3);
+      });
+
+      const starters = screen.getAllByRole("button").filter((btn) =>
+        btn.querySelector(".lucide-arrow-up-right"),
+      );
+      await user.click(starters[0]!);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/) as HTMLTextAreaElement;
+      expect(textarea.value.length).toBeGreaterThan(20);
+      expect(document.activeElement).toBe(textarea);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+      fetchSpy.mockRestore();
+    });
+
+    it("displays static counter at rest and appends live counter when input length >= 3200", () => {
+      renderWithClient(<HomePage />);
+
+      expect(screen.getByText("Plain language · Up to 4,000 characters")).toBeDefined();
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      const nearLimitInput = "x".repeat(3250);
+      fireEvent.change(textarea, { target: { value: nearLimitInput } });
+
+      expect(screen.getByText(/Plain language · Up to 4,000 characters · 3,250 \/ 4,000/)).toBeDefined();
+    });
+
+    it("toggling desktop sidebar on '/' does not trigger 'Cannot update a component' console.error (D-352)", async () => {
+      const consoleErrorSpy = vi.spyOn(console, "error");
+      const user = userEvent.setup();
+
+      renderWithClient(
+        <AppShell>
+          <HomePage />
+        </AppShell>,
+      );
+
+      const toggleBtn = screen.getByRole("button", { name: "Toggle navigation sidebar" });
+      expect(toggleBtn).toBeDefined();
+      expect(toggleBtn.getAttribute("aria-expanded")).toBe("false");
+
+      await user.click(toggleBtn);
+
+      // Non-empty guard: assert sidebar actually toggled open on desktop
+      const collapseBtn = screen.getByRole("button", { name: "Collapse sidebar" });
+      expect(collapseBtn).toBeDefined();
+      expect(toggleBtn.getAttribute("aria-expanded")).toBe("true");
+
+      // Assert console.error was never called with cross-component update error
+      const hasComponentUpdateError = consoleErrorSpy.mock.calls.some((args) =>
+        args.some((arg) => typeof arg === "string" && arg.includes("Cannot update a component")),
+      );
+      expect(hasComponentUpdateError).toBe(false);
+
+      consoleErrorSpy.mockRestore();
+    });
+
+    it("renders zero <img> elements and preserves dark studio background classes & z-0/z-10 isolation post-mount (D-353)", async () => {
+      const { container } = renderWithClient(
+        <AppShell>
+          <HomePage />
+        </AppShell>,
+      );
+
+      // Non-empty guard: main element and primary heading must be present
+      const mainEl = container.querySelector("main");
+      expect(mainEl).not.toBeNull();
+      expect(screen.getByRole("heading", { name: "What are we building today?", level: 1 })).toBeDefined();
+
+      // Main preserves dark studio classes and stacking isolation
+      expect(mainEl?.className).toContain("bg-page-bg");
+      expect(mainEl?.className).toContain("studio-grid-bg");
+      expect(mainEl?.className).toContain("isolate");
+      expect(mainEl?.className).not.toContain("bg-white");
+
+      // Post-mount Waves layer remains z-0 and pointer-events-none without white inline background
+      await waitFor(() => {
+        const wavesLayer = screen.getByTestId("home-waves-layer");
+        expect(wavesLayer.className).toContain("z-0");
+        expect(wavesLayer.className).toContain("pointer-events-none");
+        expect(wavesLayer.style.backgroundColor).not.toBe("white");
+        expect(wavesLayer.style.backgroundColor).not.toBe("#ffffff");
+      });
+
+      // Content wrapper sits above background layers at z-10
+      const contentLayer = container.querySelector("main > div.z-10");
+      expect(contentLayer).not.toBeNull();
+
+      // Zero <img> tags anywhere on home "/"
+      expect(container.querySelectorAll("img")).toHaveLength(0);
     });
   });
 });

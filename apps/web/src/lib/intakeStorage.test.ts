@@ -25,7 +25,7 @@ describe("intakeStorage", () => {
     window.localStorage.clear();
   });
 
-  it("saves and loads intake state successfully", () => {
+  it("saves and loads intake state successfully with failedRequest", () => {
     saveIntakeState({
       sessionId: "session_test_123",
       inputText: "Draft input text",
@@ -35,6 +35,11 @@ describe("intakeStorage", () => {
       ],
       brief: sampleBrief,
       designId: "design_xyz",
+      failedRequest: {
+        kind: "intake",
+        message: "LLM service is currently unavailable. Please try again shortly.",
+        text: "Draft input text",
+      },
     });
 
     const loaded = loadIntakeState();
@@ -46,6 +51,29 @@ describe("intakeStorage", () => {
     expect(loaded?.messages?.[1]?.questions).toEqual(["What is your SLA?"]);
     expect(loaded?.brief?.summary).toBe("Enterprise Policy Evaluator");
     expect(loaded?.designId).toBe("design_xyz");
+    expect(loaded?.failedRequest).toEqual({
+      kind: "intake",
+      message: "LLM service is currently unavailable. Please try again shortly.",
+      text: "Draft input text",
+    });
+  });
+
+  it("loads legacy v1 JSON without failedRequest cleanly (backward-compatible, D-348)", () => {
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "legacy_session_1",
+        inputText: "Legacy input",
+        messages: [{ id: "m1", sender: "user", text: "Hi" }],
+        brief: null,
+      }),
+    );
+
+    const loaded = loadIntakeState();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.sessionId).toBe("legacy_session_1");
+    expect(loaded?.failedRequest).toBeNull();
   });
 
   it("returns null when storage is empty", () => {
@@ -90,6 +118,7 @@ describe("intakeStorage", () => {
       inputText: "Will be cleared",
       messages: [],
       brief: null,
+      failedRequest: { kind: "intake", message: "Failed" },
     });
     window.localStorage.setItem("other.key", "preserve_me");
 
@@ -99,7 +128,7 @@ describe("intakeStorage", () => {
     expect(window.localStorage.getItem("other.key")).toBe("preserve_me");
   });
 
-  it("never writes intake text to localStorage", () => {
+  it("never writes intake text or failedRequest to localStorage", () => {
     saveIntakeState({
       sessionId: "session_private",
       inputText: "Highly confidential user specification",
@@ -111,6 +140,11 @@ describe("intakeStorage", () => {
         },
       ],
       brief: null,
+      failedRequest: {
+        kind: "intake",
+        message: "Failed turn",
+        text: "Confidential architecture detail",
+      },
     });
 
     expect(window.localStorage.getItem(INTAKE_STORAGE_KEY)).toBeNull();
