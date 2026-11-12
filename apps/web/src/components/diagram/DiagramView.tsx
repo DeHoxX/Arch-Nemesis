@@ -388,7 +388,7 @@ export function DiagramView({
         className,
       )}
     >
-      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
+      <div className="relative flex-1 min-h-0 h-full w-full overflow-hidden">
         <ReactFlow
           nodes={nodes}
           edges={edges}

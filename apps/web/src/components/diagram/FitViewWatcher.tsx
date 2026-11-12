@@ -42,11 +42,17 @@ export function FitViewWatcher({ trigger, nodesKey }: FitViewWatcherProps): null
     }
 
     if (triggerChanged || nodesChanged) {
-      const rafId = requestAnimationFrame(() => {
-        fitView({ padding: 0.2 });
+      let innerRafId: number | null = null;
+      const outerRafId = requestAnimationFrame(() => {
+        innerRafId = requestAnimationFrame(() => {
+          fitView({ padding: 0.2 });
+        });
       });
       return () => {
-        cancelAnimationFrame(rafId);
+        cancelAnimationFrame(outerRafId);
+        if (innerRafId !== null) {
+          cancelAnimationFrame(innerRafId);
+        }
       };
     }
   }, [trigger, nodesKey, fitView]);

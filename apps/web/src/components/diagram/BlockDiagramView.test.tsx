@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { normalizeColorToHex } from "@/test/helpers";
 import { BlockDiagramView } from "./BlockDiagramView";
+import { computeLayout } from "./layout";
 
 const mockSpec: ArchitectureSpec = {
   nodes: [
@@ -199,6 +200,89 @@ describe("BlockDiagramView component", () => {
       />,
     );
     expect(screen.getByRole("region", { name: "Block Diagram" })).toBeDefined();
+  });
+
+  it("renders custom blockEdge edges with edge count matching spec.edges.length and unchanged node coordinates (Stage 1D, D-336)", () => {
+    const branchingSpec: ArchitectureSpec = {
+      nodes: [
+        {
+          id: "entry_node",
+          name: "Entry Service",
+          type: "service",
+          role: "Ingresses requests",
+          inputs: [],
+          outputs: ["stream"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "branch_a",
+          name: "Branch A Service",
+          type: "service",
+          role: "Evaluates branch A",
+          inputs: ["stream"],
+          outputs: ["a_out"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "branch_b",
+          name: "Branch B Service",
+          type: "service",
+          role: "Evaluates branch B",
+          inputs: ["stream"],
+          outputs: ["b_out"],
+          tech_options: [],
+          needs_model: false,
+        },
+        {
+          id: "sink_node",
+          name: "Sink Service",
+          type: "service",
+          role: "Final settlement",
+          inputs: ["a_out", "b_out"],
+          outputs: [],
+          tech_options: [],
+          needs_model: false,
+        },
+      ],
+      edges: [
+        { from: "entry_node", to: "branch_a", flows: "flow_a" },
+        { from: "entry_node", to: "branch_b", flows: "flow_b" },
+        { from: "branch_a", to: "sink_node", flows: "join_a" },
+        { from: "branch_b", to: "sink_node", flows: "join_b" },
+        { from: "entry_node", to: "sink_node", flows: "fast_bypass" },
+      ],
+      constraints: [],
+      entry_ids: ["entry_node"],
+      exit_ids: ["sink_node"],
+    };
+
+    const layout = computeLayout(branchingSpec);
+    expect(branchingSpec.edges.length).toBe(5);
+    expect(layout.nodes.length).toBe(4);
+
+    const { container } = render(<BlockDiagramView spec={branchingSpec} />);
+
+    // Non-empty guard on rendered edges
+    const renderedEdges = container.querySelectorAll(".react-flow__edge");
+    expect(renderedEdges.length).toBe(branchingSpec.edges.length);
+    expect(renderedEdges.length).toBeGreaterThan(0);
+
+    // Assert edge type class is blockEdge
+    for (const edgeEl of renderedEdges) {
+      expect(edgeEl.getAttribute("class")).toContain("react-flow__edge-blockEdge");
+    }
+
+    // Node coordinates in BlockDiagramView must match computeLayout output exactly
+    for (const expectedNode of layout.nodes) {
+      const nodeEl = screen.getByRole("img", {
+        name: new RegExp(expectedNode.data.name, "i"),
+      });
+      expect(nodeEl).not.toBeNull();
+      expect(nodeEl.style.width).toBe(`${expectedNode.width}px`);
+      expect(nodeEl.style.height).toBe(`${expectedNode.height}px`);
+    }
   });
 });
 

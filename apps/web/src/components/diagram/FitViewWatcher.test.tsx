@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FitViewWatcher } from "./FitViewWatcher";
 
 const mockFitView = vi.fn();
@@ -11,77 +11,113 @@ vi.mock("@xyflow/react", () => ({
   }),
 }));
 
-describe("FitViewWatcher component", () => {
+describe("FitViewWatcher component (Stage 1D, D-337)", () => {
+  let rafQueue: { id: number; callback: FrameRequestCallback }[] = [];
+  let rafCounter = 1;
+
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
-      cb(0);
-      return 1;
+    rafQueue = [];
+    rafCounter = 1;
+
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      const id = rafCounter++;
+      rafQueue.push({ id, callback: cb });
+      return id;
+    });
+
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      rafQueue = rafQueue.filter((item) => item.id !== id);
     });
   });
 
-  it("does not call fitView on initial mount", () => {
-    render(<FitViewWatcher trigger="patch_1" nodesKey="node_1" />);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
+  function stepRaf() {
+    if (rafQueue.length > 0) {
+      const { callback } = rafQueue.shift()!;
+      callback(performance.now());
+    }
+  }
+
+  function flushAllRaf() {
+    while (rafQueue.length > 0) {
+      stepRaf();
+    }
+  }
+
+  it("skips fitView on the very first mount", () => {
+    render(<FitViewWatcher trigger={false} nodesKey="node_1,node_2" />);
+
+    // First mount must not schedule or call fitView
+    expect(rafQueue).toHaveLength(0);
     expect(mockFitView).not.toHaveBeenCalled();
   });
 
-  it("calls fitView({ padding: 0.2 }) when trigger changes after mount", () => {
-    const { rerender } = render(<FitViewWatcher trigger={null} nodesKey="node_1" />);
+  it("runs fitView({ padding: 0.2 }) after trigger change via double rAF deferral", () => {
+    const { rerender } = render(<FitViewWatcher trigger={false} nodesKey="node_1,node_2" />);
+    expect(mockFitView).not.toHaveBeenCalled();
+    expect(rafQueue).toHaveLength(0);
 
+    // Trigger changes (e.g. fullscreen transition enters)
+    rerender(<FitViewWatcher trigger={true} nodesKey="node_1,node_2" />);
+
+    // Outer rAF scheduled, but fitView has not executed yet
+    expect(rafQueue).toHaveLength(1);
     expect(mockFitView).not.toHaveBeenCalled();
 
-    // Trigger changes when patch appears
-    rerender(<FitViewWatcher trigger="patch_1" nodesKey="node_1,node_2" />);
+    // Step 1: Execute first rAF (browser layout/reflow pass)
+    stepRaf();
+    // Inner rAF scheduled for paint/measurement settle; fitView still not executed
+    expect(rafQueue).toHaveLength(1);
+    expect(mockFitView).not.toHaveBeenCalled();
 
+    // Step 2: Execute second rAF
+    stepRaf();
+    expect(rafQueue).toHaveLength(0);
     expect(mockFitView).toHaveBeenCalledTimes(1);
     expect(mockFitView).toHaveBeenCalledWith({ padding: 0.2 });
   });
 
-  it("does not call fitView when re-rendered with unchanged trigger and nodesKey", () => {
-    const { rerender } = render(<FitViewWatcher trigger="patch_1" nodesKey="node_1" />);
+  it("does not trigger fitView on unrelated re-renders with unchanged trigger and nodesKey", () => {
+    const { rerender } = render(<FitViewWatcher trigger="trigger_v1" nodesKey="node_1,node_2" />);
 
+    // First mount skipped
     expect(mockFitView).not.toHaveBeenCalled();
 
-    rerender(<FitViewWatcher trigger="patch_1" nodesKey="node_1" />);
-
-    expect(mockFitView).not.toHaveBeenCalled();
-  });
-
-  it("calls fitView when trigger clears back to null (Reject patch)", () => {
-    const { rerender } = render(<FitViewWatcher trigger={null} nodesKey="node_1" />);
-
-    // Appear
-    rerender(<FitViewWatcher trigger="patch_1" nodesKey="node_1,node_2" />);
+    // Trigger update
+    rerender(<FitViewWatcher trigger="trigger_v2" nodesKey="node_1,node_2" />);
+    stepRaf();
+    stepRaf();
     expect(mockFitView).toHaveBeenCalledTimes(1);
-    expect(mockFitView).toHaveBeenLastCalledWith({ padding: 0.2 });
 
-    // Clear / Reject
-    rerender(<FitViewWatcher trigger={null} nodesKey="node_1" />);
-    expect(mockFitView).toHaveBeenCalledTimes(2);
-    expect(mockFitView).toHaveBeenLastCalledWith({ padding: 0.2 });
+    // Unrelated re-render with identical trigger and nodesKey
+    rerender(<FitViewWatcher trigger="trigger_v2" nodesKey="node_1,node_2" />);
+    expect(rafQueue).toHaveLength(0);
+    expect(mockFitView).toHaveBeenCalledTimes(1);
   });
 
   it("calls fitView when nodesKey changes even if trigger is unchanged", () => {
-    const { rerender } = render(<FitViewWatcher trigger="patch_1" nodesKey="node_1" />);
-
+    const { rerender } = render(<FitViewWatcher trigger="trigger_fixed" nodesKey="node_1" />);
     expect(mockFitView).not.toHaveBeenCalled();
 
-    rerender(<FitViewWatcher trigger="patch_1" nodesKey="node_1,node_2" />);
+    rerender(<FitViewWatcher trigger="trigger_fixed" nodesKey="node_1,node_2" />);
+    expect(rafQueue).toHaveLength(1);
+    flushAllRaf();
 
     expect(mockFitView).toHaveBeenCalledTimes(1);
     expect(mockFitView).toHaveBeenCalledWith({ padding: 0.2 });
   });
 
-  it("cancels pending animation frame on unmount or re-trigger", () => {
-    const cancelSpy = vi.spyOn(window, "cancelAnimationFrame");
-    vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 42);
-
+  it("cancels pending animation frames on unmount", () => {
     const { rerender, unmount } = render(<FitViewWatcher trigger={null} nodesKey="node_1" />);
 
     rerender(<FitViewWatcher trigger="patch_1" nodesKey="node_1" />);
-    unmount();
+    expect(rafQueue).toHaveLength(1);
 
-    expect(cancelSpy).toHaveBeenCalledWith(42);
+    unmount();
+    expect(rafQueue).toHaveLength(0);
   });
 });

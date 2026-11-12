@@ -14,6 +14,7 @@ import "@xyflow/react/dist/style.css";
 
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { BlockEdge, type BlockEdgeData } from "./BlockEdge";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
 import { FitViewWatcher } from "./FitViewWatcher";
 import { computeLayout } from "./layout";
@@ -27,6 +28,10 @@ export interface BlockDiagramViewProps {
 
 const nodeTypes = {
   blockNode: BlockNode,
+};
+
+const edgeTypes = {
+  blockEdge: BlockEdge,
 };
 
 /**
@@ -106,14 +111,17 @@ export function BlockDiagramView({
   }, [layout.nodes, entryIds, exitIds, spec.edges]);
 
   // Transform layout edges to React Flow Edge structure without flow labels
-  const edges: Edge[] = useMemo(() => {
+  const edges: Edge<BlockEdgeData>[] = useMemo(() => {
     return layout.edges.map((pe) => {
       const isRemoved = (pe.data as { diffStatus?: string })?.diffStatus === "removed";
       return {
         id: pe.id,
         source: pe.source,
         target: pe.target,
-        type: "default",
+        type: "blockEdge",
+        data: {
+          pathD: pe.pathD,
+        },
         zIndex: isRemoved ? 0 : 1,
         style: isRemoved
           ? {
@@ -145,6 +153,7 @@ export function BlockDiagramView({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}

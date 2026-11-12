@@ -749,8 +749,8 @@ function DesignContent(): React.ReactElement {
                 const hasSelection = Boolean(selectedNode || selectedEdge);
                 return (
                   <div className={cn(
-                    "grid grid-cols-1 lg:grid-cols-12 gap-6 items-start",
-                    isFullscreen && "flex-1 min-h-0 h-full"
+                    "grid grid-cols-1 lg:grid-cols-12 gap-6",
+                    isFullscreen ? "flex-1 min-h-0 h-full items-stretch" : "items-start"
                   )}>
                     <div className={cn(
                       hasSelection ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full",

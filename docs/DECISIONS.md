@@ -3502,6 +3502,26 @@ If we removed it: The Full screen button would fail to appear on admin design in
 Decided by: user approved
 Status: active
 
+### D-336 — Stage 1D — fix — Block diagram custom BlockEdge routing via precomputed pathD
+What: Create `BlockEdge.tsx` as a dedicated label-less, non-interactive edge component for `BlockDiagramView` and register it as `edgeTypes = { blockEdge: BlockEdge }` on `<ReactFlow>`. In `BlockDiagramView.tsx`, set edge `type: "blockEdge"` and pass `data: { pathD: pe.pathD }` from `computeLayout(spec)`, while keeping `zIndex`, `style` (removed-edge dashed rose `#f43f5e`, `opacity: 0.6`), and `markerEnd` (`MarkerType.ArrowClosed`) identical.
+Why: `BlockDiagramView` previously mapped edges as `type: "default"` and dropped `pe.pathD`, causing React Flow to render default Bezier curves that cut directly through intermediate nodes on multi-rank branches. `computeLayout` already computes collision-avoiding orthogonal paths (`pe.pathD`). Consuming `pathD` in a dedicated `BlockEdge` routes edges cleanly around intermediate nodes without modifying `layout.ts` or altering Block node coordinates.
+Alternatives considered:
+1. Reusing `DiagramEdge.tsx` with flags: Rejected because it couples non-interactive Block diagrams to interactive selection, label rendering, and playback state.
+2. Modifying `layout.ts`: Rejected because `layout.ts` already outputs valid collision-free paths and must remain untouched.
+If we removed it: Multi-rank branching edges in the Block diagram tab would continue cutting straight through intermediate nodes.
+Decided by: user approved (Stage 1D plan)
+Status: active
+
+### D-337 — Stage 1D — fix — Double requestAnimationFrame in FitViewWatcher and fullscreen grid stretch
+What: In `apps/web/src/components/diagram/FitViewWatcher.tsx`, replace the single `requestAnimationFrame` with nested double `requestAnimationFrame` before calling `fitView({ padding: 0.2 })`. In `apps/web/src/app/design/[id]/page.tsx`, update the Architecture diagram grid row to use `items-stretch` when `isFullscreen` is true (keeping `items-start` when not fullscreen). In `apps/web/src/components/diagram/DiagramView.tsx`, ensure the inner canvas flex slot has explicit `h-full min-h-0`.
+Why: When entering fullscreen, the browser fires `fullscreenchange` and triggers CSS reflow of the expanded viewport. A single `rAF` can fire before the second layout pass and React Flow store dimension updates settle, causing `fitView` to measure pre-fullscreen bounds and fail to re-center/zoom the canvas. Double `rAF` ensures the measurement runs after reflow and repaint commit without requiring complex ResizeObserver subscription.
+Alternatives considered:
+1. Fixed timeout: Rejected by D-334 due to timer fragility across different CPU/GPU loads.
+2. Immediate ResizeObserver watcher on store dimensions: Deferred (Step B) unless double rAF proves insufficient, keeping the solution minimal.
+If we removed it: Entering fullscreen on the Architecture tab would leave diagram nodes centered at pre-fullscreen zoom levels.
+Decided by: user approved (Stage 1D plan)
+Status: active
+
 
 ## Phase 3 Summary
 
