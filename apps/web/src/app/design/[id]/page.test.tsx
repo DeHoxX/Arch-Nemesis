@@ -1605,5 +1605,70 @@ describe("DesignPage Component (/design/[id])", () => {
       expect(screen.queryByRole("complementary", { name: "Edge Details" })).toBeNull();
       expect(screen.queryByRole("complementary", { name: "Node Details" })).toBeNull();
     });
+
+    it("renders FlowPlaybackBar in Architecture tab, omits it in Block diagram tab, and clears playback on PNG export (Stage 1C, D-328..D-331)", async () => {
+      let playbackActiveAtExportCall: boolean | null = null;
+      const exportPngSpy = vi
+        .spyOn(exportLib, "exportDiagramToPng")
+        .mockImplementation(async () => {
+          // Verify playback counter is cleared when export is invoked
+          playbackActiveAtExportCall = screen.queryByText(/Step \d+ of/) !== null;
+        });
+
+      global.fetch = vi.fn().mockImplementation((url: RequestInfo | URL) => {
+        if (String(url).includes("/versions")) {
+          return Promise.resolve({
+            ok: true,
+            status: 200,
+            json: async () => [{ version_no: 1, created_at: "2026-03-30T10:00:00Z" }],
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => mockValidDesign,
+        } as unknown as Response);
+      });
+
+      const user = userEvent.setup();
+      renderWithClient(<DesignPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(/Design design_test_123/)).toBeDefined();
+      });
+
+      // 1. In default Block diagram tab, FlowPlaybackBar is NOT present
+      expect(screen.queryByRole("contentinfo", { name: "Flow playback controls" })).toBeNull();
+      expect(screen.queryByText(/Ready · \d+ flow/)).toBeNull();
+
+      // 2. Switch to Architecture tab
+      const archTab = await screen.findByRole("tab", { name: "Architecture" });
+      await user.click(archTab);
+
+      // Playback bar is now mounted
+      const playbackBar = await screen.findByRole("contentinfo", { name: "Flow playback controls" });
+      expect(playbackBar).toBeDefined();
+      expect(screen.getByText(/Ready · 1 flow/)).toBeDefined();
+
+      // Start playback (click Next)
+      const nextBtn = screen.getByRole("button", { name: "Start flow playback" });
+      fireEvent.click(nextBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText("Step 1 of 1")).toBeDefined();
+      });
+
+      // 3. Export PNG clears playback state
+      const exportPngBtn = screen.getByRole("button", { name: "Download diagram (PNG)" });
+      fireEvent.click(exportPngBtn);
+
+      await waitFor(() => {
+        expect(exportPngSpy).toHaveBeenCalledTimes(1);
+      });
+
+      // Captured state during exportDiagramToPng call must show playback was not active
+      expect(playbackActiveAtExportCall).toBe(false);
+      expect(screen.queryByText("Step 1 of 1")).toBeNull();
+    });
   });
 });

@@ -19,6 +19,7 @@ export type DiagramEdgeData = {
   diffStatus?: "added" | "removed" | "edited" | "unchanged";
   dimmed?: boolean;
   selected?: boolean;
+  playbackStepNumber?: number | null;
   onSelect?: (edgeId: string) => void;
   [key: string]: unknown;
 };
@@ -105,19 +106,28 @@ export function DiagramEdge({
   const strokeWidth = isSelected ? 2.5 : 1.5;
   const strokeOpacity = isRemoved ? 0.6 : 1;
 
-  const edgeAriaLabel =
+  const playbackStepNumber = data?.playbackStepNumber;
+  const showPlaybackBadge = typeof playbackStepNumber === "number" && playbackStepNumber > 0;
+
+  const baseAriaLabel =
     hasCondition && flows
       ? `Condition: ${condition}, Flow: ${flows}`
       : hasCondition
         ? `Condition: ${condition}`
         : `Flow: ${flows}`;
+  const edgeAriaLabel = showPlaybackBadge
+    ? `Step ${playbackStepNumber}: ${baseAriaLabel}`
+    : baseAriaLabel;
 
-  const edgeTitle =
+  const baseTitle =
     hasCondition && flows
       ? `Condition: ${condition}\nFlow: ${flows}`
       : hasCondition
         ? `Condition: ${condition}`
         : flows;
+  const edgeTitle = showPlaybackBadge
+    ? `Step ${playbackStepNumber}\n${baseTitle}`
+    : baseTitle;
 
   return (
     <>
@@ -176,6 +186,19 @@ export function DiagramEdge({
                 "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
               )}
             >
+              {showPlaybackBadge && (
+                <span
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-xs font-mono text-[9px] font-bold px-1 py-0 mb-0.5 leading-none select-none",
+                    isSelected
+                      ? "bg-[var(--brand-accent,#b7c6c2)] text-[var(--brand-accent-ink,#111111)]"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                  aria-label={`Step ${playbackStepNumber}`}
+                >
+                  {playbackStepNumber}
+                </span>
+              )}
               {hasCondition && (
                 <span
                   style={{ maxWidth: `${MAX_LABEL_TEXT_WIDTH}px` }}

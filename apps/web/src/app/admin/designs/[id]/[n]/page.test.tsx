@@ -34,15 +34,20 @@ vi.mock("@/components/diagram/BlockDiagramView", () => ({
 vi.mock("@/components/diagram/DiagramView", () => ({
   DiagramView: ({
     spec,
+    flowOrder,
     onSelectNode,
     onSelectEdge,
   }: {
     spec: { nodes: unknown[]; edges?: unknown[] };
+    flowOrder?: string[] | null;
     onSelectNode?: (id: string | null) => void;
     onSelectEdge?: (id: string | null) => void;
   }) => (
     <div data-testid="mock-diagram-view">
       Diagram Canvas with {spec.nodes.length} nodes
+      <span data-testid="mock-diagram-flow-order">
+        Flow order: {flowOrder ? flowOrder.join(",") : "none"}
+      </span>
       <button
         type="button"
         data-testid="select-node-broker"
@@ -235,6 +240,9 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
     // Switching to Architecture shows technical DiagramView
     await user.click(archTab);
     expect(screen.getByTestId("mock-diagram-view")).toBeDefined();
+    expect(screen.getByTestId("mock-diagram-flow-order").textContent).toBe(
+      "Flow order: broker,sink"
+    );
   });
 
   it("displays 'No explanation generated yet.' when explanation is null", async () => {

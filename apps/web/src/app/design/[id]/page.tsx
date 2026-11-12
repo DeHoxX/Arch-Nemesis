@@ -119,6 +119,7 @@ function DesignContent(): React.ReactElement {
   const [isLoadingSuggestions, setIsLoadingSuggestions] = useState<boolean>(false);
   const [suggestionsError, setSuggestionsError] = useState<string | null>(null);
   const [chatDraft, setChatDraft] = useState<string>("");
+  const [playbackStepIndex, setPlaybackStepIndex] = useState<number | null>(null);
   const diagramContainerRef = useRef<HTMLDivElement>(null);
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
@@ -219,12 +220,12 @@ function DesignContent(): React.ReactElement {
       ? activeDesign.spec.nodes.find((n) => n.id === selectedNodeId) ?? null
       : null;
 
-  // Clear diagram selection before PNG capture so exported image is at full opacity
+  // Clear diagram selection and exit playback before PNG capture so exported image is at full opacity and unnumbered
   const handleBeforeExportPng = async () => {
-    if (selectedNodeId !== null || selectedEdgeId !== null) {
+    if (selectedNodeId !== null || selectedEdgeId !== null || playbackStepIndex !== null) {
       setSelectedNodeId(null);
-    setSelectedEdgeId(null);
       setSelectedEdgeId(null);
+      setPlaybackStepIndex(null);
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
         await new Promise((resolve) => {
           window.requestAnimationFrame(() => {
@@ -631,7 +632,16 @@ function DesignContent(): React.ReactElement {
         </div>
 
         {/* Tabs: Block diagram, Architecture, and Explanation */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => {
+            setActiveTab(val);
+            setSelectedNodeId(null);
+            setSelectedEdgeId(null);
+            setPlaybackStepIndex(null);
+          }}
+          className="w-full space-y-6"
+        >
           <TabsList className="bg-card/80 border border-border/60 p-1">
             <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono">
               Block diagram
@@ -691,16 +701,25 @@ function DesignContent(): React.ReactElement {
                       >
                         <DiagramView
                           spec={displaySpec}
+                          flowOrder={activeDesign?.flow_order}
                           selectedNodeId={selectedNodeId}
                           onSelectNode={(nodeId) => {
                             setSelectedNodeId(nodeId);
-                            if (nodeId !== null) setSelectedEdgeId(null);
+                            if (nodeId !== null) {
+                              setSelectedEdgeId(null);
+                              setPlaybackStepIndex(null);
+                            }
                           }}
                           selectedEdgeId={selectedEdgeId}
                           onSelectEdge={(edgeId) => {
                             setSelectedEdgeId(edgeId);
-                            if (edgeId !== null) setSelectedNodeId(null);
+                            if (edgeId !== null) {
+                              setSelectedNodeId(null);
+                              setPlaybackStepIndex(null);
+                            }
                           }}
+                          playbackStepIndex={playbackStepIndex}
+                          onPlaybackStepChange={setPlaybackStepIndex}
                           fitViewTrigger={pendingPatch ? pendingPatch.id : null}
                           nodesKey={nodesKey}
                           className="h-full w-full"

@@ -461,5 +461,83 @@ describe("DiagramView component", () => {
       expect(handleSelectNode).toHaveBeenCalledWith(null);
       expect(handleSelectEdge).toHaveBeenCalledWith(null);
     });
+
+    it("highlights step edge and endpoints, dims others, and shows numbered badges during flow playback (Stage 1C, D-328..D-331)", () => {
+      // Step 0 corresponds to Step 1: e-entry_node-branch_b-2
+      const { container } = render(
+        <DiagramView
+          spec={branchingSpec}
+          flowOrder={["entry_node", "branch_b", "branch_c", "exit_node"]}
+          playbackStepIndex={0}
+        />,
+      );
+
+      const entryNode = screen.getByRole("button", { name: "Node: Entry Service, service" });
+      const nodeB = screen.getByRole("button", { name: "Node: Service B, service" });
+      const nodeC = screen.getByRole("button", { name: "Node: Service C, service" });
+      const exitNode = screen.getByRole("button", { name: "Node: Exit Service, service" });
+
+      // Endpoints of active step (entry_node and branch_b) stay bright
+      expect(entryNode.className).not.toContain("opacity-30");
+      expect(nodeB.className).not.toContain("opacity-30");
+
+      // Non-endpoint nodes are dimmed
+      expect(nodeC.className).toContain("opacity-30");
+      expect(exitNode.className).toContain("opacity-30");
+
+      // Active step edge is highlighted, other edge is dimmed
+      const edgeToC = container.querySelector(
+        '.react-flow__edge[aria-label*="to Service C"] .react-flow__edge-path',
+      ) as SVGPathElement;
+      expect(edgeToC).not.toBeNull();
+      expect(edgeToC.style.opacity).toBe("0.25");
+
+      // Numbered badges appear on labels ONLY during active playback
+      const step1Badge = screen.getByLabelText("Step 1");
+      expect(step1Badge).toBeDefined();
+      expect(step1Badge.textContent).toBe("1");
+
+      const step2Badge = screen.getByLabelText("Step 2");
+      expect(step2Badge).toBeDefined();
+      expect(step2Badge.textContent).toBe("2");
+    });
+
+    it("resting state shows no numbered badges and Escape or node click exits playback", () => {
+      const handlePlaybackChange = vi.fn();
+      const { rerender } = render(
+        <DiagramView
+          spec={branchingSpec}
+          flowOrder={["entry_node", "branch_b", "branch_c", "exit_node"]}
+          playbackStepIndex={null} // Resting state
+          onPlaybackStepChange={handlePlaybackChange}
+        />,
+      );
+
+      // Resting state: no numbered badges
+      expect(screen.queryByLabelText("Step 1")).toBeNull();
+      expect(screen.queryByLabelText("Step 2")).toBeNull();
+
+      // Now rerender with active playback
+      rerender(
+        <DiagramView
+          spec={branchingSpec}
+          flowOrder={["entry_node", "branch_b", "branch_c", "exit_node"]}
+          playbackStepIndex={0}
+          onPlaybackStepChange={handlePlaybackChange}
+        />,
+      );
+
+      expect(screen.getByLabelText("Step 1")).toBeDefined();
+
+      // Pressing Escape exits playback
+      const region = screen.getByRole("region", { name: "Architecture Diagram" });
+      fireEvent.keyDown(region, { key: "Escape" });
+      expect(handlePlaybackChange).toHaveBeenCalledWith(null);
+
+      // Selecting a node exits playback
+      const nodeB = screen.getByRole("button", { name: "Node: Service B, service" });
+      fireEvent.click(nodeB);
+      expect(handlePlaybackChange).toHaveBeenCalledWith(null);
+    });
   });
 });

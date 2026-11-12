@@ -377,6 +377,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                   <div className="lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px] rounded-lg border border-border bg-card overflow-hidden relative">
                     <DiagramView
                       spec={data.spec}
+                      flowOrder={data.flow_order}
                       selectedNodeId={selectedNodeId}
                       onSelectNode={(nodeId) => {
                         setSelectedNodeId(nodeId);

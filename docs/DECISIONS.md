@@ -3422,6 +3422,46 @@ If we removed it: Block diagram nodes would continue to display text pushed towa
 Decided by: user approved (Stage 1B addition)
 Status: active
 
+### D-328 — Stage 1C — design — Flow playback step derivation and topological Kahn fallback
+What: Create pure utility `apps/web/src/components/diagram/playback.ts` exporting `buildFlowPlaybackSteps(spec, flowOrder?)`. Derives a sequence of handoff steps in topological order. When `flowOrder` is missing, empty, or lacks IDs present in the spec, computes a deterministic Kahn topological sort over `spec.nodes` and `spec.edges` with alphabetical `id.localeCompare` tie-breaking, appending any remaining unranked IDs in alphabetical order. Pre-indexes all edges to assign layout IDs identical to `layout.ts` (`e-${from}-${to}-${idx}`), then sorts a copy of `spec.edges` by sender rank, receiver rank, sender ID, receiver ID, flow description, and original array position. Produces honest plain-text step descriptions ("{fromName} → {toName}: {flows}") and optional second condition line ("When: {condition}") without HTML execution.
+Why: Provides a predictable, deterministic walkthrough of all connections in the validated architecture without simulating runtime branches or pretending to evaluate conditional execution.
+Alternatives considered:
+1. LLM-generated execution scenarios: Rejected to comply with Rule 1 (code validates structure and numbers; no hallucinated traces).
+2. Simulating conditional branch evaluation: Rejected because static specs lack runtime variables; walkthrough must represent static topological handoffs honestly.
+If we removed it: Users would have no guided step-by-step mechanism to review complex multi-hop architectures.
+Decided by: user approved (Stage 1C plan)
+Status: active
+
+### D-329 — Stage 1C — design — Docked FlowPlaybackBar and DiagramLegend integration outside ReactFlow
+What: Implement `apps/web/src/components/diagram/FlowPlaybackBar.tsx` docked at the bottom of the `DiagramView` column outside `<ReactFlow>` (`border-t border-border bg-card`), containing playback transport controls (Back, Next, Restart, Clear), step counter, live description (`aria-live="polite"`), and an honest disclaimer ("Topological edge order (not a runtime scenario)"). Relocate the `DiagramLegend` toggle button and its pop-up panel from floating over the canvas into this docked footer bar. Update `DiagramLegend.test.tsx` and `DiagramView.tsx` to reflect the docked layout.
+Why: Keeps playback controls and legend fixed at standard document zoom without scaling when the canvas pans or zooms. Eliminates floating card clutter over node geometry and ensures footer controls do not appear in PNG diagram exports.
+Alternatives considered:
+1. Floating playback overlay on canvas: Rejected because zoom and pan distort controls or occlude nodes.
+2. Floating legend top-right: Rejected per Option 1 to eliminate all floating overlays above canvas nodes.
+If we removed it: Controls would float over nodes or scale unpredictably on mobile and canvas zooming.
+Decided by: user approved (Stage 1C plan)
+Status: active
+
+### D-330 — Stage 1C — design — Numbered edge badge display and label dimension clearance preservation
+What: In `apps/web/src/components/diagram/DiagramEdge.tsx`, render a small numbered badge (1..N) inside the opaque edge label pill only when flow playback is active on that edge. In `apps/web/src/components/diagram/layout.ts`, maintain existing Dagre layout dimensions and clearance rules (minimum 4px between adjacent labels, minimum 8px between labels and node boundaries) to guarantee that Block diagram coordinates remain identical to Architecture coordinates.
+Why: Gives users clear visual numbering of each handoff during playback while preventing badge numbers from cluttering the resting diagram view and preserving mathematical node clearances.
+Alternatives considered:
+1. Permanent edge numbering: Rejected because numbers are confusing and cluttering outside sequential playback.
+2. External floating badge bubbles: Rejected because separate elements introduce new collision and positioning bugs.
+If we removed it: Users stepping through playback could not visually identify which step number corresponds to which edge on the canvas.
+Decided by: user approved (Stage 1C plan)
+Status: active
+
+### D-331 — Stage 1C — design — Unified mutually exclusive interaction state model and export reset
+What: In `apps/web/src/components/diagram/DiagramView.tsx`, unify node selection (`selectedNodeId`), edge selection (`selectedEdgeId`), and flow playback step (`playbackStepIndex`) into a single mutually exclusive interaction state model. Stepping or starting playback clears node and edge selection (closing DetailPanel). Selecting a node or edge, pressing Escape, clicking the canvas background, or clicking Clear exits playback. In `page.tsx` and `admin/.../page.tsx`, extend `handleBeforeExportPng` to clear playback state, ensuring exported PNG diagrams never contain active dimming or temporary playback badges.
+Why: Prevents conflicting focus highlights (e.g. node lineage dimming competing with edge playback dimming) and ensures clean, reproducible exports.
+Alternatives considered:
+1. Allowing simultaneous node detail inspection during playback: Rejected because competing dimming states create visual confusion.
+2. Keeping playback active during PNG export: Rejected because exports must represent the clean resting architecture.
+If we removed it: Selecting a node while stepping playback would cause visual highlight bugs and export dimmed states.
+Decided by: user approved (Stage 1C plan)
+Status: active
+
 
 ## Phase 3 Summary
 

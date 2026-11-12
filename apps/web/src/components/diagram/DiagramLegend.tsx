@@ -22,18 +22,18 @@ import {
  * - Rendered strictly from classify.ts metadata (no hardcoded node taxonomies).
  * - Plain React text only (no dangerouslySetInnerHTML).
  */
-export function DiagramLegend(): React.ReactElement {
+export function DiagramLegend({ className }: { className?: string } = {}): React.ReactElement {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="absolute top-3 right-3 z-20 hidden md:block select-none">
+    <div className={cn("relative select-none", className)}>
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
         aria-controls="diagram-legend-panel"
         aria-label="Toggle diagram legend"
-        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span>Legend</span>
         <ChevronDown
@@ -49,7 +49,7 @@ export function DiagramLegend(): React.ReactElement {
           id="diagram-legend-panel"
           role="region"
           aria-label="Diagram legend"
-          className="mt-2 max-h-[calc(100vh-280px)] w-64 overflow-y-auto rounded-md border border-border bg-card p-3 text-xs"
+          className="absolute bottom-full right-0 mb-2 max-h-[calc(100vh-320px)] w-64 overflow-y-auto rounded-md border border-border bg-card p-3 text-xs shadow-lg z-30"
         >
           <div className="space-y-3">
             {/* Border Colors */}
