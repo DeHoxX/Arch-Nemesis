@@ -11,7 +11,7 @@ export interface FitViewWatcherProps {
 /**
  * FitViewWatcher: Re-fits diagram viewport when trigger changes or nodes update.
  *
- * Requirements (Phase 7C3c, D-234, D-235):
+ * Requirements (Phase 7C3c, D-234, D-235, D-361):
  * - Rendered as a child of <ReactFlow> in DiagramView and BlockDiagramView.
  * - Skips the very first mount (existing ReactFlow fitView prop handles initial layout fit).
  * - Invokes useReactFlow().fitView({ padding: 0.2 }) via requestAnimationFrame when trigger or nodesKey changes.
@@ -43,15 +43,33 @@ export function FitViewWatcher({ trigger, nodesKey }: FitViewWatcherProps): null
 
     if (triggerChanged || nodesChanged) {
       let innerRafId: number | null = null;
+      let timerId: ReturnType<typeof setTimeout> | null = null;
+
+      const triggerRefit = () => {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("resize"));
+        }
+        fitView({ padding: 0.2 });
+      };
+
       const outerRafId = requestAnimationFrame(() => {
         innerRafId = requestAnimationFrame(() => {
-          fitView({ padding: 0.2 });
+          triggerRefit();
         });
       });
+
+      // After OS/browser fullscreen animation settles (250ms), re-measure and re-fit
+      timerId = setTimeout(() => {
+        triggerRefit();
+      }, 250);
+
       return () => {
         cancelAnimationFrame(outerRafId);
         if (innerRafId !== null) {
           cancelAnimationFrame(innerRafId);
+        }
+        if (timerId !== null) {
+          clearTimeout(timerId);
         }
       };
     }

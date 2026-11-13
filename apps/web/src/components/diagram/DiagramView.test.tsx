@@ -107,20 +107,28 @@ describe("DiagramView component", () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it("renders the Fit View controls button with accessible labels and handles click without error (D-357)", async () => {
-    const user = userEvent.setup();
+  it("renders Controls with zoom in/out and no fit-view button (Stage H2g, D-363)", () => {
     const { container } = render(<DiagramView spec={mockLegalSpec} />);
 
-    const fitViewBtn = container.querySelector(
-      ".react-flow__controls-button.react-flow__controls-fitview",
-    ) as HTMLButtonElement | null;
+    const zoomInBtn = container.querySelector(".react-flow__controls-zoomin");
+    const zoomOutBtn = container.querySelector(".react-flow__controls-zoomout");
+    const fitViewBtn = container.querySelector(".react-flow__controls-fitview");
 
-    expect(fitViewBtn).not.toBeNull();
-    expect(fitViewBtn?.getAttribute("aria-label")?.toLowerCase()).toContain("fit view");
-    expect(fitViewBtn?.getAttribute("title")?.toLowerCase()).toContain("fit view");
+    // Non-empty guards: zoom in/out exist, fit view button is omitted
+    expect(zoomInBtn).not.toBeNull();
+    expect(zoomOutBtn).not.toBeNull();
+    expect(fitViewBtn).toBeNull();
+  });
 
-    // Clicking fit view button executes click handler without error
-    await user.click(fitViewBtn!);
+  it("renders inner canvas flex slot with flex-1 and min-h-0 without conflicting h-full (Stage H2e, D-361)", () => {
+    const { container } = render(<DiagramView spec={mockLegalSpec} />);
+    const canvasSlot = container.querySelector(".react-flow")?.parentElement;
+    expect(canvasSlot).not.toBeNull();
+    expect(canvasSlot?.className).toContain("flex-1");
+    expect(canvasSlot?.className).toContain("min-h-0");
+    expect(canvasSlot?.className).toContain("w-full");
+    expect(canvasSlot?.className).toContain("overflow-hidden");
+    expect(canvasSlot?.className).not.toContain("h-full");
   });
 
   it("clears selection when Escape key is pressed on the diagram container", async () => {

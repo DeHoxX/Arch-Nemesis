@@ -45,6 +45,18 @@ export function useFullscreen(
     const handleFullscreenChange = () => {
       const activeElement = document.fullscreenElement;
       setIsFullscreen(Boolean(activeElement && activeElement === targetRef.current));
+
+      if (typeof window !== "undefined") {
+        // Dispatch resize events immediately, on next rAF, and after transition settles
+        // to prompt layout consumers (e.g. React Flow useResizeHandler) to re-measure.
+        window.dispatchEvent(new Event("resize"));
+        requestAnimationFrame(() => {
+          window.dispatchEvent(new Event("resize"));
+        });
+        setTimeout(() => {
+          window.dispatchEvent(new Event("resize"));
+        }, 200);
+      }
     };
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);

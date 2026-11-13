@@ -159,4 +159,37 @@ describe("useFullscreen hook (Stage 1C+, D-333)", () => {
     // Must not reject/throw
     await expect(result.current.toggleFullscreen()).resolves.toBeUndefined();
   });
+
+  it("dispatches window resize events upon fullscreen entry and exit (Stage H2e, D-361)", () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const targetEl = document.createElement("div");
+    targetEl.requestFullscreen = requestFullscreenMock;
+    const targetRef = { current: targetEl };
+
+    renderHook(() => useFullscreen(targetRef));
+
+    // Clear initial calls from mount
+    dispatchSpy.mockClear();
+
+    // Enter fullscreen
+    act(() => {
+      Object.defineProperty(document, "fullscreenElement", {
+        value: targetEl,
+      });
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "resize" }));
+
+    // Clear and exit fullscreen
+    dispatchSpy.mockClear();
+    act(() => {
+      Object.defineProperty(document, "fullscreenElement", {
+        value: null,
+      });
+      document.dispatchEvent(new Event("fullscreenchange"));
+    });
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "resize" }));
+  });
 });

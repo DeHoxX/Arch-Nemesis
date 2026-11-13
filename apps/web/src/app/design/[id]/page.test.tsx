@@ -1,6 +1,6 @@
 import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -1758,6 +1758,92 @@ describe("DesignPage Component (/design/[id])", () => {
           value: originalFullscreenEnabled,
         });
         HTMLElement.prototype.requestFullscreen = originalRequestFullscreen;
+      }
+    });
+
+    it("applies grid-rows-1 and items-stretch to architecture grid container in fullscreen (D-359)", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response);
+
+      const user = userEvent.setup();
+      const originalFullscreenEnabled = document.fullscreenEnabled;
+      const originalRequestFullscreen = HTMLElement.prototype.requestFullscreen;
+
+      try {
+        // Ensure desktop viewport
+        window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+          matches: true,
+          media: query,
+          onchange: null,
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          dispatchEvent: vi.fn(),
+        }));
+
+        Object.defineProperty(document, "fullscreenEnabled", {
+          writable: true,
+          configurable: true,
+          value: true,
+        });
+
+        const requestFullscreenMock = vi.fn().mockResolvedValue(undefined);
+        HTMLElement.prototype.requestFullscreen = requestFullscreenMock;
+
+        const { container } = renderWithClient(<DesignPage />);
+        await screen.findByText(BANNER_TEXT);
+
+        // Switch to architecture tab
+        const archTab = await screen.findByRole("tab", { name: "Architecture" });
+        await user.click(archTab);
+
+        const archTabContent = await screen.findByRole("tabpanel", { name: "Architecture" });
+        const fullscreenWrapper = archTabContent.parentElement;
+        expect(fullscreenWrapper).not.toBeNull();
+
+        // Enter fullscreen
+        const fsBtnArch = await screen.findByRole("button", { name: "Full screen" });
+        await user.click(fsBtnArch);
+
+        expect(requestFullscreenMock).toHaveBeenCalled();
+
+        // Simulate fullscreenchange event with the actual fullscreen wrapper element
+        act(() => {
+          Object.defineProperty(document, "fullscreenElement", {
+            writable: true,
+            configurable: true,
+            value: fullscreenWrapper,
+          });
+          document.dispatchEvent(new Event("fullscreenchange"));
+        });
+
+        await waitFor(() => {
+          const wrapperInFullscreen = container.querySelector(".fixed.inset-0.z-50");
+          expect(wrapperInFullscreen).not.toBeNull();
+          expect(wrapperInFullscreen).toBe(fullscreenWrapper);
+
+          const grid = container.querySelector(".grid-rows-1");
+          expect(grid).not.toBeNull();
+          expect(grid?.className).toContain("items-stretch");
+          expect(grid?.className).toContain("flex-1");
+          expect(grid?.className).toContain("min-h-0");
+        });
+      } finally {
+        Object.defineProperty(document, "fullscreenEnabled", {
+          writable: true,
+          configurable: true,
+          value: originalFullscreenEnabled,
+        });
+        HTMLElement.prototype.requestFullscreen = originalRequestFullscreen;
+        Object.defineProperty(document, "fullscreenElement", {
+          writable: true,
+          configurable: true,
+          value: null,
+        });
       }
     });
   });

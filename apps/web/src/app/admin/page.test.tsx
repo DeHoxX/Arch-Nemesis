@@ -17,6 +17,11 @@ vi.mock("@/lib/api", async (importOriginal) => {
   };
 });
 
+// jsdom does not implement WebGL2; mock Waves component cleanly
+vi.mock("@/components/studio/Waves", () => ({
+  default: () => <div data-testid="waves-mock" aria-hidden="true" />,
+}));
+
 function renderWithAdminContext(): ReturnType<typeof render> {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -218,5 +223,24 @@ describe("Admin Leads Page (/admin)", () => {
     expect(localStorage.getItem("admin_token")).toBeNull();
     expect(sessionStorage.getItem("admin_token")).toBeNull();
     expect(window.location.search).not.toContain(sensitiveToken);
+  });
+
+  describe("Studio Styling Guards (D-360)", () => {
+    it("renders studio theme with static dots and circuits, zero waves, zero img tags, and isolate stacking context", () => {
+      const { container } = renderWithAdminContext();
+
+      const main = screen.getByRole("main");
+      expect(main.className).toContain("studio-grid-bg");
+      expect(main.className).toContain("isolate");
+
+      // Corner circuits present
+      expect(screen.getByTestId("studio-corner-circuits")).toBeDefined();
+
+      // Zero Waves on admin page
+      expect(screen.queryByTestId("design-waves-layer")).toBeNull();
+
+      // Zero img tags on page
+      expect(container.querySelectorAll("img")).toHaveLength(0);
+    });
   });
 });

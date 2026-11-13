@@ -120,4 +120,19 @@ describe("FitViewWatcher component (Stage 1D, D-337)", () => {
     unmount();
     expect(rafQueue).toHaveLength(0);
   });
+
+  it("dispatches window resize events before fitting view on trigger changes (Stage H2e, D-361)", () => {
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const { rerender } = render(<FitViewWatcher trigger={false} nodesKey="node_1" />);
+
+    dispatchSpy.mockClear();
+    rerender(<FitViewWatcher trigger={true} nodesKey="node_1" />);
+
+    // Step through rAFs
+    stepRaf();
+    stepRaf();
+
+    expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "resize" }));
+    expect(mockFitView).toHaveBeenCalledWith({ padding: 0.2 });
+  });
 });

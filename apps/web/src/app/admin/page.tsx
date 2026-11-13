@@ -8,6 +8,7 @@ import { AlertCircle, ArrowLeft, KeyRound, LogOut, RefreshCw, Users } from "luci
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { StudioBackground } from "@/components/studio/StudioBackground";
 import {
   Table,
   TableBody,
@@ -120,16 +121,12 @@ export default function AdminLeadsPage(): React.ReactElement {
           : null);
 
   return (
-    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-12 md:py-16">
-      {/* Background static grid */}
-      <div
-        className="pointer-events-none absolute inset-0 page-grid-bg"
-        aria-hidden="true"
-      />
+    <main className="studio-grid-bg isolate relative min-h-screen bg-page-bg text-foreground px-4 py-12 md:py-16">
+      <StudioBackground showWaves={false} />
 
-      <div className="relative mx-auto flex w-full max-w-6xl flex-col">
+      <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col">
         {/* Top Breadcrumb Nav */}
-        <div className="mb-6 flex items-center justify-between border-b border-border/40 pb-4">
+        <div className="mb-6 flex items-center justify-between border-b border-white/[0.09] pb-4">
           <Link
             href="/"
             className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
@@ -143,7 +140,7 @@ export default function AdminLeadsPage(): React.ReactElement {
               variant="ghost"
               size="sm"
               onClick={handleSignOut}
-              className="text-xs font-mono text-muted-foreground hover:text-destructive gap-1.5 h-7 px-2"
+              className="text-xs font-mono text-muted-foreground hover:text-destructive gap-1.5 h-7 px-2 border border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
             >
               <LogOut className="size-3.5" />
               Sign Out
@@ -155,7 +152,7 @@ export default function AdminLeadsPage(): React.ReactElement {
         {!token || !leads ? (
           <div className="mx-auto w-full max-w-md space-y-6 pt-12">
             <div className="text-center space-y-2">
-              <div className="mx-auto size-12 rounded-full border border-border/80 bg-card/60 flex items-center justify-center backdrop-blur-md">
+              <div className="mx-auto size-12 rounded-full border border-white/[0.09] bg-[#151517] flex items-center justify-center">
                 <KeyRound className="size-6 text-brand-accent" />
               </div>
               <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
@@ -167,30 +164,30 @@ export default function AdminLeadsPage(): React.ReactElement {
             </div>
 
             {effectiveError === "401" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/60 bg-destructive/10">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
                 <AlertCircle className="size-4" />
-                <AlertTitle className="text-sm font-semibold">Authentication Failed</AlertTitle>
-                <AlertDescription className="text-xs font-medium">
+                <AlertTitle className="text-sm font-semibold text-foreground">Authentication Failed</AlertTitle>
+                <AlertDescription className="text-xs font-medium text-muted-foreground">
                   {effectiveErrorMessage || "Not authorised."}
                 </AlertDescription>
               </Alert>
             )}
 
             {effectiveError === "404" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/60 bg-destructive/10">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
                 <AlertCircle className="size-4" />
-                <AlertTitle className="text-sm font-semibold">Admin Unavailable</AlertTitle>
-                <AlertDescription className="text-xs font-medium">
+                <AlertTitle className="text-sm font-semibold text-foreground">Admin Unavailable</AlertTitle>
+                <AlertDescription className="text-xs font-medium text-muted-foreground">
                   {effectiveErrorMessage || "Admin access is disabled on this server."}
                 </AlertDescription>
               </Alert>
             )}
 
             {effectiveError === "network" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/60 bg-destructive/10">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
                 <AlertCircle className="size-4" />
-                <AlertTitle className="text-sm font-semibold">Request Failed</AlertTitle>
-                <AlertDescription className="text-xs font-medium">
+                <AlertTitle className="text-sm font-semibold text-foreground">Request Failed</AlertTitle>
+                <AlertDescription className="text-xs font-medium text-muted-foreground">
                   {effectiveErrorMessage || "Failed to load leads."}
                 </AlertDescription>
               </Alert>
@@ -198,7 +195,7 @@ export default function AdminLeadsPage(): React.ReactElement {
 
             <form
               onSubmit={handleLoginSubmit}
-              className="rounded-2xl border border-border/80 bg-card/80 p-6 shadow-xl backdrop-blur-md space-y-4"
+              className="rounded-2xl border border-white/[0.09] bg-[#151517] p-6 shadow-xl space-y-4"
             >
               <div className="space-y-2">
                 <label
@@ -215,7 +212,7 @@ export default function AdminLeadsPage(): React.ReactElement {
                   placeholder="Enter token..."
                   disabled={isLoading}
                   autoComplete="off"
-                  className="bg-transparent font-mono text-sm"
+                  className="border-white/[0.09] bg-[#161618] font-mono text-sm"
                 />
               </div>
 
@@ -232,7 +229,7 @@ export default function AdminLeadsPage(): React.ReactElement {
         ) : (
           /* Authenticated Leads Review Interface */
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/40 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/[0.09] pb-4">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Users className="size-5 text-brand-accent" />
@@ -245,7 +242,7 @@ export default function AdminLeadsPage(): React.ReactElement {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full border border-border/80 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground">
+                <span className="rounded-full border border-white/[0.09] bg-[#161618] px-3 py-1 text-xs font-mono text-muted-foreground">
                   {leads.length} lead{leads.length === 1 ? "" : "s"}
                 </span>
                 <Button
@@ -254,7 +251,7 @@ export default function AdminLeadsPage(): React.ReactElement {
                   size="sm"
                   onClick={() => void refetch()}
                   disabled={isLoading}
-                  className="text-xs font-mono gap-1.5 h-8"
+                  className="text-xs font-mono gap-1.5 h-8 border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
                 >
                   <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
                   Refresh
@@ -263,17 +260,17 @@ export default function AdminLeadsPage(): React.ReactElement {
             </div>
 
             {leads.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/80 bg-card/20 p-12 text-center space-y-2">
+              <div className="rounded-2xl border border-dashed border-white/[0.09] bg-[#151517]/50 p-12 text-center space-y-2">
                 <p className="text-sm font-medium text-foreground">No leads received yet</p>
                 <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                   When visitors submit inquiries using the &ldquo;Contact our team&rdquo; dialog, they will appear here.
                 </p>
               </div>
             ) : (
-              <div className="rounded-2xl border border-border/80 bg-card/60 shadow-xl backdrop-blur-md overflow-hidden">
+              <div className="rounded-2xl border border-white/[0.09] bg-[#151517] shadow-xl overflow-hidden">
                 <Table>
                   <TableHeader>
-                    <TableRow className="border-border/60 hover:bg-transparent">
+                    <TableRow className="border-white/[0.09] hover:bg-transparent">
                       <TableHead className="font-mono text-xs uppercase text-muted-foreground w-28">ID</TableHead>
                       <TableHead className="font-mono text-xs uppercase text-muted-foreground w-36">Created</TableHead>
                       <TableHead className="font-mono text-xs uppercase text-muted-foreground w-40">Name</TableHead>
@@ -284,7 +281,7 @@ export default function AdminLeadsPage(): React.ReactElement {
                   </TableHeader>
                   <TableBody>
                     {leads.map((lead) => (
-                      <TableRow key={lead.id} className="border-border/40 hover:bg-card/80">
+                      <TableRow key={lead.id} className="border-white/[0.09] hover:bg-[#161618]">
                         <TableCell className="font-mono text-xs text-muted-foreground">
                           {lead.id.slice(0, 8)}...
                         </TableCell>

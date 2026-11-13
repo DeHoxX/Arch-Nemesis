@@ -419,7 +419,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                 </TabsContent>
 
                 <TabsContent value="architecture" className={cn("space-y-6", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
-                  <div className={cn("grid grid-cols-1 lg:grid-cols-4 gap-6", isFullscreen ? "flex-1 min-h-0 h-full items-stretch" : "items-start")}>
+                  <div className={cn("grid grid-cols-1 lg:grid-cols-4 gap-6", isFullscreen ? "flex-1 min-h-0 h-full items-stretch grid-rows-1" : "items-start")}>
                     {/* Read-only Architecture Canvas */}
                     <div className={cn(
                       Boolean(selectedNode || selectedEdge) ? "lg:col-span-3" : (isFullscreen ? "lg:col-span-4" : "lg:col-span-3"),

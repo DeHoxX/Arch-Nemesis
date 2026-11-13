@@ -3746,3 +3746,55 @@ If we removed it: The admin inspection page would remain on legacy styling with 
 Decided by: user approved Stage H2c scope
 Status: active
 
+### D-359 — Stage H2d — fix — Fullscreen architecture diagram fit view viewport height normalization
+What: In `apps/web/src/app/design/[id]/page.tsx` and `apps/web/src/app/admin/designs/[id]/[n]/page.tsx`, add `grid-rows-1` (explicit `1fr` row track) to the 12-column and 4-column fullscreen architecture grid containers (`isFullscreen ? "flex-1 min-h-0 h-full items-stretch grid-rows-1" : "items-start"`). In `apps/web/src/components/diagram/DiagramView.tsx`, update the inner canvas flex slot to `relative flex-1 min-h-0 h-full w-full overflow-hidden flex flex-col`. Add regression tests in `apps/web/src/components/diagram/DiagramView.test.tsx` and `apps/web/src/app/design/[id]/page.test.tsx`.
+Why: In CSS Grid, when `grid-template-rows` is omitted, the row track defaults to `auto`. Descendants with percentage heights (`h-full` on `lg:col-span-12` and `diagramContainerRef`) cannot resolve percentage heights against an auto row when the inner content consists solely of absolutely positioned canvas layers (CSS Grid Level 1 §6.1). Concurrently, `DiagramView`'s inner slot lacked `h-full` and `flex flex-col`, causing React Flow's `useResizeHandler` to measure a collapsed or zero height in fullscreen and fall back to a hardcoded 500px height. Adding `grid-rows-1` explicitly sizes the grid track to `1fr` (taking 100% of the fullscreen flex space), and giving the inner slot `h-full flex flex-col` guarantees that `<ReactFlow>` and its panZoom instance measure true fullscreen browser viewport dimensions, enabling `<Controls>` Fit View clicks to calculate and apply the correct centered viewport transform.
+Alternatives considered:
+1. Replacing CSS Grid entirely with Flexbox on the architecture tab: Rejected because the grid is required to support the 4-column `DetailPanel` when nodes or edges are selected without distorting the layout.
+2. Forcing manual resize dispatch on Fit View button click: Rejected because the root cause is structural CSS height resolution; fixing the layout tracks enables React Flow's built-in ResizeObserver to function naturally.
+If we removed it: In fullscreen mode on the Architecture tab, clicking the Fit View controls button would compute coordinates against a stale 500px fallback or collapsed viewport, resulting in no visible refit.
+Decided by: user approved Stage H2d scope
+Status: active
+
+### D-360 — Stage H2d — refactor — Restyle admin login and leads page with obsidian studio theme
+What: Restyle `apps/web/src/app/admin/page.tsx` unauthenticated token prompt and authenticated leads review views to use `.studio-grid-bg`, `isolate`, `<StudioBackground showWaves={false} />`, and a `relative z-10` content wrapper. Replace legacy `page-grid-bg` and glassmorphic translucent panels (`bg-card/60`, `bg-card/80`, `backdrop-blur-md`, `border-border/*`) with matte obsidian surfaces `bg-[#151517]`, `bg-[#161618]`, and `border-white/[0.09]` across headers, breadcrumbs, sign-out button, avatar, auth form card, inputs, tables, rows, badges, and alerts. Keep Waves strictly disabled (`showWaves={false}`), preserving zero GPU overhead. Update `apps/web/src/app/admin/page.test.tsx` with non-empty studio styling guards (asserting `studio-grid-bg`, `isolate`, and `studio-corner-circuits` are present, `design-waves-layer` is absent, and zero `<img>` tags).
+Why: Harmonizes the top-level `/admin` interface with the obsidian studio theme established in Stage H2a/H2b and the `/admin/designs/[id]/[n]` inspection page in Stage H2c, eliminating visual inconsistency while preserving all security guarantees (in-memory token state, 401/404 error handling, and plain-text untrusted lead data rendering).
+Alternatives considered:
+1. Enabling Waves on the admin leads page: Rejected because admin review demands a static, high-focus environment without animation distraction or shader GPU overhead.
+2. Leaving `/admin` on legacy translucent cards: Rejected to prevent visual fragmentation across user and admin workflows.
+If we removed it: The primary admin login and leads table would remain on legacy styling with translucent linear grids and inconsistent card borders.
+Decided by: user approved Stage H2d scope
+Status: active
+
+### D-361 — Stage H2e — fix — Fullscreen transition canvas viewport re-measurement and event dispatch
+What:
+1. In `apps/web/src/lib/useFullscreen.ts`, update `handleFullscreenChange` to dispatch `window.dispatchEvent(new Event("resize"))` immediately, on next `requestAnimationFrame`, and after 200ms upon entering or exiting fullscreen.
+2. In `apps/web/src/components/diagram/FitViewWatcher.tsx`, dispatch `window.dispatchEvent(new Event("resize"))` before invoking `fitView({ padding: 0.2 })` on trigger changes (such as fullscreen toggle), and schedule a secondary settling refit at 250ms to ensure full layout stabilization after browser OS window animations.
+3. In `apps/web/src/components/diagram/DiagramView.tsx`, revert the inner canvas slot at line 391 back to `relative flex-1 min-h-0 w-full overflow-hidden`, superseding D-359's addition of `h-full flex flex-col` which conflicted with flexbox distribution alongside sibling `FlowPlaybackBar`.
+Why: React Flow (`@xyflow/react`) relies on `window.addEventListener('resize', updateDimensions)` and a `ResizeObserver` on `.react-flow__renderer` to track container dimensions (`offsetWidth`, `offsetHeight`). The HTML5 Fullscreen API (`target.requestFullscreen()`) does not resize the browser window and therefore does not fire a window `resize` event. Furthermore, `ResizeObserver` observing an absolutely positioned child (`position: absolute; width: 100%; height: 100%`) within a CSS Grid / Flex container frequently either does not fire across fullscreen transitions or captures intermediate zero/unsettled dimensions. Consequently, React Flow store's `width` and `height` remained permanently stale (or stuck at the 500x500 fallback). When clicking `<Controls>` Fit View or invoking `fitView`, `@xyflow/system` computed viewport transforms using these stale dimensions, making Fit View appear completely unresponsive until a user manually resized the browser window (which finally emitted a native `window.resize` event). Explicitly dispatching window resize events on fullscreen changes and transition settle times guarantees that React Flow measures the settled DOM dimensions and recalculates proper viewports.
+Alternatives considered:
+1. Re-mounting `<ReactFlow>` with a unique key on fullscreen toggle: Rejected because re-mounting tears down active diagram state, zoom/pan cache, and DOM nodes, causing an abrupt visual flicker and resetting user selection.
+2. Polling container dimensions on an interval: Rejected for excessive CPU usage and latency compared to event-driven resize dispatch.
+If we removed it: Entering or exiting fullscreen would leave React Flow's store with stale viewport dimensions, causing Fit View to do nothing until the user manually resizes the browser window.
+Decided by: user approved Stage H2e scope
+Status: active
+
+### D-362 — Stage H2f — chore — Temporary layout and fit view diagnostics for fullscreen investigation
+What: In `apps/web/src/components/diagram/FitViewWatcher.tsx` and `apps/web/src/app/design/[id]/page.tsx`, add temporary instrumentation logging marked `// TEMP(h2f)`. Capture and output the React Flow store dimensions (`width`, `height`), `domNode.getBoundingClientRect()`, current viewport (`x`, `y`, `zoom`), node count, `ResizeObserver` callback entries, and `fitView` promise return values on both fullscreen changes and Fit View button clicks without logging user or sensitive text.
+Why: Fit View remains unresponsive across fullscreen transitions despite synthetic window resize events. Measuring real browser runtime dimensions, `ResizeObserver` firing frequency, and viewport transformation calculations directly in the browser console isolates whether the failure stems from stale store state, timing races with CSS transitions, or viewport calculation clamping in `@xyflow/system`.
+Alternatives considered:
+1. Speculative timing/padding adjustments: Rejected because previous hypothesis was incomplete; direct runtime telemetry is required before modifying layout logic.
+If we removed it: Debugging fullscreen zoom/pan behavior would rely on unverified assumptions about browser-specific rendering engine behavior.
+Decided by: user approved Stage H2f scope
+Status: active
+
+### D-363 — Stage H2g — deviation — Removal of manual Fit View controls button
+What: In `apps/web/src/components/diagram/DiagramView.tsx` and `apps/web/src/components/diagram/BlockDiagramView.tsx`, pass `showFitView={false}` to `<Controls />` to permanently remove the manual Fit View button (`.react-flow__controls-fitview`). Remove all temporary diagnostic code `// TEMP(h2f)`. Update tests in `DiagramView.test.tsx` and `BlockDiagramView.test.tsx` to assert that `<Controls />` renders zoom in/out while ensuring `.react-flow__controls-fitview` is omitted. Keep the initial layout auto-fit (`fitView` prop on `<ReactFlow>`) and all existing H2d/H2e sizing normalization and resize dispatch workarounds intact.
+Why: Across 4 consecutive remediation stages (D-359, D-361, D-362), the manual Fit View button failed to recalculate viewports reliably after browser fullscreen transitions without an external window resize event. Rather than introducing additional complex timing heuristics or custom controls layers, the user decided to remove the button. Automatic initial fit on load and standard zoom in/out controls remain active. Supersedes the Fit View button aspects of D-357, D-359, D-361, and D-362. Mention that H2d/H2e workarounds remain.
+Alternatives considered:
+1. Custom toolbar button dispatching synthetic resizes before calling `fitView`: Rejected per user decision to streamline the control chrome and avoid fragile timing workarounds.
+If we removed it: The manual Fit View button would remain visible in controls and continue to behave unresponsively after fullscreen toggles.
+Decided by: user
+Status: active
+
+
