@@ -36,7 +36,7 @@ export function NotesPanel({
     <div
       aria-label="Notes and Warnings"
       className={cn(
-        "rounded-xl border bg-card p-4 text-card-foreground shadow-sm space-y-4",
+        "rounded-xl border border-white/[0.09] bg-[#151517] p-4 text-card-foreground shadow-sm space-y-4",
         className,
       )}
     >

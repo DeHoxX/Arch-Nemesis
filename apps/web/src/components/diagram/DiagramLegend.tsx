@@ -78,7 +78,7 @@ export function DiagramLegend({
         aria-expanded={isOpen}
         aria-controls="diagram-legend-panel"
         aria-label="Toggle diagram legend"
-        className="flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1.5 rounded-md border border-white/[0.09] bg-[#161618] px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-[#1f1f23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span>Legend</span>
         <ChevronDown
@@ -95,7 +95,7 @@ export function DiagramLegend({
           role="region"
           aria-label="Diagram legend"
           onKeyDown={handlePanelKeyDown}
-          className="absolute bottom-full right-0 mb-2 max-h-[calc(100vh-320px)] w-64 overflow-y-auto rounded-md border border-border bg-card p-3 text-xs shadow-lg z-30"
+          className="absolute bottom-full right-0 mb-2 max-h-[calc(100vh-320px)] w-64 overflow-y-auto rounded-md border border-white/[0.09] bg-[#151517] p-3 text-xs shadow-lg z-30"
         >
           <div className="space-y-3">
             {/* Border Colors */}

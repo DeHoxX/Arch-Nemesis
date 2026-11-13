@@ -23,7 +23,7 @@ export function ExplanationView({
       <div
         role="status"
         aria-label="Loading explanation"
-        className="rounded-2xl border border-border/80 bg-card/60 p-8 backdrop-blur-sm flex flex-col items-center justify-center space-y-4 py-16"
+        className="rounded-xl border border-white/[0.09] bg-[#151517] p-8 flex flex-col items-center justify-center space-y-4 py-16"
       >
         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
         <p className="text-sm font-medium text-muted-foreground">Writing the explanation...</p>
@@ -33,7 +33,7 @@ export function ExplanationView({
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-border/80 bg-card/60 p-6 md:p-8 backdrop-blur-sm">
+      <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-6 md:p-8">
         <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle className="font-semibold">Failed to Load Explanation</AlertTitle>
@@ -54,7 +54,7 @@ export function ExplanationView({
 
   if (!explanation) {
     return (
-      <div className="rounded-2xl border border-border/80 bg-card/60 p-8 backdrop-blur-sm">
+      <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-8">
         <p className="text-sm text-muted-foreground leading-relaxed">
           No explanation available.
         </p>
@@ -63,7 +63,7 @@ export function ExplanationView({
   }
 
   return (
-    <div className="rounded-2xl border border-border/80 bg-card/60 p-6 md:p-8 backdrop-blur-sm space-y-8 text-foreground">
+    <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-6 md:p-8 space-y-8 text-foreground">
       {explanation.source === "fallback" && (
         <div
           role="note"

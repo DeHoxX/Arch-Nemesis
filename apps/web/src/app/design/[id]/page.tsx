@@ -24,6 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ContactDialog } from "@/components/contact/ContactDialog";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
 import { ExportButtons } from "@/components/export/ExportButtons";
+import { StudioBackground } from "@/components/studio/StudioBackground";
+import { useStudioWavesGate } from "@/components/studio/useStudioWavesGate";
 import {
   acceptPatch,
   ApiError,
@@ -78,9 +80,10 @@ function useMediaQuery(query: string, serverFallback = true): boolean {
 
 function DesignPageLoading(): React.ReactElement {
   return (
-    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-8 md:py-12">
-      <div className="relative mx-auto w-full max-w-7xl space-y-6">
-        <div className="flex items-center justify-between border-b border-border/40 pb-4">
+    <main className="relative isolate min-h-screen w-full overflow-x-hidden bg-page-bg text-foreground px-4 py-8 md:py-12 studio-grid-bg">
+      <StudioBackground showWaves={false} />
+      <div className="relative z-10 mx-auto w-full max-w-7xl space-y-6">
+        <div className="flex items-center justify-between border-b border-white/[0.09] pb-4">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-6 w-24" />
         </div>
@@ -127,6 +130,10 @@ function DesignContent(): React.ReactElement {
 
   const { isFullscreen, isFullscreenSupported, toggleFullscreen } =
     useFullscreen(fullscreenWrapperRef);
+
+  // Waves on desktop (>=768px), non-reduced-motion, and suppressed when fullscreen is active (D-356)
+  const wavesGate = useStudioWavesGate(true);
+  const wavesOn = wavesGate && !isFullscreen;
 
   // Responsive switch: >= 768px mounts canvas, < 768px mounts FallbackList
   const isDesktop = useMediaQuery("(min-width: 768px)", true);
@@ -519,12 +526,13 @@ function DesignContent(): React.ReactElement {
       (error.status === 404 || error.code === "NOT_FOUND");
 
     return (
-      <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-12 md:py-16 selection:bg-brand-accent selection:text-brand-accent-ink">
-        <div className="relative mx-auto flex w-full max-w-2xl flex-col items-center">
+      <main className="relative isolate min-h-screen w-full overflow-x-hidden bg-page-bg text-foreground px-4 py-12 md:py-16 selection:bg-brand-accent selection:text-brand-accent-ink studio-grid-bg">
+        <StudioBackground showWaves={false} />
+        <div className="relative z-10 mx-auto flex w-full max-w-2xl flex-col items-center">
           <header className="mb-8 text-center space-y-2">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-[#151517] px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="size-3" /> Arch-Nemesis
             </Link>
@@ -532,7 +540,7 @@ function DesignContent(): React.ReactElement {
 
           <Alert
             variant="destructive"
-            className="rounded-2xl border-destructive/60 bg-destructive/10 p-6 text-card-foreground shadow-lg backdrop-blur-sm"
+            className="rounded-xl border-destructive/50 bg-[#151517] p-6 text-card-foreground shadow-lg"
           >
             <AlertCircle className="size-5 text-destructive" />
             <AlertTitle className="text-base font-semibold text-foreground">
@@ -548,7 +556,7 @@ function DesignContent(): React.ReactElement {
               </p>
               <div className="pt-2 flex items-center gap-3">
                 {isNotFound ? (
-                  <Button asChild variant="outline" size="sm" className="font-semibold text-xs">
+                  <Button asChild variant="outline" size="sm" className="font-semibold text-xs border-white/[0.09] bg-[#161618] hover:bg-[#1f1f23]">
                     <Link href="/">Back to home</Link>
                   </Button>
                 ) : (
@@ -557,7 +565,7 @@ function DesignContent(): React.ReactElement {
                     variant="outline"
                     size="sm"
                     onClick={() => refetch()}
-                    className="font-semibold text-xs gap-1.5"
+                    className="font-semibold text-xs gap-1.5 border-white/[0.09] bg-[#161618] hover:bg-[#1f1f23]"
                   >
                     <RefreshCw className="size-3.5" /> Retry
                   </Button>
@@ -571,16 +579,17 @@ function DesignContent(): React.ReactElement {
   }
 
   return (
-    <main className="relative min-h-screen w-full bg-page-bg text-foreground px-4 py-8 md:py-12 selection:bg-brand-accent selection:text-brand-accent-ink">
-      {/* Background subtle static grid pattern, no animated grid, no grain */}
-      <div
-        className="pointer-events-none absolute inset-0 page-grid-bg"
-        aria-hidden="true"
+    <main className="relative isolate min-h-screen w-full overflow-x-hidden bg-page-bg text-foreground px-4 py-8 md:py-12 selection:bg-brand-accent selection:text-brand-accent-ink studio-grid-bg">
+      {/* Studio Background: static dots + corner circuits + header-band Waves (D-356) */}
+      <StudioBackground
+        showWaves={wavesOn}
+        wavesScope="header-band"
+        wavesLayerTestId="design-waves-layer"
       />
 
-      <div className="relative mx-auto w-full max-w-7xl">
+      <div className="relative z-10 mx-auto w-full max-w-7xl">
         {/* Page Chrome Header */}
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-border/40 pb-4">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.09] pb-4">
           <div className="flex items-center gap-3">
             <Link
               href="/"
@@ -601,7 +610,7 @@ function DesignContent(): React.ReactElement {
               diagramContainerRef={diagramContainerRef}
               onBeforeExportPng={handleBeforeExportPng}
             />
-            <Button asChild variant="outline" size="sm" className="text-xs font-mono">
+            <Button asChild variant="outline" size="sm" className="text-xs font-mono border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]">
               <Link href="/?new=1">New design</Link>
             </Button>
             <Button
@@ -609,11 +618,11 @@ function DesignContent(): React.ReactElement {
               variant="outline"
               size="sm"
               onClick={() => setIsContactOpen(true)}
-              className="text-xs font-mono"
+              className="text-xs font-mono border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
             >
               Contact our team
             </Button>
-            <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-xs font-mono text-muted-foreground backdrop-blur-md">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-[#161618] px-3 py-1 text-xs font-mono text-muted-foreground">
               <span className="size-2 rounded-full bg-brand-accent" />
               v{activeDesign?.current_version ?? currentVersion}
               {isViewingHistorical ? " (historical view)" : ` (${design.prompt_version})`}
@@ -653,14 +662,14 @@ function DesignContent(): React.ReactElement {
           className="w-full space-y-6"
         >
           <div className="flex items-center justify-between gap-2">
-            <TabsList className="bg-card/80 border border-border/60 p-1">
-              <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono">
+            <TabsList className="bg-[#151517] border border-white/[0.09] p-1">
+              <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
                 Block diagram
               </TabsTrigger>
-              <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono">
+              <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
                 Architecture
               </TabsTrigger>
-              <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono">
+              <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
                 Explanation
               </TabsTrigger>
             </TabsList>
@@ -674,7 +683,7 @@ function DesignContent(): React.ReactElement {
                 onClick={toggleFullscreen}
                 aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
                 title={isFullscreen ? "Exit full screen" : "Full screen"}
-                className="h-8 gap-1.5 px-2.5 font-mono text-xs motion-reduce:transition-none"
+                className="h-8 gap-1.5 px-2.5 font-mono text-xs border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23] motion-reduce:transition-none"
               >
                 {isFullscreen ? (
                   <>
@@ -712,7 +721,7 @@ function DesignContent(): React.ReactElement {
                   <div
                     ref={diagramContainerRef}
                     className={cn(
-                      "w-full rounded-lg border border-border bg-card overflow-hidden relative",
+                      "w-full rounded-lg border border-white/[0.09] bg-[#151517] overflow-hidden relative",
                       isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
                     )}
                   >
@@ -760,7 +769,7 @@ function DesignContent(): React.ReactElement {
                         <div
                           ref={diagramContainerRef}
                           className={cn(
-                            "w-full rounded-lg border border-border bg-card overflow-hidden relative",
+                            "w-full rounded-lg border border-white/[0.09] bg-[#151517] overflow-hidden relative",
                             isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
                           )}
                         >

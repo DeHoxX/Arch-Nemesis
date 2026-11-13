@@ -15,6 +15,19 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
 
+// jsdom does not implement WebGL2; mock Waves component cleanly
+vi.mock("@/components/studio/Waves", () => ({
+  default: (props: Record<string, unknown>) => (
+    <div
+      data-testid="waves-mock"
+      aria-hidden="true"
+      data-line-color={String(props.lineColor ?? "")}
+      data-accent-color={String(props.accentColor ?? "")}
+      data-line-style={String(props.lineStyle ?? "")}
+    />
+  ),
+}));
+
 function renderWithClient(ui: React.ReactElement) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -95,9 +108,9 @@ describe("DesignPage Component (/design/[id])", () => {
     vi.restoreAllMocks();
     mockId = "design_test_123";
 
-    // Default matchMedia mock for desktop (>= 768px)
+    // Default matchMedia mock for desktop (>= 768px) and standard motion
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
-      matches: true,
+      matches: query.includes("min-width: 768px"),
       media: query,
       onchange: null,
       addListener: vi.fn(),
@@ -1746,6 +1759,120 @@ describe("DesignPage Component (/design/[id])", () => {
         });
         HTMLElement.prototype.requestFullscreen = originalRequestFullscreen;
       }
+    });
+  });
+
+  describe("Studio Styling & Waves Gating on Design Page (D-356)", () => {
+    it("renders dark studio background classes (studio-grid-bg, isolate), circuits, and zero <img> tags on ready view", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response);
+
+      const { container } = renderWithClient(<DesignPage />);
+
+      await screen.findByText(BANNER_TEXT);
+
+      const mainEl = container.querySelector("main");
+      expect(mainEl).not.toBeNull();
+      expect(mainEl?.className).toContain("studio-grid-bg");
+      expect(mainEl?.className).toContain("isolate");
+      expect(mainEl?.className).toContain("bg-page-bg");
+      expect(mainEl?.className).not.toContain("bg-white");
+
+      const circuits = screen.getByTestId("studio-corner-circuits");
+      expect(circuits).toBeDefined();
+      expect(circuits.className).toContain("z-0");
+
+      expect(container.querySelectorAll("img")).toHaveLength(0);
+    });
+
+    it("renders header-band Waves layer on desktop when reduced-motion is false", async () => {
+      vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+        matches: query.includes("min-width: 768px"),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList));
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response);
+
+      renderWithClient(<DesignPage />);
+
+      await screen.findByText(BANNER_TEXT);
+
+      await waitFor(() => {
+        const wavesLayer = screen.getByTestId("design-waves-layer");
+        expect(wavesLayer).toBeDefined();
+        expect(wavesLayer.className).toContain("z-0");
+        expect(wavesLayer.className).toContain("pointer-events-none");
+        expect(wavesLayer.className).toContain("inset-x-0");
+        expect(wavesLayer.className).toContain("top-0");
+        expect(wavesLayer.className).toContain("h-[260px]");
+        expect(wavesLayer.className).not.toContain("inset-0");
+      });
+    });
+
+    it("does not render design-waves-layer when prefers-reduced-motion is true", async () => {
+      vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList));
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response);
+
+      renderWithClient(<DesignPage />);
+
+      await screen.findByText(BANNER_TEXT);
+
+      expect(screen.queryByTestId("design-waves-layer")).toBeNull();
+    });
+
+    it("does not render design-waves-layer on mobile (<768px)", async () => {
+      vi.spyOn(window, "matchMedia").mockImplementation((query: string) => ({
+        matches: query !== "(min-width: 768px)" && query !== "(prefers-reduced-motion: reduce)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      } as unknown as MediaQueryList));
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => mockValidDesign,
+      } as unknown as Response);
+
+      renderWithClient(<DesignPage />);
+
+      // On mobile FallbackList is rendered in Component Flow Order region
+      const fallbackSection = await screen.findByRole("region", {
+        name: "Component Flow Order",
+      });
+      expect(within(fallbackSection).getByRole("heading", { name: "Buffer Node" })).toBeDefined();
+      expect(screen.queryByTestId("design-waves-layer")).toBeNull();
     });
   });
 });

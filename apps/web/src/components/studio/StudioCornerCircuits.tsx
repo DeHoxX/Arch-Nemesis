@@ -23,6 +23,7 @@ export function StudioCornerCircuits(): React.ReactElement {
   return (
     <div
       aria-hidden="true"
+      data-studio-bg="true"
       data-testid="studio-corner-circuits"
       className="pointer-events-none absolute inset-0 z-0 overflow-hidden select-none"
     >

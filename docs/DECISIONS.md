@@ -3715,3 +3715,13 @@ Alternatives considered:
 If we removed it: Each studio route would duplicate the media query listeners and Waves mounting boilerplate, increasing the risk of lifecycle mismatches and cross-component render errors.
 Decided by: user approved Stage H2a scope
 Status: active
+
+### D-356 — Stage H2b — refactor — Restyle design results page with obsidian studio background, header-band Waves, and matte panels
+What: Restyle `apps/web/src/app/design/[id]/page.tsx` loading, error, and ready views to use `.studio-grid-bg`, `isolate`, and `<StudioBackground />`. Scope desktop WebGL2 Waves to a top ~260px header band (`wavesScope="header-band"`) that automatically suppresses in fullscreen (`wavesOn = gate && !isFullscreen`) and on mobile (<768px) or reduced-motion via `useStudioWavesGate`. Update panel and chrome container surfaces (`DetailPanel`, `NotesPanel`, `ConstraintsPanel`, `RefinePanel`, `VersionsPanel`, `ExplanationView`, `PatchCard`, `FlowPlaybackBar`, `TabsList`, diagram wrapper) from `bg-card` and `bg-card/60 backdrop-blur-*` to matte `bg-[#151517]` and `border-white/[0.09]`. Align React Flow `<Background>` dots to `gap={25}` and `color="rgba(255, 255, 255, 0.06)"`. Add a print media query in `apps/web/src/app/globals.css` suppressing `[data-studio-bg]` during printing. Node/edge components (`BlockNode`, `DiagramNode`, `DiagramEdge`) and the four node border colours remain untouched.
+Why: Aligns the results page with the Home System Design Studio aesthetic without wasting GPU fill-rate under the dense React Flow diagram canvas or during fullscreen diagram examination. Matte surfaces eliminate blur performance overhead while ensuring high text contrast across all panels.
+Alternatives considered:
+1. Full-page Waves under `/design/[id]`: Rejected to avoid running WebGL2 shader calculations and pointer tracking behind an opaque 25-node diagram canvas.
+2. Preserving glassmorphic `backdrop-blur-*` panels: Rejected to establish a unified, crisp, matte obsidian studio surface across the application.
+If we removed it: The design results page would remain visually disconnected from the new Home studio aesthetic and continue to rely on legacy linear grid lines and translucent cards.
+Decided by: user approved Stage H2b scope
+Status: active

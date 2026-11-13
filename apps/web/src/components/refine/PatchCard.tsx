@@ -108,7 +108,7 @@ export function PatchCard({
 
   return (
     <Card
-      className="border-border bg-card/90 shadow-md backdrop-blur-sm"
+      className="border border-white/[0.09] bg-[#151517] shadow-md"
       role="region"
       aria-label="Proposed Architecture Patch Review"
     >

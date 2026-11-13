@@ -271,3 +271,10 @@
     background-image: none;
   }
 }
+
+/* Print suppression for studio decorative backgrounds (D-356) */
+@media print {
+  [data-studio-bg] {
+    display: none !important;
+  }
+}

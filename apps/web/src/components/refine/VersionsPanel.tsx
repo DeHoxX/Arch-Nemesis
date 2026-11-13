@@ -81,11 +81,11 @@ export function VersionsPanel({
   return (
     <>
       <Card
-        className="border-border bg-card/60 backdrop-blur-sm shadow-md flex flex-col h-full"
+        className="border border-white/[0.09] bg-[#151517] shadow-md flex flex-col h-full"
         role="region"
         aria-label="Design Version History"
       >
-        <CardHeader className="border-b border-border/40 pb-3">
+        <CardHeader className="border-b border-white/[0.09] pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <History className="size-4 text-brand-accent" aria-hidden="true" />

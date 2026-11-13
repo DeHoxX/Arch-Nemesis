@@ -64,7 +64,7 @@ export function DetailPanel({
     return (
       <aside
         aria-label="Edge Details"
-        className="flex w-full flex-col rounded-xl border bg-card p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
+        className="flex w-full flex-col rounded-xl border border-white/[0.09] bg-[#151517] p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
@@ -176,7 +176,7 @@ export function DetailPanel({
   return (
     <aside
       aria-label="Node Details"
-      className="flex w-full flex-col rounded-xl border bg-card p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
+      className="flex w-full flex-col rounded-xl border border-white/[0.09] bg-[#151517] p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
     >
       {/* 1. Name and type */}
       <div className="flex items-start justify-between gap-3">

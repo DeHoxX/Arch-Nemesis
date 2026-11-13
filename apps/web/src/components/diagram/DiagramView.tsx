@@ -384,7 +384,7 @@ export function DiagramView({
       tabIndex={0}
       onKeyDown={handleKeyDown}
       className={cn(
-        "relative flex flex-col h-full w-full overflow-hidden rounded-xl border bg-card outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "relative flex flex-col h-full w-full overflow-hidden rounded-xl border border-white/[0.09] bg-[#151517] outline-none focus-visible:ring-1 focus-visible:ring-ring",
         className,
       )}
     >
@@ -412,7 +412,7 @@ export function DiagramView({
           }}
         >
           <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
-          <Background gap={16} size={1} />
+          <Background gap={25} size={1} color="rgba(255, 255, 255, 0.06)" />
           <Controls showInteractive={false} />
         </ReactFlow>
       </div>

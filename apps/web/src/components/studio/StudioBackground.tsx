@@ -34,6 +34,7 @@ export function StudioBackground({
       {showWaves && (
         <div
           aria-hidden="true"
+          data-studio-bg="true"
           data-testid={wavesLayerTestId}
           className={cn(
             "pointer-events-none absolute z-0 overflow-hidden",
