@@ -166,7 +166,7 @@ export function BlockDiagramView({
       >
         <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
         <Background gap={25} size={1} color="rgba(255, 255, 255, 0.06)" />
-        <Controls showInteractive={false} />
+        <Controls showInteractive={false} fitViewOptions={{ padding: 0.2 }} />
       </ReactFlow>
     </div>
   );

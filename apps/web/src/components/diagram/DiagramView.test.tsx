@@ -107,6 +107,22 @@ describe("DiagramView component", () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
+  it("renders the Fit View controls button with accessible labels and handles click without error (D-357)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<DiagramView spec={mockLegalSpec} />);
+
+    const fitViewBtn = container.querySelector(
+      ".react-flow__controls-button.react-flow__controls-fitview",
+    ) as HTMLButtonElement | null;
+
+    expect(fitViewBtn).not.toBeNull();
+    expect(fitViewBtn?.getAttribute("aria-label")?.toLowerCase()).toContain("fit view");
+    expect(fitViewBtn?.getAttribute("title")?.toLowerCase()).toContain("fit view");
+
+    // Clicking fit view button executes click handler without error
+    await user.click(fitViewBtn!);
+  });
+
   it("clears selection when Escape key is pressed on the diagram container", async () => {
     const user = userEvent.setup();
     const handleSelectNode = vi.fn();

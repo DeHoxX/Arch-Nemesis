@@ -31,6 +31,11 @@ vi.mock("@/components/diagram/BlockDiagramView", () => ({
   ),
 }));
 
+// jsdom does not implement WebGL2; mock Waves component cleanly
+vi.mock("@/components/studio/Waves", () => ({
+  default: () => <div data-testid="waves-mock" aria-hidden="true" />,
+}));
+
 vi.mock("@/components/diagram/DiagramView", () => ({
   DiagramView: ({
     spec,
@@ -382,5 +387,37 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
     // DetailPanel edge mode mounted, replacing node mode
     expect(screen.getByRole("complementary", { name: "Edge Details" })).toBeDefined();
     expect(screen.queryByRole("complementary", { name: "Node Details" })).toBeNull();
+  });
+
+  describe("Studio Styling Guards (D-358)", () => {
+    it("renders studio theme with static dots and circuits, zero waves, zero img tags, and isolate stacking context", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.getAdminDesignVersion).mockResolvedValueOnce(mockAdminVersionData);
+
+      const { container } = renderPage();
+
+      await user.type(screen.getByLabelText(/Admin Secret Token/i), "valid-token");
+      await user.click(screen.getByRole("button", { name: /Unlock Design Version/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Cloud Native Event Store")).toBeDefined();
+      });
+
+      const main = screen.getByRole("main");
+      expect(main.className).toContain("studio-grid-bg");
+      expect(main.className).toContain("isolate");
+
+      // Corner circuits present
+      expect(screen.getByTestId("studio-corner-circuits")).toBeDefined();
+
+      // Zero Waves on admin page
+      expect(screen.queryByTestId("design-waves-layer")).toBeNull();
+
+      // Zero img tags on page
+      expect(container.querySelectorAll("img")).toHaveLength(0);
+
+      // Strictly read-only: no POST
+      expect(api.postExplanation).not.toHaveBeenCalled();
+    });
   });
 });

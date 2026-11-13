@@ -388,7 +388,7 @@ export function DiagramView({
         className,
       )}
     >
-      <div className="relative flex-1 min-h-0 h-full w-full overflow-hidden">
+      <div className="relative flex-1 min-h-0 w-full overflow-hidden">
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -413,7 +413,7 @@ export function DiagramView({
         >
           <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
           <Background gap={25} size={1} color="rgba(255, 255, 255, 0.06)" />
-          <Controls showInteractive={false} />
+          <Controls showInteractive={false} fitViewOptions={{ padding: 0.2 }} />
         </ReactFlow>
       </div>
 

@@ -3725,3 +3725,24 @@ Alternatives considered:
 If we removed it: The design results page would remain visually disconnected from the new Home studio aesthetic and continue to rely on legacy linear grid lines and translucent cards.
 Decided by: user approved Stage H2b scope
 Status: active
+
+### D-357 — Stage H2c — fix — Controls Fit View option alignment and diagram flex height normalization
+What: In `apps/web/src/components/diagram/DiagramView.tsx` and `BlockDiagramView.tsx`, pass `fitViewOptions={{ padding: 0.2 }}` to `<Controls showInteractive={false} fitViewOptions={{ padding: 0.2 }} />`. In `DiagramView.tsx`, update the inner canvas flex slot from `relative flex-1 min-h-0 h-full w-full overflow-hidden` to `relative flex-1 min-h-0 w-full overflow-hidden`, resolving the flex column layout conflict between `flex-1` and `h-full` against sibling `FlowPlaybackBar`. Add regression tests in `DiagramView.test.tsx` and `BlockDiagramView.test.tsx` verifying that the Fit View button exists with `aria-label="Fit View"`, `title="Fit View"`, and dispatches without error.
+Why: When `fitViewOptions` is omitted on `<Controls />`, React Flow's `onFitViewHandler` invokes `fitView(undefined)`, which overrides the store's configured `fitViewOptions` and causes `@xyflow/system`'s `fitViewport` to fall back to `0.1` padding instead of the required `0.2` design-system padding. Concurrently, combining `h-full` and `flex-1` in `DiagramView` caused conflicting height constraints in CSS flexbox against `FlowPlaybackBar`. Providing explicit `fitViewOptions={{ padding: 0.2 }}` to `Controls` and normalizing the flex slot restores consistent 0.2-padded viewport reframing across both Architecture and Block diagram canvases.
+Alternatives considered:
+1. Adding a custom Fit View toolbar button outside React Flow: Rejected because React Flow's built-in `<Controls />` component is already integrated and styled; fixing prop forwarding is minimal and architecturally clean.
+2. Hardcoding padding inside xyflow internals: Rejected because node_modules must remain unmodified.
+If we removed it: Clicking the Fit View button on the diagram controls would reset the canvas to 0.1 padding instead of 0.2 or compute distorted bounds due to flex column height conflicts.
+Decided by: user approved Stage H2c scope
+Status: active
+
+### D-358 — Stage H2c — refactor — Restyle admin design inspection page with obsidian studio theme
+What: Restyle `apps/web/src/app/admin/designs/[id]/[n]/page.tsx` loading, error, token prompt, and authenticated inspection views to use `.studio-grid-bg`, `isolate`, `relative z-10` content wrapper, and `<StudioBackground showWaves={false} />`. Replace legacy `page-grid-bg` and glassmorphic translucent panels (`bg-card`, `bg-card/60`, `backdrop-blur-*`, `border-border/*`) with matte `bg-[#151517]`, `bg-[#161618]`, and `border-white/[0.09]` across headers, token prompt card, tabs, buttons, detail panels, user/audience card, and diagram wrappers. Keep Waves strictly disabled (`showWaves={false}`), preserving zero GPU shader overhead on admin routes. Update `apps/web/src/app/admin/designs/[id]/[n]/page.test.tsx` with non-empty studio styling guards (asserting `studio-grid-bg`, `isolate`, and `studio-corner-circuits` are present, `design-waves-layer` is absent, zero `<img>` tags, and no POST requests).
+Why: Brings the admin design version inspection interface into visual alignment with the new obsidian studio theme established in Stage H2a/H2b while strictly maintaining read-only admin security invariants (token in-memory, no POST mutation endpoints, no unnecessary WebGL2 Waves overhead).
+Alternatives considered:
+1. Enabling Waves on the admin page: Rejected per Stage H2c decisions; admin inspection requires clean, static, high-focus review without animation distraction.
+2. Leaving admin with legacy glassmorphism: Rejected to prevent visual fragmentation across user and admin workflows.
+If we removed it: The admin inspection page would remain on legacy styling with translucent linear grids and inconsistent card borders.
+Decided by: user approved Stage H2c scope
+Status: active
+

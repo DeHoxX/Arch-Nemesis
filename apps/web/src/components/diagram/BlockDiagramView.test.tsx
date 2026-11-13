@@ -1,5 +1,6 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { normalizeColorToHex } from "@/test/helpers";
@@ -200,6 +201,21 @@ describe("BlockDiagramView component", () => {
       />,
     );
     expect(screen.getByRole("region", { name: "Block Diagram" })).toBeDefined();
+  });
+
+  it("renders the Fit View controls button with accessible labels and handles click without error (D-357)", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<BlockDiagramView spec={mockSpec} />);
+
+    const fitViewBtn = container.querySelector(
+      ".react-flow__controls-button.react-flow__controls-fitview",
+    ) as HTMLButtonElement | null;
+
+    expect(fitViewBtn).not.toBeNull();
+    expect(fitViewBtn?.getAttribute("aria-label")?.toLowerCase()).toContain("fit view");
+    expect(fitViewBtn?.getAttribute("title")?.toLowerCase()).toContain("fit view");
+
+    await user.click(fitViewBtn!);
   });
 
   it("renders custom blockEdge edges with edge count matching spec.edges.length and unchanged node coordinates (Stage 1D, D-336)", () => {
