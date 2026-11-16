@@ -1,13 +1,62 @@
 """Schemas for intake API requests, responses, and LLM structured output."""
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from archnemesis.settings import get_settings
 from archnemesis.shared.brief import BriefNumber, RequirementBrief
 
 MAX_INPUT_CHARS: int = get_settings().max_input_chars
+
+
+class IntakeQuestion(BaseModel):
+    """Structured clarifying question with proactive suggestions."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    question: str = Field(min_length=1, max_length=200)
+    suggested_answer: str | None = Field(default=None)
+    options: list[str] = Field(default_factory=list)
+
+    @field_validator("suggested_answer", mode="before")
+    @classmethod
+    def clean_suggested_answer(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            return None
+        s = v.strip()
+        if not s or len(s) > 200:
+            return None
+        return s
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def clean_options(cls, v: Any) -> list[str]:
+        if not isinstance(v, list):
+            return []
+        cleaned: list[str] = []
+        for item in v:
+            if isinstance(item, str):
+                s = item.strip()
+                if 1 <= len(s) <= 60:
+                    cleaned.append(s)
+            if len(cleaned) == 3:
+                break
+        return cleaned
+
+
+def _coerce_questions_list(v: Any) -> Any:
+    if not isinstance(v, list):
+        return v
+    coerced: list[Any] = []
+    for item in v:
+        if isinstance(item, str):
+            coerced.append({"question": item})
+        else:
+            coerced.append(item)
+    return coerced
 
 
 class IntakeBriefLLM(BaseModel):
@@ -31,8 +80,13 @@ class IntakeLLMOutput(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     action: Literal["ask", "ready"]
-    questions: list[str] = Field(default_factory=list)
+    questions: list[IntakeQuestion] = Field(default_factory=list)
     brief: IntakeBriefLLM | None = None
+
+    @field_validator("questions", mode="before")
+    @classmethod
+    def coerce_questions(cls, v: Any) -> Any:
+        return _coerce_questions_list(v)
 
 
 class IntakeTurnRequest(BaseModel):
@@ -48,5 +102,10 @@ class IntakeTurnResponse(BaseModel):
     status: Literal["needs_info", "ready"]
     session_id: str
     round: int
-    questions: list[str] = Field(default_factory=list)
+    questions: list[IntakeQuestion] = Field(default_factory=list)
     brief: RequirementBrief | None = None
+
+    @field_validator("questions", mode="before")
+    @classmethod
+    def coerce_questions(cls, v: Any) -> Any:
+        return _coerce_questions_list(v)

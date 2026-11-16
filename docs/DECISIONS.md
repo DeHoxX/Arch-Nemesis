@@ -3797,4 +3797,49 @@ If we removed it: The manual Fit View button would remain visible in controls an
 Decided by: user
 Status: active
 
+### D-364 — Stage V3-1 — contract — IntakeQuestion structured object schema
+What: In `apps/api/src/archnemesis/modules/intake/schemas.py`, introduce the `IntakeQuestion` model with fields `question` (str, 1..200 chars, required), `suggested_answer` (optional str, max 200 chars), and `options` (list of str, 0..3 items, each 1..60 chars). Change `questions` field on `IntakeLLMOutput` and `IntakeTurnResponse` from `list[str]` to `list[IntakeQuestion]`. Update `docs/contracts.md` Section 5.1 to reflect question objects.
+Why: Transition intake follow-up questions from bare strings to structured items supporting proactive suggested baseline answers and common multiple-choice options, improving user onboarding velocity.
+Alternatives considered:
+1. Top-level parallel lists for suggestions and options: Rejected because questions, suggestions, and options share a 1:1 question-level lifecycle.
+If we removed it: The frontend would receive bare string questions without actionable baseline suggestions or options chips.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-365 — Stage V3-1 — prompt — intake_v3 proactive prompt with suggestions and untrusted boundaries
+What: Create `apps/api/src/archnemesis/prompts/intake_v3.md` retaining the exact text and `<untrusted_user_text>` quarantine block of `intake_v1.md`, updating the output format description to structured question objects, and appending the `SUGGESTIONS` section instructing the LLM to supply single-click default answers and 2..3 common options per question while enforcing Rule 4 (no cost/effort/timeline) and Rule 8 (no compliance guarantees).
+Why: Direct the LLM to actively suggest sensible defaults and structured choices during intake while rigorously isolating user inputs within untrusted tags.
+Alternatives considered:
+1. Mutating `intake_v1.md` in place: Rejected to preserve backwards compatibility and reproducible historical evals.
+If we removed it: The intake dialogue would continue asking open-ended questions without defaults or choices.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-366 — Stage V3-1 — design — Intake schema resilience for plain-string coercion and optional fields
+What: In `apps/api/src/archnemesis/modules/intake/schemas.py`, set `IntakeQuestion.model_config` to `extra="ignore"`. Add a pre-validator on `IntakeLLMOutput.questions` and `IntakeTurnResponse.questions` that coerces legacy plain strings into `{"question": str}`. In `IntakeQuestion`, sanitize `suggested_answer` by mapping empty strings or values exceeding 200 characters to `None`. For `options`, drop non-string or >60 character items and truncate the list to at most 3 items without failing. Preserve strict validation and repair retry for the mandatory `question` text (1..200 chars).
+Why: Guard against LLM variability in non-critical suggestion fields so minor formatting deviations do not trigger validation errors or unnecessary repair retries, while keeping strict validation on core architectural question content.
+Alternatives considered:
+1. Strict failure (`extra="forbid"`) on any suggestion schema deviation: Rejected because suggested answers and options are ergonomic enhancements, not structural graph constraints.
+If we removed it: Slight variations in LLM JSON output for optional suggestion fields would trigger 422 errors or repair loops.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-367 — Stage V3-1 — prompt — intake_forced_v2 prompt and forced brief assumption handling
+What: Create `apps/api/src/archnemesis/prompts/intake_forced_v2.md` containing the full text of `intake_forced_v1.md` plus a directive requiring values following `(no answer, assume: X)` in dialogue history to be synthesized into `brief.assumptions`. Update `archnemesis.modules.intake.service` to load `intake_forced_v2.md` upon reaching `MAX_INTAKE_ROUNDS`. Keep `intake_forced_v1.md` unchanged.
+Why: Guarantee that when the 3-round discovery limit is reached, any proactive defaults accepted by the user across previous turns are formally preserved in the generated brief's assumptions.
+Alternatives considered:
+1. Reusing `intake_forced_v1.md` without assumption directives: Rejected because the forced prompt would ignore dialogue assumption markers.
+If we removed it: Unanswered questions with default assumptions would be lost when discovery reaches the 3-round cap.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-368 — Stage V3-1 — design — Dialogue assumption mapping to brief.assumptions
+What: Standardize the handling of default suggestions such that user turns formatted as `A: (no answer, assume: X)` result in `X` being populated into `brief.assumptions`, without re-asking the question in subsequent turns. Direct user answers continue to populate explicit brief constraints and numbers.
+Why: Deliver the agreed user interaction rule: unanswered questions proactively take suggested values and become recorded assumptions, while typed answers take precedence.
+Alternatives considered:
+1. Backend regex parser extracting assumptions before passing to LLM: Rejected per Rule 1; the LLM designs structure and interprets context, guided by prompt rules and untrusted data tags.
+If we removed it: Unanswered questions would either remain open-ended or fail to appear in the architecture assumptions list.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
 

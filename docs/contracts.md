@@ -81,15 +81,23 @@ These live only in `settings.py` as environment-overridable settings, never as n
 A round represents a discrete interaction cycle in the discovery dialogue:
 - **Round Definition**: Each round begins with a user message and ends with an assistant response (either clarifying questions or a synthesized `RequirementBrief`).
 - **Round Cap**: `MAX_FOLLOWUP_ROUNDS = 3`. Once round 3 is reached, the system prompt instructs the assistant that this is the final turn and it MUST return a `RequirementBrief`. Further questions are strictly forbidden.
+- **Intake Dialogue Payload (`POST /api/intake/turn`)**:
+  - Request: `{ "session_id": string | null, "text": string (1..4000) }`
+  - Response: `{ "status": "needs_info" | "ready", "session_id": string, "round": int, "questions": list[IntakeQuestion], "brief": RequirementBrief | null }`
+  - `IntakeQuestion` object contract:
+    - `question`: `string` (1..200 characters, required)
+    - `suggested_answer`: `string | null` (optional sensible default, max 200 characters; empty or >200 chars becomes null)
+    - `options`: `list[string]` (0..3 items, each 1..60 characters; invalid or >60 char items dropped, extras beyond 3 dropped)
+  - Assumption mapping: If user submits `A: (no answer, assume: X)`, the assistant records `X` in `brief.assumptions`. Direct user replies populate standard brief constraints and `numbers_given`.
 
 #### Example Lifecycle Trace
 1. **Turn 1 (Round 1)**:
    - User: *"We need a customer support bot with ticket escalation."*
-   - Assistant (action: `ask`): Returns 3 concise questions regarding scale, ticket system APIs, and channels.
+   - Assistant (action: `ask`): Returns up to 3 structured questions with proactive suggested answers and options chips.
    - Status: `needs_info`, Round: 1.
 2. **Turn 2 (Round 2)**:
    - User: *"We use Zendesk, expect 1,000 tickets daily, web chat only."*
-   - Assistant (action: `ask`): Returns questions on auth and escalation policies.
+   - Assistant (action: `ask`): Returns structured questions on auth and escalation policies.
    - Status: `needs_info`, Round: 2.
 3. **Turn 3 (Round 3, Final)**:
    - User: *"Escalate to tier 2 after 2 failed attempts, single sign-on via OAuth2."*

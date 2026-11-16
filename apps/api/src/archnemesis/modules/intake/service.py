@@ -44,6 +44,32 @@ TRANSIENT_LLM_ERRORS = (
 )
 
 
+def _format_question_for_dialogue(q: Any) -> str:
+    if isinstance(q, str):
+        return q
+    if isinstance(q, dict):
+        base = q.get("question", "")
+        sug = q.get("suggested_answer")
+        opts = q.get("options")
+        parts = [base]
+        if sug:
+            parts.append(f"(Suggested: {sug})")
+        if opts:
+            parts.append(f"[Options: {', '.join(opts)}]")
+        return " ".join(parts)
+    if hasattr(q, "question"):
+        base = getattr(q, "question", "")
+        sug = getattr(q, "suggested_answer", None)
+        opts = getattr(q, "options", None)
+        parts = [base]
+        if sug:
+            parts.append(f"(Suggested: {sug})")
+        if opts:
+            parts.append(f"[Options: {', '.join(opts)}]")
+        return " ".join(parts)
+    return str(q)
+
+
 def _validate_llm_output(output: IntakeLLMOutput, must_be_ready: bool = False) -> tuple[bool, str]:
     """Validate intake LLM structured output. Returns (is_valid, reason)."""
     if output.action == "ask":
@@ -52,7 +78,7 @@ def _validate_llm_output(output: IntakeLLMOutput, must_be_ready: bool = False) -
         if not output.questions:
             return False, "Action is 'ask' but no questions were provided"
         for q in output.questions:
-            if len(q) > MAX_QUESTION_LENGTH:
+            if len(q.question) > MAX_QUESTION_LENGTH:
                 return False, f"Question exceeds maximum length of {MAX_QUESTION_LENGTH} characters"
         return True, ""
     elif output.action == "ready":
@@ -176,7 +202,7 @@ async def handle_turn(
         stored_rounds = 0
 
     # 4. Build dialogue prompt
-    system_prompt = load_prompt("intake_v1.md")
+    system_prompt = load_prompt("intake_v3.md")
     dialogue_lines: list[str] = []
     for turn in transcript:
         speaker = turn.get("speaker", "unknown")
@@ -186,7 +212,9 @@ async def handle_turn(
             )
         elif speaker == "assistant":
             if turn.get("questions"):
-                q_text = "\n".join(f"- {q}" for q in turn.get("questions", []))
+                q_text = "\n".join(
+                    f"- {_format_question_for_dialogue(q)}" for q in turn.get("questions", [])
+                )
                 dialogue_lines.append(f"Assistant (Questions):\n{q_text}")
             elif turn.get("summary"):
                 dialogue_lines.append(f"Assistant (Summary): {turn.get('summary', '')}")
@@ -231,7 +259,14 @@ async def handle_turn(
         new_rounds = stored_rounds + 1
         filtered_questions = output.questions[: settings.max_questions_per_round]
         transcript.append({"speaker": "user", "text": cleaned_text})
-        transcript.append({"speaker": "assistant", "questions": filtered_questions})
+        transcript.append(
+            {
+                "speaker": "assistant",
+                "questions": [
+                    q.model_dump() if hasattr(q, "model_dump") else q for q in filtered_questions
+                ],
+            }
+        )
         await repo.update_session(
             db=db,
             session=session,
@@ -249,8 +284,8 @@ async def handle_turn(
         )
 
     # Stored rounds reached MAX_INTAKE_ROUNDS (3) and LLM asked again:
-    # Trigger forced-brief call with intake_forced_v1.md system prompt.
-    forced_system_prompt = load_prompt("intake_forced_v1.md")
+    # Trigger forced-brief call with intake_forced_v2.md system prompt.
+    forced_system_prompt = load_prompt("intake_forced_v2.md")
     try:
         forced_output = await _invoke_intake_llm(
             llm=llm,
