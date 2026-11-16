@@ -130,6 +130,12 @@ export interface CreateDesignRequest {
   session_id: string;
 }
 
+export interface IntakeQuestion {
+  question: string;
+  suggested_answer?: string | null;
+  options?: string[];
+}
+
 export interface IntakeTurnRequest {
   session_id: string | null;
   text: string;
@@ -139,7 +145,7 @@ export interface IntakeTurnResponse {
   status: "needs_info" | "ready";
   session_id: string;
   round: number;
-  questions: string[];
+  questions: IntakeQuestion[];
   brief: RequirementBrief | null;
 }
 

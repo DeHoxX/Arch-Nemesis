@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { requirementBriefSchema } from "./api";
-import type { RequirementBrief } from "./types";
+import { intakeQuestionItemSchema, requirementBriefSchema } from "./api";
+import type { IntakeQuestion, RequirementBrief } from "./types";
 
 export const INTAKE_STORAGE_KEY = "archnemesis.intake.v1";
 export const INTAKE_STORAGE_MAX_BYTES = 512_000; // 500 KB cap to prevent quota exhaustion
@@ -9,14 +9,14 @@ export interface StoredChatMessage {
   id: string;
   sender: "user" | "assistant";
   text?: string;
-  questions?: string[];
+  questions?: IntakeQuestion[];
 }
 
 export const storedChatMessageSchema = z.object({
   id: z.string(),
   sender: z.enum(["user", "assistant"]),
   text: z.string().optional(),
-  questions: z.array(z.string()).optional(),
+  questions: z.array(intakeQuestionItemSchema).optional(),
 });
 
 export const storedFailedRequestSchema = z.object({

@@ -31,7 +31,17 @@ describe("intakeStorage", () => {
       inputText: "Draft input text",
       messages: [
         { id: "m1", sender: "user", text: "Hello" },
-        { id: "m2", sender: "assistant", questions: ["What is your SLA?"] },
+        {
+          id: "m2",
+          sender: "assistant",
+          questions: [
+            {
+              question: "What is your SLA?",
+              suggested_answer: null,
+              options: [],
+            },
+          ],
+        },
       ],
       brief: sampleBrief,
       designId: "design_xyz",
@@ -48,7 +58,9 @@ describe("intakeStorage", () => {
     expect(loaded?.sessionId).toBe("session_test_123");
     expect(loaded?.inputText).toBe("Draft input text");
     expect(loaded?.messages).toHaveLength(2);
-    expect(loaded?.messages?.[1]?.questions).toEqual(["What is your SLA?"]);
+    expect(loaded?.messages?.[1]?.questions).toEqual([
+      { question: "What is your SLA?", suggested_answer: null, options: [] },
+    ]);
     expect(loaded?.brief?.summary).toBe("Enterprise Policy Evaluator");
     expect(loaded?.designId).toBe("design_xyz");
     expect(loaded?.failedRequest).toEqual({
@@ -56,6 +68,70 @@ describe("intakeStorage", () => {
       message: "LLM service is currently unavailable. Please try again shortly.",
       text: "Draft input text",
     });
+  });
+
+  it("restores session with legacy plain string questions via schema union", () => {
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "legacy_session_2",
+        inputText: "",
+        messages: [
+          {
+            id: "m_legacy",
+            sender: "assistant",
+            questions: [
+              "What is your target QPS?",
+              "Which cloud provider do you deploy on?",
+            ],
+          },
+        ],
+        brief: null,
+      }),
+    );
+
+    const loaded = loadIntakeState();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.messages?.[0]?.questions).toEqual([
+      { question: "What is your target QPS?", suggested_answer: null, options: [] },
+      {
+        question: "Which cloud provider do you deploy on?",
+        suggested_answer: null,
+        options: [],
+      },
+    ]);
+  });
+
+  it("restores session with new structured question objects", () => {
+    saveIntakeState({
+      sessionId: "session_structured_1",
+      inputText: "",
+      messages: [
+        {
+          id: "m_struct",
+          sender: "assistant",
+          questions: [
+            {
+              question: "What volume?",
+              suggested_answer: "100 calls/day",
+              options: ["50", "100", "500"],
+            },
+          ],
+        },
+      ],
+      brief: null,
+    });
+
+    const loaded = loadIntakeState();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.messages?.[0]?.questions).toEqual([
+      {
+        question: "What volume?",
+        suggested_answer: "100 calls/day",
+        options: ["50", "100", "500"],
+      },
+    ]);
   });
 
   it("loads legacy v1 JSON without failedRequest cleanly (backward-compatible, D-348)", () => {

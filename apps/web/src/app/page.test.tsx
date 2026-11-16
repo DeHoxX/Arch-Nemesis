@@ -1213,4 +1213,231 @@ describe("HomePage Component", () => {
       expect(container.querySelectorAll("img")).toHaveLength(0);
     });
   });
+
+  describe("Stage V3-1 follow-up questions with suggestions", () => {
+    it("composes explicit A when chip or Use suggested answers is clicked", async () => {
+      const user = userEvent.setup();
+      let capturedPayload: string | null = null;
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        if (typeof url === "string" && url.includes("/api/intake/turn")) {
+          const body = JSON.parse(init?.body as string);
+          if (!capturedPayload && body.text === "Initial need") {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                status: "needs_info",
+                session_id: "sess_v3_1",
+                round: 1,
+                questions: [
+                  {
+                    question: "What is your volume?",
+                    suggested_answer: "100 req/sec",
+                    options: ["100 req/sec", "500 req/sec"],
+                  },
+                ],
+                brief: null,
+              }),
+            };
+          }
+          capturedPayload = body.text;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              status: "ready",
+              session_id: "sess_v3_1",
+              round: 2,
+              questions: [],
+              brief: {
+                summary: "System for 500 req/sec",
+                users: "Public",
+                data_involved: [],
+                domain_hint: "",
+                stated_constraints: [],
+                unverifiable_requirements: [],
+                numbers_given: [],
+                assumptions: [],
+              },
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      await user.type(textarea, "Initial need");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("What is your volume?")).toBeDefined();
+      });
+
+      // Click option chip "500 req/sec"
+      const chip = screen.getByRole("button", { name: "500 req/sec" });
+      await user.click(chip);
+
+      // Submit via Send answers
+      const sendAnswersBtn = screen.getByRole("button", { name: /send answers/i });
+      await user.click(sendAnswersBtn);
+
+      await waitFor(() => {
+        expect(capturedPayload).toBe("Q: What is your volume?\nA: 500 req/sec");
+      });
+    });
+
+    it("composes assume format when question left blank with suggestion", async () => {
+      const user = userEvent.setup();
+      let capturedPayload: string | null = null;
+
+      global.fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        if (typeof url === "string" && url.includes("/api/intake/turn")) {
+          const body = JSON.parse(init?.body as string);
+          if (!capturedPayload && body.text === "Initial need") {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                status: "needs_info",
+                session_id: "sess_v3_2",
+                round: 1,
+                questions: [
+                  {
+                    question: "What is your volume?",
+                    suggested_answer: "100 req/sec",
+                    options: ["100 req/sec", "500 req/sec"],
+                  },
+                ],
+                brief: null,
+              }),
+            };
+          }
+          capturedPayload = body.text;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              status: "ready",
+              session_id: "sess_v3_2",
+              round: 2,
+              questions: [],
+              brief: {
+                summary: "System for assumed 100 req/sec",
+                users: "Public",
+                data_involved: [],
+                domain_hint: "",
+                stated_constraints: [],
+                unverifiable_requirements: [],
+                numbers_given: [],
+                assumptions: ["100 req/sec"],
+              },
+            }),
+          };
+        }
+        return { ok: true, status: 200, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      await user.type(textarea, "Initial need");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("What is your volume?")).toBeDefined();
+      });
+
+      // Leave blank and directly submit answers
+      const sendAnswersBtn = screen.getByRole("button", { name: /send answers/i });
+      await user.click(sendAnswersBtn);
+
+      await waitFor(() => {
+        expect(capturedPayload).toBe(
+          "Q: What is your volume?\nA: (no answer, assume: 100 req/sec)"
+        );
+      });
+    });
+
+    it("blocks send when question has no suggestion and is left blank", async () => {
+      const user = userEvent.setup();
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "needs_info",
+          session_id: "sess_v3_3",
+          round: 1,
+          questions: [
+            {
+              question: "Which proprietary protocol is used?",
+              suggested_answer: null,
+              options: ["gRPC", "SOAP"],
+            },
+          ],
+          brief: null,
+        }),
+      } as unknown as Response);
+
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      await user.type(textarea, "Initial need");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Which proprietary protocol is used?")).toBeDefined();
+      });
+
+      // Submit without answering
+      const sendAnswersBtn = screen.getByRole("button", { name: /send answers/i });
+      await user.click(sendAnswersBtn);
+
+      // Alert appears with role="alert" naming the question
+      const alert = await screen.findByRole("alert");
+      expect(alert.textContent).toContain(
+        'Please provide an answer for: "Which proprietary protocol is used?"'
+      );
+    });
+
+    it("renders hostile suggestion strings as literal plain text", async () => {
+      const user = userEvent.setup();
+      const hostileString = '<img src=x onerror="alert(1)"> & <script>bad()</script>';
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "needs_info",
+          session_id: "sess_v3_4",
+          round: 1,
+          questions: [
+            {
+              question: hostileString,
+              suggested_answer: hostileString,
+              options: [hostileString],
+            },
+          ],
+          brief: null,
+        }),
+      } as unknown as Response);
+
+      const { container } = renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      await user.type(textarea, "Initial need");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => {
+        expect(screen.getAllByText(hostileString).length).toBeGreaterThan(0);
+      });
+
+      // No executable <script> or <img onerror> injected
+      expect(container.querySelectorAll("script")).toHaveLength(0);
+      expect(container.querySelectorAll("img[src='x']")).toHaveLength(0);
+    });
+  });
 });

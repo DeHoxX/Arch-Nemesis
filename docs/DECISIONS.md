@@ -3842,4 +3842,22 @@ If we removed it: Unanswered questions would either remain open-ended or fail to
 Decided by: user approved Stage V3-1 plan
 Status: active
 
+### D-369 — Stage V3-1 — design — Intake interactive question chips, answer-state resolution, and batch suggestion fill
+What: In `apps/web/src/components/home/QuestionAnswerGroup.tsx` and `apps/web/src/app/page.tsx`, implement structured follow-up question rendering using studio tokens (`bg-card`, `bg-secondary`, `bg-brand-accent`, `border-border`). Each question displays its text, clickable option chips with `aria-pressed`, a "Suggested" default pill, and an individual single-line inline input. Clicking "Use suggested answers" populates unanswered questions with their suggested answers as explicit selections. Typing into the inline input overrides chip selections. If an intake turn contains no suggestions or options across all questions, maintain the single bottom composer.
+Why: Gives users immediate one-click architectural baseline selections while preserving full custom typing capability and clear 1:1 question answer mapping.
+Alternatives considered:
+1. Routing custom typing exclusively through the global bottom textarea: Rejected to ensure unambiguous 1:1 association between typed text and the specific question.
+If we removed it: Intake questions would remain bare bullet text requiring manual multi-question typing.
+Decided by: user approved Stage V3-1 Stage 2 plan
+Status: active
+
+### D-370 — Stage V3-1 — design — Dual-mode turn payload composition, 4000-character overflow guard, and brief assumption badging
+What: In `apps/web/src/app/page.tsx`, compose question answers into the `POST /api/intake/turn` `text` payload following priority: typed text > clicked chip/suggested answer as explicit `"A: <value>"` > untouched question with suggestion as `"A: (no answer, assume: <suggestion>)"`. If a question lacks a suggestion and has no answer, block submission with an inline alert (`role="alert"`) naming the question. Guard total composed length against `MAX_INPUT_CHARS` (4000) from `types.ts`, disabling Send on overflow. In `apps/web/src/components/BriefCard.tsx`, render an `"Assumed"` badge (`bg-muted text-muted-foreground border border-border`) for all items in `brief.assumptions`. In `apps/web/src/lib/types.ts`, `api.ts`, and `intakeStorage.ts`, implement `IntakeQuestion` types and Zod union coercion (`z.union([z.string().transform(...), intakeQuestionSchema.transform(...)])`) under key `archnemesis.intake.v1`.
+Why: Enforces the agreed assumption mapping contract where unanswered questions default to architectural assumptions in the brief, protects against silent 4000-char truncation, and ensures backwards compatibility with existing sessions in sessionStorage.
+Alternatives considered:
+1. Trimming composed text silently at 4000 characters: Rejected because silent truncation could sever question/answer pairs.
+If we removed it: Default suggestions would not map into assumptions, and stored sessions would risk breaking schema validation.
+Decided by: user approved Stage V3-1 Stage 2 plan
+Status: active
+
 

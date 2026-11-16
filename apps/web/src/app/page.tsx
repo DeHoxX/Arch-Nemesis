@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -16,6 +16,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { BriefCard } from "@/components/BriefCard";
 import { LoadingOverlay } from "@/components/LoadingOverlay";
+import {
+  QuestionAnswerGroup,
+  type QuestionState,
+} from "@/components/home/QuestionAnswerGroup";
 import { StudioBackground } from "@/components/studio/StudioBackground";
 import { useStudioWavesGate } from "@/components/studio/useStudioWavesGate";
 import { ApiError, createDesign, sendIntakeTurn } from "@/lib/api";
@@ -87,6 +91,8 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
 
   // Client-side validation errors (e.g. char limit), distinct from retryable server failures
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [questionAnswers, setQuestionAnswers] = useState<Record<number, QuestionState>>({});
+  const [questionValidationError, setQuestionValidationError] = useState<string | null>(null);
 
   // Post-mount random 3 example prompts (before mount: 3 empty placeholder slots of identical height)
   const [randomPrompts, setRandomPrompts] = useState<ExamplePrompt[] | null>(null);
@@ -116,6 +122,8 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     onSuccess: (data, submittedText) => {
       setSessionId(data.session_id);
       setValidationError(null);
+      setQuestionValidationError(null);
+      setQuestionAnswers({});
       setFailedRequest(null);
       setInputText("");
 
@@ -250,6 +258,88 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
     const nextHeight = Math.min(el.scrollHeight, 160);
     el.style.height = `${nextHeight}px`;
   }, [inputText]);
+
+  const lastMsg = messages.length > 0 ? messages[messages.length - 1] : null;
+  const isLastMsgAssistantWithQuestions =
+    !brief &&
+    lastMsg?.sender === "assistant" &&
+    Boolean(lastMsg.questions && lastMsg.questions.length > 0);
+  const activeQuestions = isLastMsgAssistantWithQuestions ? (lastMsg?.questions ?? null) : null;
+  const hasInteractiveQuestions = Boolean(
+    activeQuestions &&
+      activeQuestions.length > 0 &&
+      activeQuestions.some(
+        (q) => Boolean(q.suggested_answer) || (q.options && q.options.length > 0)
+      )
+  );
+
+  const composedText = useMemo(() => {
+    if (!activeQuestions || activeQuestions.length === 0) return "";
+    const lines: string[] = [];
+    for (let i = 0; i < activeQuestions.length; i++) {
+      const q = activeQuestions[i];
+      if (!q) continue;
+      const custom = questionAnswers[i]?.customText?.trim();
+      const chip = questionAnswers[i]?.selectedChip;
+      let ans = "";
+      if (custom) {
+        ans = custom;
+      } else if (chip) {
+        ans = chip;
+      } else if (q.suggested_answer) {
+        ans = `(no answer, assume: ${q.suggested_answer})`;
+      }
+      lines.push(`Q: ${q.question}\nA: ${ans}`);
+    }
+    return lines.join("\n\n");
+  }, [activeQuestions, questionAnswers]);
+
+  const handleAnswerChange = useCallback((index: number, patch: Partial<QuestionState>) => {
+    setQuestionValidationError(null);
+    setQuestionAnswers((prev) => {
+      const current = prev[index] ?? { customText: "", selectedChip: null };
+      return {
+        ...prev,
+        [index]: { ...current, ...patch },
+      };
+    });
+  }, []);
+
+  const handleUseAllSuggestions = useCallback(() => {
+    if (!activeQuestions) return;
+    setQuestionValidationError(null);
+    setQuestionAnswers((prev) => {
+      const next = { ...prev };
+      activeQuestions.forEach((q, idx) => {
+        const current = next[idx];
+        if (!current?.customText?.trim() && !current?.selectedChip && q.suggested_answer) {
+          next[idx] = { customText: "", selectedChip: q.suggested_answer };
+        }
+      });
+      return next;
+    });
+  }, [activeQuestions]);
+
+  const handleSubmitQuestionAnswers = useCallback(() => {
+    if (!activeQuestions || activeQuestions.length === 0 || intakeMutation.isPending) return;
+
+    for (let i = 0; i < activeQuestions.length; i++) {
+      const q = activeQuestions[i];
+      if (!q) continue;
+      const custom = questionAnswers[i]?.customText?.trim();
+      const chip = questionAnswers[i]?.selectedChip;
+      if (!custom && !chip && !q.suggested_answer) {
+        setQuestionValidationError(`Please provide an answer for: "${q.question}"`);
+        return;
+      }
+    }
+
+    if (composedText.length > MAX_INPUT_CHARS) {
+      return;
+    }
+
+    intakeMutation.mutate(composedText);
+  }, [activeQuestions, questionAnswers, composedText, intakeMutation]);
 
   const handleSend = () => {
     if (intakeMutation.isPending) return;
@@ -523,39 +613,67 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
             </div>
 
             {/* Message Bubble History */}
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex flex-col ${
-                  msg.sender === "user" ? "items-end" : "items-start"
-                }`}
-              >
-                <span className="mb-1 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
-                  {msg.sender === "user" ? "You" : "Architect"}
-                </span>
+            {messages.map((msg, msgIdx) => {
+              const isLatestAssistant =
+                msg.sender === "assistant" &&
+                msgIdx === messages.length - 1 &&
+                !brief;
+              const showInteractive = isLatestAssistant && hasInteractiveQuestions;
+
+              return (
                 <div
-                  className={`max-w-[85%] break-words rounded-xl px-4 py-2.5 text-sm ${
-                    msg.sender === "user"
-                      ? "bg-brand-accent font-medium text-brand-accent-ink"
-                      : "border border-border bg-card text-foreground"
+                  key={msg.id}
+                  className={`flex flex-col ${
+                    msg.sender === "user" ? "items-end" : "items-start"
                   }`}
                 >
-                  {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
-                  {msg.questions && msg.questions.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        Please clarify the following:
-                      </p>
-                      <ul className="list-disc list-inside space-y-1">
-                        {msg.questions.map((q, idx) => (
-                          <li key={`q-${idx}`}>{q}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+                  <span className="mb-1 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+                    {msg.sender === "user" ? "You" : "Architect"}
+                  </span>
+                  <div
+                    className={`break-words rounded-xl px-4 py-2.5 text-sm ${
+                      showInteractive
+                        ? "w-full border border-border bg-card text-foreground"
+                        : msg.sender === "user"
+                          ? "max-w-[85%] bg-brand-accent font-medium text-brand-accent-ink"
+                          : "max-w-[85%] border border-border bg-card text-foreground"
+                    }`}
+                  >
+                    {msg.text && <p className="whitespace-pre-wrap">{msg.text}</p>}
+                    {msg.questions && msg.questions.length > 0 && (
+                      showInteractive ? (
+                        <div className="pt-1">
+                          <QuestionAnswerGroup
+                            questions={msg.questions}
+                            answers={questionAnswers}
+                            onAnswerChange={handleAnswerChange}
+                            onUseAllSuggestions={handleUseAllSuggestions}
+                            onSubmit={handleSubmitQuestionAnswers}
+                            isPending={intakeMutation.isPending}
+                            validationError={questionValidationError}
+                            composedLength={composedText.length}
+                            maxChars={MAX_INPUT_CHARS}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-xs font-medium text-muted-foreground">
+                            Please clarify the following:
+                          </p>
+                          <ul className="list-disc list-inside space-y-1">
+                            {msg.questions.map((q, idx) => (
+                              <li key={`q-${idx}`}>
+                                {typeof q === "string" ? q : q.question}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {/* Synthesized Brief Card (inline at the end of the message stream) */}
             {brief && (
@@ -619,7 +737,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       </div>
 
       {/* Docked Bottom Chat Input Bar (only visible when in active dialogue mode) */}
-      {hasMessagesOrBrief && (
+      {hasMessagesOrBrief && !hasInteractiveQuestions && (
         <div className="relative z-10 shrink-0 border-t border-border bg-page-bg px-4 py-3">
           <div className="mx-auto w-full max-w-2xl space-y-2">
             {/* Validation Error Alert */}

@@ -10,6 +10,7 @@ import type {
   DiffResult,
   Explanation,
   HealthData,
+  IntakeQuestion,
   IntakeTurnRequest,
   IntakeTurnResponse,
   MessagesResponse,
@@ -75,11 +76,26 @@ export const requirementBriefSchema = z.object({
   assumptions: z.array(z.string()).default([]),
 });
 
+export const intakeQuestionSchema = z.object({
+  question: z.string(),
+  suggested_answer: z.string().nullable().optional(),
+  options: z.array(z.string()).default([]).optional(),
+});
+
+export const intakeQuestionItemSchema = z.union([
+  z.string().transform((q): IntakeQuestion => ({ question: q, suggested_answer: null, options: [] })),
+  intakeQuestionSchema.transform((obj): IntakeQuestion => ({
+    question: obj.question,
+    suggested_answer: obj.suggested_answer ?? null,
+    options: obj.options ?? [],
+  })),
+]);
+
 export const intakeTurnResponseSchema = z.object({
   status: z.enum(["needs_info", "ready"]),
   session_id: z.string(),
   round: z.number(),
-  questions: z.array(z.string()).default([]),
+  questions: z.array(intakeQuestionItemSchema).default([]),
   brief: requirementBriefSchema.nullable().default(null),
 });
 

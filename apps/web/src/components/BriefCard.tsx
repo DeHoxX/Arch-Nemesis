@@ -124,10 +124,13 @@ export function BriefCard({
             <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
               Assumptions
             </h4>
-            <ul className="mt-1 list-disc list-inside space-y-0.5 text-foreground">
+            <ul className="mt-1 space-y-1.5 text-foreground">
               {brief.assumptions.map((a, idx) => (
-                <li key={`assumption-${idx}`} className="break-words">
-                  {a}
+                <li key={`assumption-${idx}`} className="flex items-start gap-2 break-words">
+                  <span className="inline-flex shrink-0 items-center rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Assumed
+                  </span>
+                  <span>{a}</span>
                 </li>
               ))}
             </ul>
