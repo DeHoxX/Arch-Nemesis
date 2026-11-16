@@ -65,67 +65,87 @@ export function QuestionAnswerGroup({
               </div>
 
               {/* Chips container (suggested answer + options) */}
-              {(q.suggested_answer || (q.options && q.options.length > 0)) && (
-                <div className="flex flex-wrap gap-1.5 pt-0.5">
-                  {/* Suggested Answer Chip */}
-                  {q.suggested_answer && (
-                    <button
-                      type="button"
-                      aria-pressed={
-                        !hasCustomText && state.selectedChip === q.suggested_answer
-                      }
-                      onClick={() => {
-                        const isCurrent =
-                          !hasCustomText && state.selectedChip === q.suggested_answer;
-                        onAnswerChange(idx, {
-                          selectedChip: isCurrent ? null : q.suggested_answer,
-                          customText: "",
-                        });
-                      }}
-                      disabled={isPending}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                        !hasCustomText && state.selectedChip === q.suggested_answer
-                          ? "border-brand-accent bg-brand-accent font-medium text-brand-accent-ink"
-                          : "border-border bg-secondary text-secondary-foreground hover:bg-muted"
-                      )}
-                    >
-                      <span className="rounded border border-border bg-muted px-1 py-0.2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
-                        Suggested
-                      </span>
-                      <span>{q.suggested_answer}</span>
-                    </button>
-                  )}
+              {(() => {
+                const suggestedTrimmed = q.suggested_answer?.trim();
+                const seen = new Set<string>();
+                if (suggestedTrimmed) {
+                  seen.add(suggestedTrimmed.toLowerCase());
+                }
 
-                  {/* Option Chips */}
-                  {q.options?.map((opt, optIdx) => {
-                    const isSelected =
-                      !hasCustomText && state.selectedChip === opt;
-                    return (
+                const filteredOptions = (q.options ?? []).filter((opt) => {
+                  const trimmed = opt.trim();
+                  if (!trimmed) return false;
+                  const lower = trimmed.toLowerCase();
+                  if (seen.has(lower)) return false;
+                  seen.add(lower);
+                  return true;
+                });
+
+                const hasChips = Boolean(q.suggested_answer) || filteredOptions.length > 0;
+                if (!hasChips) return null;
+
+                return (
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {/* Suggested Answer Chip */}
+                    {q.suggested_answer && (
                       <button
-                        key={`opt-${idx}-${optIdx}`}
                         type="button"
-                        aria-pressed={isSelected}
+                        aria-pressed={
+                          !hasCustomText && state.selectedChip === q.suggested_answer
+                        }
                         onClick={() => {
+                          const isCurrent =
+                            !hasCustomText && state.selectedChip === q.suggested_answer;
                           onAnswerChange(idx, {
-                            selectedChip: isSelected ? null : opt,
+                            selectedChip: isCurrent ? null : q.suggested_answer,
                             customText: "",
                           });
                         }}
                         disabled={isPending}
                         className={cn(
-                          "inline-flex items-center rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                          isSelected
+                          "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                          !hasCustomText && state.selectedChip === q.suggested_answer
                             ? "border-brand-accent bg-brand-accent font-medium text-brand-accent-ink"
                             : "border-border bg-secondary text-secondary-foreground hover:bg-muted"
                         )}
                       >
-                        {opt}
+                        <span className="rounded border border-border bg-muted px-1 py-0.2 font-mono text-[9px] uppercase tracking-wider text-muted-foreground">
+                          Suggested
+                        </span>
+                        <span>{q.suggested_answer}</span>
                       </button>
-                    );
-                  })}
-                </div>
-              )}
+                    )}
+
+                    {/* Option Chips */}
+                    {filteredOptions.map((opt, optIdx) => {
+                      const isSelected =
+                        !hasCustomText && state.selectedChip === opt;
+                      return (
+                        <button
+                          key={`opt-${idx}-${optIdx}`}
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => {
+                            onAnswerChange(idx, {
+                              selectedChip: isSelected ? null : opt,
+                              customText: "",
+                            });
+                          }}
+                          disabled={isPending}
+                          className={cn(
+                            "inline-flex items-center rounded-md border px-2.5 py-1 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+                            isSelected
+                              ? "border-brand-accent bg-brand-accent font-medium text-brand-accent-ink"
+                              : "border-border bg-secondary text-secondary-foreground hover:bg-muted"
+                          )}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Single-line custom input */}
               <div className="pt-1">

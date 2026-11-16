@@ -3860,4 +3860,13 @@ If we removed it: Default suggestions would not map into assumptions, and stored
 Decided by: user approved Stage V3-1 Stage 2 plan
 Status: active
 
+### D-371 — Stage V3-1 — fix — Filter duplicate chips in QuestionAnswerGroup
+What: In `apps/web/src/components/home/QuestionAnswerGroup.tsx`, filter `q.options` before rendering option chips: trim and case-insensitively deduplicate entries against each other and against `q.suggested_answer`. If an option matches `q.suggested_answer`, omit the redundant option chip and show only the "Suggested" chip. Maintain selection state, batch suggestion fill, and composed text payloads unchanged.
+Why: LLM generation frequently returns the suggested default as the first item in the options array. Deduplicating chips per question prevents redundant UI buttons while preserving exact answer values.
+Alternatives considered:
+1. Backend schema validator rejecting duplicate options: Rejected because Gemini's output format is non-deterministic and suggestions in options are semantically valid choices.
+If we removed it: Users see duplicate chips for the same architectural choice on the intake card.
+Decided by: user
+Status: active
+
 

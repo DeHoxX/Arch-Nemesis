@@ -128,4 +128,67 @@ describe("QuestionAnswerGroup", () => {
     await user.keyboard(" ");
     expect(gcpChip.getAttribute("aria-pressed")).toBe("false");
   });
+
+  it("suggested equals options[0] shows one chip (D-371)", () => {
+    const questions: IntakeQuestion[] = [
+      {
+        question: "Select channel:",
+        suggested_answer: "Email, Web Chat, and API",
+        options: ["Email, Web Chat, and API", "Web Chat only"],
+      },
+    ];
+    render(<TestHarness questions={questions} />);
+
+    // Should only have one chip with "Email, Web Chat, and API" (the Suggested one)
+    const chips = screen.getAllByRole("button", { name: /Email, Web Chat, and API/i });
+    expect(chips).toHaveLength(1);
+    expect(screen.getByText("Suggested")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Web Chat only" })).toBeDefined();
+  });
+
+  it("case/whitespace variant of suggested in options is deduped (D-371)", () => {
+    const questions: IntakeQuestion[] = [
+      {
+        question: "Select volume:",
+        suggested_answer: "50 concurrent agents",
+        options: ["  50 Concurrent Agents  ", "100 concurrent agents"],
+      },
+    ];
+    render(<TestHarness questions={questions} />);
+
+    const chips = screen.getAllByRole("button", { name: /50 concurrent agents/i });
+    expect(chips).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "100 concurrent agents" })).toBeDefined();
+  });
+
+  it("duplicate options inside options array itself are deduped (D-371)", () => {
+    const questions: IntakeQuestion[] = [
+      {
+        question: "Database choice:",
+        suggested_answer: "PostgreSQL",
+        options: ["DynamoDB", "  dynamodb  ", "MongoDB"],
+      },
+    ];
+    render(<TestHarness questions={questions} />);
+
+    const dynamoChips = screen.getAllByRole("button", { name: /DynamoDB/i });
+    expect(dynamoChips).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "MongoDB" })).toBeDefined();
+    expect(screen.getByRole("button", { name: /Suggested PostgreSQL/i })).toBeDefined();
+  });
+
+  it("suggestion not in options still shows both suggestion and options (D-371)", () => {
+    const questions: IntakeQuestion[] = [
+      {
+        question: "Hosting model:",
+        suggested_answer: "Managed Serverless",
+        options: ["Self-hosted Kubernetes", "Dedicated VMs"],
+      },
+    ];
+    render(<TestHarness questions={questions} />);
+
+    expect(screen.getByRole("button", { name: /Suggested Managed Serverless/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Self-hosted Kubernetes" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Dedicated VMs" })).toBeDefined();
+  });
 });
