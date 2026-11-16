@@ -3869,4 +3869,28 @@ If we removed it: Users see duplicate chips for the same architectural choice on
 Decided by: user
 Status: active
 
+### D-372 — Stage V3-2 — design — Left-to-right horizontal diagram layout and orthogonal edge routing
+What: Switch the DAG layout engine in `apps/web/src/components/diagram/layout.ts` and React Flow canvases from top-to-bottom (`TB`) to left-to-right (`LR`):
+1. Define shared `DIAGRAM_RANKDIR: "TB" | "LR" = "LR"` and set Dagre `rankdir: DIAGRAM_RANKDIR`.
+2. Increase `MIN_RANKSEP` from 110 to 190 to guarantee horizontal clearance for edge labels up to 168px total width (150px text + 16px padding + 2px border) with >= 11px margin on both sides (exceeding the >= 8px node clearance constraint). Keep `NODESEP = 50`.
+3. In `BlockDiagramView.tsx`, `DiagramView.tsx`, `BlockNode.tsx`, and `DiagramNode.tsx`, update handles from `Position.Top` (target) and `Position.Bottom` (source) to `Position.Left` (target at `x: 0, y: height / 2`) and `Position.Right` (source at `x: width, y: height / 2`).
+4. Re-engineer `computeEdgeLabelLayout` for horizontal flow:
+   - Calculate `pStart` at the right edge center of source (`x: src.x + src.width, y: src.y + src.height / 2`) and `pEnd` at the left edge center of target (`x: tgt.x, y: tgt.y + tgt.height / 2`).
+   - Sibling sorting: sort outgoing siblings ascending by `target.position.y` (top-to-bottom) and incoming siblings ascending by `source.position.y` (top-to-bottom).
+   - Compute vertical transition riser `shelfX` along the horizontal gap `deltaX = pEnd.x - pStart.x` bounded between `pStart.x + 16` and `pEnd.x - 16`.
+   - Multi-rank routing: interpolate through Dagre's intermediate waypoints using horizontal-first segments to route around intervening nodes.
+   - Sibling candidate label anchors: anchor along target horizontal stubs for fan-outs (where parallel targets are separated vertically along Y by >= 130px) and source horizontal stubs for fan-ins.
+5. In `DiagramView.tsx` and `BlockDiagramView.tsx`, relax `minZoom` from 0.3 to 0.2 to allow `fitView` to fit deep horizontal graphs (8-10 ranks, up to 25 nodes) on 1080p viewports without initial horizontal clipping.
+Why: The user requested a left-to-right visual reading flow for both the Architecture and Block diagram tabs. In LR, ranks advance horizontally along X and parallel nodes stack vertically along Y, aligning with natural Western reading order and modern architectural block flow conventions.
+Supersedes:
+- Partly supersedes D-187: replaces `rankdir: "TB"` with `rankdir: "LR"` and replaces `Position.Top`/`Position.Bottom` handles with `Position.Left`/`Position.Right`. Node width 240px and dynamic height calculations from D-187 remain active and unchanged.
+- Partly supersedes D-189: replaces `MIN_RANKSEP = 110` (vertical clearance) with `MIN_RANKSEP = 190` (horizontal clearance for 168px labels) and replaces vertical column divergence with horizontal rank divergence. The >= 8px node clearance and >= 4px label clearance collision checking from D-189 remain active and unchanged.
+Alternatives considered:
+1. Per-view layout configurations: Rejected because both views share the same topological DAG semantics and keeping them unified ensures identical node positions when switching tabs.
+2. Maintaining `MIN_RANKSEP = 110`: Rejected because labels up to 168px wide would collide with adjacent node rectangles along the horizontal rank axis.
+If we removed it: Diagram flow would remain vertical (top-to-bottom).
+Decided by: user approved (Stage V3-2 plan)
+Status: active
+
+
 

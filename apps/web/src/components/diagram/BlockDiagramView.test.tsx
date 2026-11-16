@@ -65,6 +65,14 @@ describe("BlockDiagramView component", () => {
     expect(screen.getByText("[Exit]")).toBeDefined();
   });
 
+  it("renders node handles oriented Left for target and Right for source", () => {
+    const { container } = render(<BlockDiagramView spec={mockSpec} />);
+    const leftHandles = container.querySelectorAll('[data-handlepos="left"]');
+    const rightHandles = container.querySelectorAll('[data-handlepos="right"]');
+    expect(leftHandles.length).toBeGreaterThan(0);
+    expect(rightHandles.length).toBeGreaterThan(0);
+  });
+
   it("omits edge flow label text from the canvas", () => {
     render(<BlockDiagramView spec={mockSpec} />);
 

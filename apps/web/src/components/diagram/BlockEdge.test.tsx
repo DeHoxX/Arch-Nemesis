@@ -25,8 +25,8 @@ function renderBlockEdge({
           sourceY={50}
           targetX={200}
           targetY={150}
-          sourcePosition={Position.Bottom}
-          targetPosition={Position.Top}
+          sourcePosition={Position.Right}
+          targetPosition={Position.Left}
           data={data}
           style={style}
         />

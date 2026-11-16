@@ -179,7 +179,7 @@ export function DiagramNode({
 
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         className="size-1.5 border-none bg-muted-foreground/60"
         aria-hidden="true"
       />
@@ -319,7 +319,7 @@ export function DiagramNode({
 
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Right}
         className="size-1.5 border-none bg-muted-foreground/60"
         aria-hidden="true"
       />

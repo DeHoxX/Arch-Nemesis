@@ -79,18 +79,18 @@ export function BlockDiagramView({
         {
           id: null,
           type: "target",
-          position: Position.Top,
-          x: pn.width / 2,
-          y: 0,
+          position: Position.Left,
+          x: 0,
+          y: pn.height / 2,
           width: 6,
           height: 6,
         },
         {
           id: null,
           type: "source",
-          position: Position.Bottom,
-          x: pn.width / 2,
-          y: pn.height,
+          position: Position.Right,
+          x: pn.width,
+          y: pn.height / 2,
           width: 6,
           height: 6,
         },
@@ -159,7 +159,7 @@ export function BlockDiagramView({
         elementsSelectable={false}
         panOnDrag={true}
         zoomOnScroll={true}
-        minZoom={0.3}
+        minZoom={0.2}
         maxZoom={1.5}
         fitView
         fitViewOptions={{ padding: 0.2 }}

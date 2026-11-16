@@ -131,8 +131,8 @@ describe("DiagramEdge component", () => {
             sourceY={50}
             targetX={200}
             targetY={150}
-            sourcePosition={Position.Bottom}
-            targetPosition={Position.Top}
+            sourcePosition={Position.Right}
+            targetPosition={Position.Left}
             data={{ flows: "fallback stream" }}
           />
         </svg>

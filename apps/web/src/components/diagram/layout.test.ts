@@ -23,6 +23,12 @@ import {
   RECT_MIN_HEIGHT,
 } from "./layout";
 
+// Guaranteed clearance constants defined from layout.ts engine (layout.ts:310, 585, 594)
+// Node clearance: minimum 8px margin from node rectangles (rectsIntersect pad=8)
+export const MIN_LABEL_NODE_CLEARANCE_PX = 8;
+// Label clearance: minimum 4px margin between label rectangles (rectsIntersect pad=4)
+export const MIN_LABEL_LABEL_CLEARANCE_PX = 4;
+
 function makeNode(id: string, name: string): NodeSpec {
   return {
     id,
@@ -67,7 +73,7 @@ function checkNoOverlaps(
   }
 }
 
-describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
+describe("computeLayout DAG layout engine (Left-to-Right LR)", () => {
   it("positions nodes without overlapping boxes and connects every edge endpoint", () => {
     const spec: ArchitectureSpec = {
       nodes: [
@@ -111,15 +117,15 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       expect(typeof tgt?.position.x).toBe("number");
     }
 
-    // Top-to-bottom monotonicity: y(client) < y(gateway) < y(worker) < y(db)
+    // Left-to-right monotonicity: x(client) < x(gateway) < x(worker) < x(db)
     const client = nodeMap.get("client")!;
     const gateway = nodeMap.get("gateway")!;
     const worker = nodeMap.get("worker")!;
     const db = nodeMap.get("db")!;
 
-    expect(client.position.y).toBeLessThan(gateway.position.y);
-    expect(gateway.position.y).toBeLessThan(worker.position.y);
-    expect(worker.position.y).toBeLessThan(db.position.y);
+    expect(client.position.x).toBeLessThan(gateway.position.x);
+    expect(gateway.position.x).toBeLessThan(worker.position.x);
+    expect(worker.position.x).toBeLessThan(db.position.x);
   });
 
   it("produces deterministic output across repeated runs regardless of input node ordering", () => {
@@ -193,14 +199,14 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
     const branchB = nodeMap.get("branch_b")!;
     const sink = nodeMap.get("sink")!;
 
-    expect(src.position.y).toBeLessThan(branchA.position.y);
-    expect(src.position.y).toBeLessThan(branchB.position.y);
-    expect(branchA.position.y).toBeLessThan(sink.position.y);
-    expect(branchB.position.y).toBeLessThan(sink.position.y);
+    expect(src.position.x).toBeLessThan(branchA.position.x);
+    expect(src.position.x).toBeLessThan(branchB.position.x);
+    expect(branchA.position.x).toBeLessThan(sink.position.x);
+    expect(branchB.position.x).toBeLessThan(sink.position.x);
 
-    // branch_a and branch_b share vertical rank but must not overlap horizontally
-    expect(Math.abs(branchA.position.x - branchB.position.x)).toBeGreaterThanOrEqual(
-      NODE_WIDTH,
+    // branch_a and branch_b share horizontal rank but must not overlap vertically
+    expect(Math.abs(branchA.position.y - branchB.position.y)).toBeGreaterThanOrEqual(
+      RECT_MIN_HEIGHT,
     );
   });
 
@@ -233,18 +239,18 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
     const normalizer = nodeMap.get("normalizer")!;
     const storage = nodeMap.get("storage")!;
 
-    expect(webhook.position.y).toBeLessThan(normalizer.position.y);
-    expect(batch.position.y).toBeLessThan(normalizer.position.y);
-    expect(normalizer.position.y).toBeLessThan(storage.position.y);
+    expect(webhook.position.x).toBeLessThan(normalizer.position.x);
+    expect(batch.position.x).toBeLessThan(normalizer.position.x);
+    expect(normalizer.position.x).toBeLessThan(storage.position.x);
 
-    // The two entry nodes must have horizontal clearance
-    expect(Math.abs(webhook.position.x - batch.position.x)).toBeGreaterThanOrEqual(
-      NODE_WIDTH,
+    // The two entry nodes must have vertical clearance
+    expect(Math.abs(webhook.position.y - batch.position.y)).toBeGreaterThanOrEqual(
+      RECT_MIN_HEIGHT,
     );
   });
 
   describe("Dynamic rank separation based on edge label width", () => {
-    it("keeps gap at MIN_RANKSEP (110px) for short labels (1-2 words)", () => {
+    it("keeps gap at MIN_RANKSEP (190px) for short labels (1-2 words)", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [{ from: "src", to: "tgt", flows: "auth" }],
@@ -257,15 +263,15 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       const src = layout.nodes.find((n) => n.id === "src")!;
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
 
-      const gap = tgt.position.y - (src.position.y + src.height);
+      const gap = tgt.position.x - (src.position.x + src.width);
       expect(gap).toBe(MIN_RANKSEP);
-      expect(gap).toBe(110);
+      expect(gap).toBe(190);
 
       const labelWidth = estimateLabelWidth("auth");
       expect(labelWidth).toBeLessThanOrEqual(MIN_RANKSEP);
     });
 
-    it("keeps gap at MIN_RANKSEP (110px) when flows text is empty or missing", () => {
+    it("keeps gap at MIN_RANKSEP (190px) when flows text is empty or missing", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [{ from: "src", to: "tgt", flows: "" }],
@@ -278,13 +284,13 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       const src = layout.nodes.find((n) => n.id === "src")!;
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
 
-      const gap = tgt.position.y - (src.position.y + src.height);
+      const gap = tgt.position.x - (src.position.x + src.width);
       expect(gap).toBe(MIN_RANKSEP);
-      expect(gap).toBe(110);
+      expect(gap).toBe(190);
       expect(estimateLabelWidth("")).toBe(0);
     });
 
-    it("expands rank gap for labels wider than 110px so label does not intersect node rectangles", () => {
+    it("guarantees rank gap at MIN_RANKSEP (190px) providing >= 11px margin for 168px maximum width labels", () => {
       const flows = "Article Snippets";
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
@@ -300,10 +306,11 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
 
       const labelWidth = estimateLabelWidth(flows);
       expect(labelWidth).toBe(130);
-      expect(labelWidth).toBeGreaterThan(MIN_RANKSEP);
+      expect(labelWidth).toBeLessThanOrEqual(MIN_RANKSEP);
 
-      const gap = tgt.position.y - (src.position.y + src.height);
-      expect(gap).toBeGreaterThan(MIN_RANKSEP);
+      const gap = tgt.position.x - (src.position.x + src.width);
+      expect(gap).toBe(MIN_RANKSEP);
+      expect(gap).toBe(190);
       checkNoOverlaps(layout.nodes);
     });
 
@@ -353,13 +360,13 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       const b2 = nodeMap.get("b2")!;
       const sink = nodeMap.get("sink")!;
 
-      expect(src.position.y).toBeLessThan(b1.position.y);
-      expect(src.position.y).toBeLessThan(b2.position.y);
-      expect(b1.position.y).toBeLessThan(sink.position.y);
-      expect(b2.position.y).toBeLessThan(sink.position.y);
+      expect(src.position.x).toBeLessThan(b1.position.x);
+      expect(src.position.x).toBeLessThan(b2.position.x);
+      expect(b1.position.x).toBeLessThan(sink.position.x);
+      expect(b2.position.x).toBeLessThan(sink.position.x);
 
-      // Verify horizontal separation between branches
-      expect(Math.abs(b1.position.x - b2.position.x)).toBeGreaterThanOrEqual(NODE_WIDTH);
+      // Verify vertical separation between branches
+      expect(Math.abs(b1.position.y - b2.position.y)).toBeGreaterThanOrEqual(RECT_MIN_HEIGHT);
     });
 
     it("handles edges that skip a rank without covering passed nodes", () => {
@@ -387,8 +394,8 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       const n2 = layout.nodes.find((n) => n.id === "n2")!;
       const n3 = layout.nodes.find((n) => n.id === "n3")!;
 
-      expect(n1.position.y).toBeLessThan(n2.position.y);
-      expect(n2.position.y).toBeLessThan(n3.position.y);
+      expect(n1.position.x).toBeLessThan(n2.position.x);
+      expect(n2.position.x).toBeLessThan(n3.position.x);
     });
 
     it("correctly handles wide and CJK characters in estimateLabelWidth capped at max width", () => {
@@ -853,17 +860,17 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       const src = layout.nodes.find((n) => n.id === "src")!;
       const tgt = layout.nodes.find((n) => n.id === "tgt")!;
 
-      const labelTop = edge.labelY - edge.labelHeight / 2;
-      const labelBottom = edge.labelY + edge.labelHeight / 2;
-      const srcBottom = src.position.y + src.height;
-      const tgtTop = tgt.position.y;
+      const labelLeft = edge.labelX - edge.labelWidth / 2;
+      const labelRight = edge.labelX + edge.labelWidth / 2;
+      const srcRight = src.position.x + src.width;
+      const tgtLeft = tgt.position.x;
 
       // Assert clearance >= 8px
-      expect(labelTop - srcBottom).toBeGreaterThanOrEqual(8);
-      expect(tgtTop - labelBottom).toBeGreaterThanOrEqual(8);
+      expect(labelLeft - srcRight).toBeGreaterThanOrEqual(MIN_LABEL_NODE_CLEARANCE_PX);
+      expect(tgtLeft - labelRight).toBeGreaterThanOrEqual(MIN_LABEL_NODE_CLEARANCE_PX);
     });
 
-    it("separates parallel edges between the exact same pair of nodes", () => {
+    it("separates parallel edges between the exact same pair of nodes (LR vertical channel separation)", () => {
       const spec: ArchitectureSpec = {
         nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
         edges: [
@@ -880,12 +887,84 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
       const e1 = layout.edges[0]!;
       const e2 = layout.edges[1]!;
 
-      // Distinct paths and distinct label coordinates
+      // Distinct paths (no identical segment overlap)
       expect(e1.pathD).not.toBe(e2.pathD);
-      // layout.ts:409 sets lateral offset step to 36px (parallelOffsetIdx * 36).
-      // For mParallel = 2 (offsetIdx -0.5 and +0.5), segment-anchored candidate selection
-      // produces an exact 27px X separation (0.75 * 36px) with distinct vertical staggered shelves.
-      expect(Math.abs(e1.labelX - e2.labelX)).toBeGreaterThanOrEqual(27);
+
+      // In LR horizontal layout, parallel edges diverge vertically along Y into distinct channels
+      // (pathYOffset = parallelOffsetIdx * 36px).
+      // Assert label bounding boxes do not overlap with >= MIN_LABEL_LABEL_CLEARANCE_PX (4px) clearance
+      const r1 = {
+        left: e1.labelX - e1.labelWidth / 2,
+        right: e1.labelX + e1.labelWidth / 2,
+        top: e1.labelY - e1.labelHeight / 2,
+        bottom: e1.labelY + e1.labelHeight / 2,
+      };
+      const r2 = {
+        left: e2.labelX - e2.labelWidth / 2,
+        right: e2.labelX + e2.labelWidth / 2,
+        top: e2.labelY - e2.labelHeight / 2,
+        bottom: e2.labelY + e2.labelHeight / 2,
+      };
+
+      const overlapX =
+        r1.left < r2.right + MIN_LABEL_LABEL_CLEARANCE_PX &&
+        r1.right > r2.left - MIN_LABEL_LABEL_CLEARANCE_PX;
+      const overlapY =
+        r1.top < r2.bottom + MIN_LABEL_LABEL_CLEARANCE_PX &&
+        r1.bottom > r2.top - MIN_LABEL_LABEL_CLEARANCE_PX;
+      expect(overlapX && overlapY, "Parallel edge labels must clear each other by >= 4px").toBe(false);
+
+      // Vertical separation between parallel edge label centers
+      expect(Math.abs(e1.labelY - e2.labelY)).toBeGreaterThanOrEqual(36);
+    });
+
+    it("separates 3 parallel edges between the exact same pair of nodes without path or label collision", () => {
+      const spec: ArchitectureSpec = {
+        nodes: [makeNode("src", "Source"), makeNode("tgt", "Target")],
+        edges: [
+          { from: "src", to: "tgt", flows: "Channel Alpha" },
+          { from: "src", to: "tgt", flows: "Channel Beta" },
+          { from: "src", to: "tgt", flows: "Channel Gamma" },
+        ],
+        constraints: [],
+        entry_ids: ["src"],
+        exit_ids: ["tgt"],
+      };
+
+      const layout = computeLayout(spec);
+      expect(layout.edges).toHaveLength(3);
+
+      // All 3 paths must be pairwise distinct
+      const paths = layout.edges.map((e) => e.pathD);
+      expect(new Set(paths).size).toBe(3);
+
+      // All 3 labels must be pairwise non-overlapping with >= MIN_LABEL_LABEL_CLEARANCE_PX (4px)
+      for (let i = 0; i < layout.edges.length; i++) {
+        for (let j = i + 1; j < layout.edges.length; j++) {
+          const a = layout.edges[i]!;
+          const b = layout.edges[j]!;
+          const aRect = {
+            left: a.labelX - a.labelWidth / 2,
+            right: a.labelX + a.labelWidth / 2,
+            top: a.labelY - a.labelHeight / 2,
+            bottom: a.labelY + a.labelHeight / 2,
+          };
+          const bRect = {
+            left: b.labelX - b.labelWidth / 2,
+            right: b.labelX + b.labelWidth / 2,
+            top: b.labelY - b.labelHeight / 2,
+            bottom: b.labelY + b.labelHeight / 2,
+          };
+
+          const overlapX =
+            aRect.left < bRect.right + MIN_LABEL_LABEL_CLEARANCE_PX &&
+            aRect.right > bRect.left - MIN_LABEL_LABEL_CLEARANCE_PX;
+          const overlapY =
+            aRect.top < bRect.bottom + MIN_LABEL_LABEL_CLEARANCE_PX &&
+            aRect.bottom > bRect.top - MIN_LABEL_LABEL_CLEARANCE_PX;
+          expect(overlapX && overlapY, `Parallel labels '${a.id}' and '${b.id}' collide!`).toBe(false);
+        }
+      }
     });
 
     it("preserves determinism across shuffled edge input ordering", () => {
@@ -1268,11 +1347,42 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
             bottom: b.labelY + b.labelHeight / 2,
           };
 
-          const overlapX = aRect.left < bRect.right + 4 && aRect.right > bRect.left - 4;
-          const overlapY = aRect.top < bRect.bottom + 4 && aRect.bottom > bRect.top - 4;
+          const overlapX =
+            aRect.left < bRect.right + MIN_LABEL_LABEL_CLEARANCE_PX &&
+            aRect.right > bRect.left - MIN_LABEL_LABEL_CLEARANCE_PX;
+          const overlapY =
+            aRect.top < bRect.bottom + MIN_LABEL_LABEL_CLEARANCE_PX &&
+            aRect.bottom > bRect.top - MIN_LABEL_LABEL_CLEARANCE_PX;
           expect(
             overlapX && overlapY,
             `25-node labels '${a.id}' and '${b.id}' collide!`,
+          ).toBe(false);
+        }
+      }
+
+      // Check all labels clear all nodes >= MIN_LABEL_NODE_CLEARANCE_PX (8px) on 25-node spec
+      for (const edge of labeled) {
+        const lRect = {
+          left: edge.labelX - edge.labelWidth / 2,
+          right: edge.labelX + edge.labelWidth / 2,
+          top: edge.labelY - edge.labelHeight / 2,
+          bottom: edge.labelY + edge.labelHeight / 2,
+        };
+        for (const node of layout.nodes) {
+          const nRect = {
+            left: node.position.x,
+            right: node.position.x + node.width,
+            top: node.position.y,
+            bottom: node.position.y + node.height,
+          };
+          const intersects =
+            lRect.left < nRect.right + MIN_LABEL_NODE_CLEARANCE_PX &&
+            lRect.right > nRect.left - MIN_LABEL_NODE_CLEARANCE_PX &&
+            lRect.top < nRect.bottom + MIN_LABEL_NODE_CLEARANCE_PX &&
+            lRect.bottom > nRect.top - MIN_LABEL_NODE_CLEARANCE_PX;
+          expect(
+            intersects,
+            `25-node label '${edge.id}' collides with node '${node.id}'!`,
           ).toBe(false);
         }
       }
@@ -1339,6 +1449,216 @@ describe("computeLayout DAG layout engine (Top-to-Bottom TB)", () => {
           expect(n1.position.y).toBe(n2.position.y);
           expect(n1.width).toBe(n2.width);
           expect(n1.height).toBe(n2.height);
+        }
+      });
+    });
+
+    describe("Stage V3-2: Left-to-Right Horizontal Layout Verification (D-372)", () => {
+      // Helper to extract line segments from orthogonal SVG path string (sampled polyline)
+      function extractPathSegments(d: string): { x1: number; y1: number; x2: number; y2: number }[] {
+        const commands = d.match(/[MLQ][^MLQ]*/g) || [];
+        const segments: { x1: number; y1: number; x2: number; y2: number }[] = [];
+        let currX = 0;
+        let currY = 0;
+
+        for (const cmd of commands) {
+          const type = cmd[0];
+          const coords = cmd.slice(1).trim().split(/[\s,]+/).map(Number);
+          if (type === "M" && coords.length >= 2) {
+            currX = coords[0]!;
+            currY = coords[1]!;
+          } else if (type === "L" && coords.length >= 2) {
+            const nextX = coords[0]!;
+            const nextY = coords[1]!;
+            segments.push({ x1: currX, y1: currY, x2: nextX, y2: nextY });
+            currX = nextX;
+            currY = nextY;
+          } else if (type === "Q" && coords.length >= 4) {
+            const nextX = coords[2]!;
+            const nextY = coords[3]!;
+            segments.push({ x1: currX, y1: currY, x2: nextX, y2: nextY });
+            currX = nextX;
+            currY = nextY;
+          }
+        }
+        return segments;
+      }
+
+      function samplePolylinePoints(
+        segments: { x1: number; y1: number; x2: number; y2: number }[],
+        step = 2,
+      ): { x: number; y: number }[] {
+        const points: { x: number; y: number }[] = [];
+        for (const seg of segments) {
+          const dx = seg.x2 - seg.x1;
+          const dy = seg.y2 - seg.y1;
+          const dist = Math.hypot(dx, dy);
+          const steps = Math.max(1, Math.ceil(dist / step));
+          for (let s = 0; s <= steps; s++) {
+            const t = s / steps;
+            points.push({ x: seg.x1 + dx * t, y: seg.y1 + dy * t });
+          }
+        }
+        return points;
+      }
+
+      it("routes multi-rank edge skipping 2 ranks without passing through rect of any intervening node", () => {
+        const spec: ArchitectureSpec = {
+          nodes: [
+            makeNode("node_a", "Node A Entry"),
+            makeNode("node_b", "Node B Worker 1"),
+            makeNode("node_c", "Node C Worker 2"),
+            makeNode("node_d", "Node D Exit"),
+          ],
+          edges: [
+            { from: "node_a", to: "node_b", flows: "step 1" },
+            { from: "node_b", to: "node_c", flows: "step 2" },
+            { from: "node_c", to: "node_d", flows: "step 3" },
+            { from: "node_a", to: "node_d", flows: "skip 2 ranks bypass" },
+          ],
+          constraints: [],
+          entry_ids: ["node_a"],
+          exit_ids: ["node_d"],
+        };
+
+        const layout = computeLayout(spec);
+        expect(layout.nodes).toHaveLength(4);
+
+        const nodeMap = new Map(layout.nodes.map((n) => [n.id, n]));
+        const nodeB = nodeMap.get("node_b")!;
+        const nodeC = nodeMap.get("node_c")!;
+        expect(nodeB).toBeDefined();
+        expect(nodeC).toBeDefined();
+
+        const bypassEdge = layout.edges.find((e) => e.source === "node_a" && e.target === "node_d")!;
+        expect(bypassEdge).toBeDefined();
+        expect(bypassEdge.pathD.length).toBeGreaterThan(0);
+        expect(bypassEdge.pathD.includes("NaN")).toBe(false);
+
+        // Sample real polyline path segments at 2px intervals
+        const segments = extractPathSegments(bypassEdge.pathD);
+        expect(segments.length).toBeGreaterThan(0);
+        const sampledPoints = samplePolylinePoints(segments, 2);
+        expect(sampledPoints.length).toBeGreaterThan(10);
+
+        // Intervening nodes that must not be intersected by the bypass path
+        const interveningNodes = [nodeB, nodeC];
+
+        for (const pt of sampledPoints) {
+          for (const inode of interveningNodes) {
+            const insideX = pt.x >= inode.position.x && pt.x <= inode.position.x + inode.width;
+            const insideY = pt.y >= inode.position.y && pt.y <= inode.position.y + inode.height;
+            expect(
+              insideX && insideY,
+              `Sampled point (${pt.x}, ${pt.y}) on bypass edge A->D passed inside intervening node '${inode.id}' rect [${inode.position.x}, ${inode.position.y}, ${inode.width}, ${inode.height}]!`,
+            ).toBe(false);
+          }
+        }
+      });
+
+      it("enforces src.position.x + src.width <= tgt.position.x for every edge across specs", () => {
+        const spec: ArchitectureSpec = {
+          nodes: [
+            makeNode("n1", "Ingress Gateway"),
+            makeNode("n2", "Validator Filter"),
+            makeNode("n3", "Queue Dispatcher"),
+            makeNode("n4", "Processor Pool"),
+            makeNode("n5", "Database Store"),
+          ],
+          edges: [
+            { from: "n1", to: "n2", flows: "raw data" },
+            { from: "n2", to: "n3", flows: "validated" },
+            { from: "n3", to: "n4", flows: "dispatched" },
+            { from: "n4", to: "n5", flows: "persisted" },
+            { from: "n1", to: "n4", flows: "fast path" },
+          ],
+          constraints: [],
+          entry_ids: ["n1"],
+          exit_ids: ["n5"],
+        };
+
+        const layout = computeLayout(spec);
+        const nodeMap = new Map(layout.nodes.map((n) => [n.id, n]));
+
+        for (const edge of layout.edges) {
+          const src = nodeMap.get(edge.source)!;
+          const tgt = nodeMap.get(edge.target)!;
+          expect(src.position.x + src.width).toBeLessThanOrEqual(tgt.position.x);
+        }
+      });
+
+      it("guarantees zero NaN in generated path strings across all edges", () => {
+        const spec: ArchitectureSpec = {
+          nodes: [
+            makeNode("n1", "Node 1"),
+            makeNode("n2", "Node 2"),
+            makeNode("n3", "Node 3"),
+          ],
+          edges: [
+            { from: "n1", to: "n2", flows: "flow 1" },
+            { from: "n2", to: "n3", flows: "flow 2" },
+            { from: "n1", to: "n3", flows: "flow 3" },
+          ],
+          constraints: [],
+          entry_ids: ["n1"],
+          exit_ids: ["n3"],
+        };
+
+        const layout = computeLayout(spec);
+        for (const edge of layout.edges) {
+          expect(edge.pathD).toBeDefined();
+          expect(edge.pathD.includes("NaN")).toBe(false);
+          expect(edge.pathD.startsWith("M")).toBe(true);
+        }
+      });
+
+      it("produces identical stable output across two calls on 12-node and 25-node specs", () => {
+        const nodes: NodeSpec[] = [];
+        const edges: ArchitectureSpec["edges"] = [];
+
+        for (let i = 0; i < 12; i++) {
+          nodes.push(makeNode(`svc_${i}`, `Service Component ${i}`));
+        }
+        for (let i = 0; i < 11; i++) {
+          edges.push({
+            from: `svc_${i}`,
+            to: `svc_${i + 1}`,
+            flows: `Step ${i}`,
+          });
+        }
+        edges.push({ from: "svc_0", to: "svc_5", flows: "Mid bypass" });
+
+        const spec: ArchitectureSpec = {
+          nodes,
+          edges,
+          constraints: [],
+          entry_ids: ["svc_0"],
+          exit_ids: ["svc_11"],
+        };
+
+        const run1 = computeLayout(spec);
+        const run2 = computeLayout(spec);
+
+        expect(run1.nodes.length).toBe(run2.nodes.length);
+        expect(run1.edges.length).toBe(run2.edges.length);
+
+        for (let i = 0; i < run1.nodes.length; i++) {
+          const n1 = run1.nodes[i]!;
+          const n2 = run2.nodes[i]!;
+          expect(n1.id).toBe(n2.id);
+          expect(n1.position.x).toBe(n2.position.x);
+          expect(n1.position.y).toBe(n2.position.y);
+          expect(n1.width).toBe(n2.width);
+          expect(n1.height).toBe(n2.height);
+        }
+
+        for (let i = 0; i < run1.edges.length; i++) {
+          const e1 = run1.edges[i]!;
+          const e2 = run2.edges[i]!;
+          expect(e1.id).toBe(e2.id);
+          expect(e1.pathD).toBe(e2.pathD);
+          expect(e1.labelX).toBe(e2.labelX);
+          expect(e1.labelY).toBe(e2.labelY);
         }
       });
     });

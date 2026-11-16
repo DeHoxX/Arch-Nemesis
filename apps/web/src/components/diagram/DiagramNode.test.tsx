@@ -62,15 +62,15 @@ describe("DiagramNode component", () => {
     expect(button.getAttribute("tabIndex")).toBe("0");
   });
 
-  it("renders target handle at Top and source handle at Bottom", () => {
+  it("renders target handle at Left and source handle at Right", () => {
     const { container } = renderNode();
     const handles = container.querySelectorAll(".react-flow__handle");
     expect(handles.length).toBe(2);
 
-    const topHandle = container.querySelector('[data-handlepos="top"]');
-    const bottomHandle = container.querySelector('[data-handlepos="bottom"]');
-    expect(topHandle).not.toBeNull();
-    expect(bottomHandle).not.toBeNull();
+    const leftHandle = container.querySelector('[data-handlepos="left"]');
+    const rightHandle = container.querySelector('[data-handlepos="right"]');
+    expect(leftHandle).not.toBeNull();
+    expect(rightHandle).not.toBeNull();
   });
 
   it("displays Entry badge and emerald border for entry nodes", () => {

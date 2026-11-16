@@ -135,7 +135,7 @@ export function BlockNode({
 
       <Handle
         type="target"
-        position={Position.Top}
+        position={Position.Left}
         className="size-1.5 border-none bg-muted-foreground/40 pointer-events-none"
         aria-hidden="true"
       />
@@ -227,7 +227,7 @@ export function BlockNode({
 
       <Handle
         type="source"
-        position={Position.Bottom}
+        position={Position.Right}
         className="size-1.5 border-none bg-muted-foreground/40 pointer-events-none"
         aria-hidden="true"
       />

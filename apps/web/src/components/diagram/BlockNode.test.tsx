@@ -42,12 +42,12 @@ describe("BlockNode component", () => {
     expect(screen.getByText("Customer Intent Router")).toBeDefined();
   });
 
-  it("renders target handle at Top and source handle at Bottom", () => {
+  it("renders target handle at Left and source handle at Right", () => {
     const { container } = renderBlockNode();
-    const topHandle = container.querySelector('[data-handlepos="top"]');
-    const bottomHandle = container.querySelector('[data-handlepos="bottom"]');
-    expect(topHandle).not.toBeNull();
-    expect(bottomHandle).not.toBeNull();
+    const leftHandle = container.querySelector('[data-handlepos="left"]');
+    const rightHandle = container.querySelector('[data-handlepos="right"]');
+    expect(leftHandle).not.toBeNull();
+    expect(rightHandle).not.toBeNull();
   });
 
   it("renders role='img' and aria-label announcing name and entry/exit status without tabIndex", () => {

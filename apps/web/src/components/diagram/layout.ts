@@ -5,7 +5,8 @@ import { classifyNodeShape, type NodeShape } from "./classify";
 export const NODE_WIDTH = 240;
 export const NODE_HEIGHT = 80;
 export const NODESEP = 50;
-export const MIN_RANKSEP = 110; // Updated from 96 to 110 (D-189) for >= 11.6px label clearance
+export const DIAGRAM_RANKDIR: "TB" | "LR" = "LR";
+export const MIN_RANKSEP = 190; // Updated from 110 (D-189) to 190 (D-372) for >= 11px clearance on 168px labels
 export const RANKSEP = MIN_RANKSEP;
 
 // Edge label estimation constants shared with DiagramEdge rendering
@@ -349,26 +350,26 @@ export function computeEdgeLabelLayout(
     pairMap.set(pairKey, pList);
   }
 
-  // Deterministically sort outgoing siblings by target.x, then edge.id
+  // Deterministically sort outgoing siblings by target.y, then edge.id
   for (const edgeList of outgoingMap.values()) {
     edgeList.sort((a, b) => {
       const tgtA = nodeMap.get(a.target);
       const tgtB = nodeMap.get(b.target);
-      const xA = tgtA ? tgtA.position.x : 0;
-      const xB = tgtB ? tgtB.position.x : 0;
-      if (xA !== xB) return xA - xB;
+      const yA = tgtA ? tgtA.position.y : 0;
+      const yB = tgtB ? tgtB.position.y : 0;
+      if (yA !== yB) return yA - yB;
       return a.id.localeCompare(b.id);
     });
   }
 
-  // Deterministically sort incoming siblings by source.x, then edge.id
+  // Deterministically sort incoming siblings by source.y, then edge.id
   for (const edgeList of incomingMap.values()) {
     edgeList.sort((a, b) => {
       const srcA = nodeMap.get(a.source);
       const srcB = nodeMap.get(b.source);
-      const xA = srcA ? srcA.position.x : 0;
-      const xB = srcB ? srcB.position.x : 0;
-      if (xA !== xB) return xA - xB;
+      const yA = srcA ? srcA.position.y : 0;
+      const yB = srcB ? srcB.position.y : 0;
+      if (yA !== yB) return yA - yB;
       return a.id.localeCompare(b.id);
     });
   }
@@ -397,15 +398,15 @@ export function computeEdgeLabelLayout(
     }
 
     const pStart: Point = {
-      x: srcNode.position.x + srcNode.width / 2,
-      y: srcNode.position.y + srcNode.height,
+      x: srcNode.position.x + srcNode.width,
+      y: srcNode.position.y + srcNode.height / 2,
     };
     const pEnd: Point = {
-      x: tgtNode.position.x + tgtNode.width / 2,
-      y: tgtNode.position.y,
+      x: tgtNode.position.x,
+      y: tgtNode.position.y + tgtNode.height / 2,
     };
 
-    const deltaY = pEnd.y - pStart.y;
+    const deltaX = pEnd.x - pStart.x;
     const outSiblings = outgoingMap.get(edge.source) || [];
     const inSiblings = incomingMap.get(edge.target) || [];
     const kOut = outSiblings.length;
@@ -413,25 +414,25 @@ export function computeEdgeLabelLayout(
     const outIdx = outSiblings.findIndex((e) => e.id === edge.id);
     const inIdx = inSiblings.findIndex((e) => e.id === edge.id);
 
-    // Parallel edge offset
+    // Parallel edge offset along Y with X stagger
     const parallelList = pairMap.get(`${edge.source}__${edge.target}`) || [];
     const mParallel = parallelList.length;
     const pIdx = parallelList.findIndex((e) => e.id === edge.id);
     const parallelOffsetIdx = mParallel > 1 ? pIdx - (mParallel - 1) / 2 : 0;
-    const pathXOffset = parallelOffsetIdx * 36;
-    const yStagger = parallelOffsetIdx * 12;
+    const pathYOffset = parallelOffsetIdx * 36;
+    const xStagger = parallelOffsetIdx * 12;
 
     // Check for multi-rank edge waypoints
     const rawWaypoints = dagreEdgePoints?.get(`${edge.source}__${edge.target}`);
-    const isMultiRank = rawWaypoints && rawWaypoints.length > 2 && deltaY > RANKSEP * 1.5;
+    const isMultiRank = Boolean(rawWaypoints && rawWaypoints.length > 2 && deltaX > RANKSEP * 1.5);
 
-    // Determine initial parameter shelf position based on fan-out vs fan-in column divergence
+    // Determine vertical riser (shelf in X) position based on fan-out vs fan-in rank divergence
     let stepRatio = 0.50;
     if (kOut >= 2 && kIn === 1) {
-      // Fan-out: stagger horizontal shelf so parallel fan-outs do not overlap
+      // Fan-out: stagger vertical riser so parallel fan-outs do not overlap
       stepRatio = 0.38 + (kOut > 1 ? 0.24 * (outIdx / (kOut - 1)) : 0);
     } else if (kIn >= 2 && kOut === 1) {
-      // Fan-in: stagger horizontal shelf so parallel fan-ins do not overlap
+      // Fan-in: stagger vertical riser so parallel fan-ins do not overlap
       stepRatio = 0.38 + (kIn > 1 ? 0.24 * (inIdx / (kIn - 1)) : 0);
     } else if (kOut >= 2 && kIn >= 2) {
       const totalIdx = outIdx + inIdx;
@@ -439,9 +440,9 @@ export function computeEdgeLabelLayout(
       stepRatio = 0.35 + 0.30 * (totalIdx / totalMax);
     }
 
-    const minShelfY = pStart.y + 16;
-    const maxShelfY = pEnd.y - 16;
-    const shelfY = Math.max(minShelfY, Math.min(maxShelfY, pStart.y + deltaY * stepRatio + yStagger));
+    const minShelfX = pStart.x + 16;
+    const maxShelfX = pEnd.x - 16;
+    const shelfX = Math.max(minShelfX, Math.min(maxShelfX, pStart.x + deltaX * stepRatio + xStagger));
 
     let edgePoints: Point[] = [];
 
@@ -449,30 +450,42 @@ export function computeEdgeLabelLayout(
       // Build orthogonal multi-rank points through Dagre intermediate waypoints
       const pts: Point[] = [
         pStart,
-        ...rawWaypoints.slice(1, -1).map((p) => ({ x: p.x + pathXOffset, y: p.y })),
+        ...rawWaypoints.slice(1, -1).map((p) => ({ x: p.x, y: p.y + pathYOffset })),
         pEnd,
       ];
       edgePoints.push(pts[0]!);
       for (let i = 0; i < pts.length - 1; i++) {
         const cur = pts[i]!;
         const next = pts[i + 1]!;
-        if (Math.abs(cur.x - next.x) > 0.01) {
-          const midY = (cur.y + next.y) / 2 + yStagger;
-          edgePoints.push({ x: cur.x, y: midY });
-          edgePoints.push({ x: next.x, y: midY });
+        if (Math.abs(cur.y - next.y) > 0.01) {
+          const midX = (cur.x + next.x) / 2 + xStagger;
+          edgePoints.push({ x: midX, y: cur.y });
+          edgePoints.push({ x: midX, y: next.y });
         }
         edgePoints.push(next);
       }
     } else {
-      // Standard single rank gap: orthogonal step with vertical entry/exit stubs
-      if (Math.abs(pStart.x - pEnd.x) < 0.01 && pathXOffset === 0) {
-        // Collinear straight vertical connection
+      // Standard single rank gap: orthogonal step with horizontal entry/exit stubs
+      if (Math.abs(pStart.y - pEnd.y) < 0.01 && pathYOffset === 0) {
+        // Collinear straight horizontal connection
         edgePoints = [pStart, pEnd];
+      } else if (Math.abs(pStart.y - pEnd.y) < 0.01 && pathYOffset !== 0) {
+        // Parallel collinear horizontal edges: step vertically into distinct Y channels
+        const stubX1 = pStart.x + 16 + Math.abs(xStagger);
+        const stubX2 = pEnd.x - 16 - Math.abs(xStagger);
+        edgePoints = [
+          pStart,
+          { x: stubX1, y: pStart.y },
+          { x: stubX1, y: pStart.y + pathYOffset },
+          { x: stubX2, y: pEnd.y + pathYOffset },
+          { x: stubX2, y: pEnd.y },
+          pEnd,
+        ];
       } else {
         edgePoints = [
           pStart,
-          { x: pStart.x + pathXOffset, y: shelfY },
-          { x: pEnd.x + pathXOffset, y: shelfY },
+          { x: shelfX, y: pStart.y + pathYOffset },
+          { x: shelfX, y: pEnd.y + pathYOffset },
           pEnd,
         ];
       }
@@ -492,8 +505,8 @@ export function computeEdgeLabelLayout(
     // If edge has no text and no condition, placement is trivial
     if (labelWidth === 0 && labelHeight === 0) {
       resultMap.set(edge.id, {
-        labelX: Math.round(pStart.x * 10) / 10,
-        labelY: Math.round((pStart.y + deltaY / 2) * 10) / 10,
+        labelX: Math.round((pStart.x + deltaX / 2) * 10) / 10,
+        labelY: Math.round(pStart.y * 10) / 10,
         labelWidth: 0,
         labelHeight: 0,
         pathD,
@@ -505,56 +518,56 @@ export function computeEdgeLabelLayout(
     const candidatePoints: Point[] = [];
 
     if (isMultiRank) {
-      // Anchor in first vertical rank transition segment
+      // Anchor in intermediate horizontal segment
       candidatePoints.push({
-        x: pStart.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(shelfY - 4 - labelHeight / 2, (pStart.y + shelfY) / 2)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(shelfX - 4 - labelWidth / 2, (pStart.x + shelfX) / 2)),
+        y: pStart.y + pathYOffset,
       });
     } else if (kOut >= 2 && kIn === 1) {
-      // Fan-out: anchor on target vertical stub where child columns are separated by >= 290px
-      const targetStubY = shelfY + (pEnd.y - shelfY) * 0.5;
+      // Fan-out: anchor on target horizontal stub where child rows are separated by >= 130px
+      const targetStubX = shelfX + (pEnd.x - shelfX) * 0.5;
       candidatePoints.push({
-        x: pEnd.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, targetStubY)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, targetStubX)),
+        y: pEnd.y + pathYOffset,
       });
       candidatePoints.push({
-        x: pEnd.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, targetStubY + 12)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, targetStubX + 12)),
+        y: pEnd.y + pathYOffset,
       });
       candidatePoints.push({
-        x: pEnd.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, targetStubY - 12)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, targetStubX - 12)),
+        y: pEnd.y + pathYOffset,
       });
     } else if (kIn >= 2 && kOut === 1) {
-      // Fan-in: anchor on source vertical stub where parent columns are separated by >= 290px
-      const sourceStubY = pStart.y + (shelfY - pStart.y) * 0.5;
+      // Fan-in: anchor on source horizontal stub where parent rows are separated by >= 130px
+      const sourceStubX = pStart.x + (shelfX - pStart.x) * 0.5;
       candidatePoints.push({
-        x: pStart.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, sourceStubY)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, sourceStubX)),
+        y: pStart.y + pathYOffset,
       });
       candidatePoints.push({
-        x: pStart.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, sourceStubY + 12)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, sourceStubX + 12)),
+        y: pStart.y + pathYOffset,
       });
       candidatePoints.push({
-        x: pStart.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, sourceStubY - 12)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, sourceStubX - 12)),
+        y: pStart.y + pathYOffset,
       });
     } else {
-      // Single connection: check vertical midpoint, or horizontal shelf midpoint if wide enough
+      // Single connection or parallel edges: check horizontal midpoint
       if (Math.abs(pStart.x - pEnd.x) >= labelWidth + 24) {
         candidatePoints.push({
-          x: (pStart.x + pEnd.x) / 2 + pathXOffset,
-          y: shelfY,
+          x: (pStart.x + pEnd.x) / 2 + xStagger,
+          y: (pStart.y + pEnd.y) / 2 + pathYOffset,
         });
       }
       candidatePoints.push({
-        x: pEnd.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, pStart.y + deltaY / 2)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, pStart.x + deltaX / 2 + xStagger)),
+        y: pEnd.y + pathYOffset,
       });
       candidatePoints.push({
-        x: pStart.x + pathXOffset,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, pStart.y + deltaY / 2)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, pStart.x + deltaX / 2 + xStagger)),
+        y: pStart.y + pathYOffset,
       });
     }
 
@@ -563,8 +576,8 @@ export function computeEdgeLabelLayout(
       const p1 = edgePoints[i]!;
       const p2 = edgePoints[i + 1]!;
       const midCandidate = {
-        x: (p1.x + p2.x) / 2,
-        y: Math.max(pStart.y + 8 + labelHeight / 2, Math.min(pEnd.y - 8 - labelHeight / 2, (p1.y + p2.y) / 2)),
+        x: Math.max(pStart.x + 8 + labelWidth / 2, Math.min(pEnd.x - 8 - labelWidth / 2, (p1.x + p2.x) / 2)),
+        y: (p1.y + p2.y) / 2,
       };
       candidatePoints.push(midCandidate);
     }
@@ -635,7 +648,7 @@ export function computeEdgeLabelLayout(
 export function computeLayout(spec: ArchitectureSpec): LayoutResult {
   const g = new dagre.graphlib.Graph();
   g.setGraph({
-    rankdir: "TB",
+    rankdir: DIAGRAM_RANKDIR,
     nodesep: NODESEP,
     ranksep: RANKSEP,
   });

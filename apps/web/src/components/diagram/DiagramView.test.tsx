@@ -96,6 +96,14 @@ describe("DiagramView component", () => {
     expect(minimap).toBeNull();
   });
 
+  it("renders node handles oriented Left for target and Right for source", () => {
+    const { container } = render(<DiagramView spec={mockLegalSpec} />);
+    const leftHandles = container.querySelectorAll('[data-handlepos="left"]');
+    const rightHandles = container.querySelectorAll('[data-handlepos="right"]');
+    expect(leftHandles.length).toBeGreaterThan(0);
+    expect(rightHandles.length).toBeGreaterThan(0);
+  });
+
   it("renders standard controls without interactive lock toggling", () => {
     const { container } = render(<DiagramView spec={mockLegalSpec} />);
 
