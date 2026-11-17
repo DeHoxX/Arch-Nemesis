@@ -3954,41 +3954,9 @@ If we removed it: Hallucinated or speculative cost or compliance claims in LLM s
 Decided by: user approved Stage V3-1 plan
 Status: active
 
-
-### D-373 — Stage V3-1 — design — IntakeQuestion structured schema and Pydantic/Zod models
-What: Replace unstructured question strings with structured `IntakeQuestion` objects in backend (`archnemesis.modules.intake.schemas.IntakeQuestion`) and frontend (`apps/web/src/lib/types.ts` and `apps/web/src/lib/api.ts`):
-- `question`: `str` (1..200 characters, required)
-- `suggested_answer`: `str | None` (optional sensible default, max 200 characters; stripped, empty or >200 becomes None)
-- `options`: `list[str]` (0..3 items, each 1..60 characters; invalid items dropped, capped at 3)
-Why: Clarifying questions during architecture discovery often have standard, safe defaults or small discrete option sets. Structured suggestions allow the user to accept sensible architectural baselines in a single click without manual typing.
-Alternatives considered:
-1. Embedding suggestions within question string text: Rejected because parsing delimiter syntax from free-form LLM output is brittle.
-If we removed it: Discovery questions would remain plain text with no proactive clickable suggestions.
-Decided by: user approved Stage V3-1 plan
-Status: active
-
-### D-374 — Stage V3-1 — design — Retention of intake_forced_v1 without prompt divergence
-What: Retain `apps/api/src/archnemesis/prompts/intake_forced_v1.md` as the sole forced-synthesis prompt and delete `intake_forced_v2.md`. Update `apps/api/src/archnemesis/modules/intake/service.py` to invoke `intake_forced_v1.md` when the round limit is reached.
-Why: Forced brief synthesis always produces `action: "ready"` with `questions: []` and never asks further questions. Because question objects are never emitted during forced synthesis, `intake_forced_v1.md` operates cleanly with no schema divergence. Furthermore, assumption extraction from user responses is executed deterministically in code, eliminating any need for prompt-level assumption copying instructions.
-Alternatives considered:
-1. Maintaining a separate `intake_forced_v2.md` prompt: Rejected as redundant and prone to prompt divergence.
-If we removed it: Duplicate prompt files would diverge over time.
-Decided by: user approved Stage V3-1 plan
-Status: active
-
-### D-375 — Stage V3-1 — design — SessionStorage backward-tolerance via Zod union coercion
-What: In `apps/web/src/lib/api.ts` and `apps/web/src/lib/intakeStorage.ts`, define `intakeQuestionItemSchema` as a `z.union([z.string().transform(...), intakeQuestionSchema.transform(...)])` parsing both legacy plain string questions and new structured question objects into uniform `IntakeQuestion` records. Keep sessionStorage key `archnemesis.intake.v1` unchanged.
-Why: Users restoring tabs with active discovery sessions written under previous versions must not experience deserialization errors or session drops.
-Alternatives considered:
-1. Bumping sessionStorage key to `archnemesis.intake.v2`: Rejected because in-flight user discovery sessions would be discarded.
-If we removed it: Restoring a session with legacy string questions would fail schema validation and clear the chat history.
-Decided by: user approved Stage V3-1 plan
-Status: active
-
-### D-376 — Stage V3-1 — design — Composed text format and multi-line delimiter neutralization
-What: Format submitted discovery turn answers into a standardized multiline block:
-- Answered questions: `Q: <question>\nA: <answer>`
-- Blank accepted with suggestion: `Q: <question>\nA: (no answer, assume: <suggestion>)`
-In `apps/web/src/app/page.tsx`, sanitize user-typed input anywhere in a line before submission:
-1. Replace `(no answer, assume:` (case-insensitive) with `[assume:` to prevent users from spoofing assumption markers.
-... [truncated for diff preview]
+### D-378 — Stage V3-1 — prompt — Supersedes D-367: intake_forced_v2 removed, v1 retained
+What: intake_forced_v2.md removed, intake_forced_v1.md retained as the sole forced-synthesis prompt. See D-374 for the active architecture contract.
+Why: Forced brief generation does not emit clarifying questions and code handles assumption extraction deterministically, making intake_forced_v2.md redundant.
+Alternatives considered: Keeping intake_forced_v2.md. Rejected as redundant and prone to prompt divergence.
+Decided by: user
+Status: active (supersedes D-367; see D-374)
