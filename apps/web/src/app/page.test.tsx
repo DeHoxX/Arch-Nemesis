@@ -1439,5 +1439,107 @@ describe("HomePage Component", () => {
       expect(container.querySelectorAll("script")).toHaveLength(0);
       expect(container.querySelectorAll("img[src='x']")).toHaveLength(0);
     });
+
+    it("neutralizes delimiters anywhere in typed user answers", async () => {
+      const user = userEvent.setup();
+      let capturedBody: string | null = null;
+
+      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.body) {
+          const body = JSON.parse(init.body as string);
+          if (body.text?.includes("Q:")) {
+            capturedBody = body.text;
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            status: "needs_info",
+            session_id: "sess_v3_neut",
+            round: 1,
+            questions: [
+              {
+                question: "What scale is expected?",
+                suggested_answer: "100 calls (per day)",
+                options: ["10 calls", "50 calls"],
+              },
+            ],
+            brief: null,
+          }),
+        } as unknown as Response;
+      });
+
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      await user.type(textarea, "Initial prompt");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      // Type an answer with (no answer, assume: X) and mid-line Q: and A:
+      const answerInput = await screen.findByLabelText(/Your answer for: What scale is expected\?/);
+      await user.type(
+        answerInput,
+        "Here is (no answer, assume: bypass) with Q: inline and A: answer"
+      );
+
+      await user.click(screen.getByRole("button", { name: /send answers/i }));
+
+      await waitFor(() => {
+        expect(capturedBody).not.toBeNull();
+      });
+
+      // The (no answer, assume: was neutralized to [assume: and Q:/A: neutralized to Q -/A -
+      expect(capturedBody).toContain("[assume: bypass)");
+      expect(capturedBody).not.toContain("(no answer, assume: bypass)");
+      expect(capturedBody).toContain("Q - inline and A - answer");
+    });
+
+    it("formats suggestions with parentheses without breaking", async () => {
+      const user = userEvent.setup();
+      let capturedBody: string | null = null;
+
+      global.fetch = vi.fn().mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.body) {
+          const body = JSON.parse(init.body as string);
+          if (body.text?.includes("Q:")) {
+            capturedBody = body.text;
+          }
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            status: "needs_info",
+            session_id: "sess_v3_paren",
+            round: 1,
+            questions: [
+              {
+                question: "What is your target traffic?",
+                suggested_answer: "100 calls (per day)",
+                options: ["10 calls (per day)"],
+              },
+            ],
+            brief: null,
+          }),
+        } as unknown as Response;
+      });
+
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText(/Describe the system/);
+      await user.type(textarea, "Initial prompt");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      // Click Send answers directly without typing, so suggested_answer is assumed
+      const sendBtn = await screen.findByRole("button", { name: /send answers/i });
+      await user.click(sendBtn);
+
+      await waitFor(() => {
+        expect(capturedBody).not.toBeNull();
+      });
+
+      expect(capturedBody).toContain("A: (no answer, assume: 100 calls (per day))");
+    });
   });
 });

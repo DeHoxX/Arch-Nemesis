@@ -3894,3 +3894,101 @@ Status: active
 
 
 
+
+
+### D-373 — Stage V3-1 — design — IntakeQuestion structured schema and Pydantic/Zod models
+What: Replace unstructured question strings with structured `IntakeQuestion` objects in backend (`archnemesis.modules.intake.schemas.IntakeQuestion`) and frontend (`apps/web/src/lib/types.ts` and `apps/web/src/lib/api.ts`):
+- `question`: `str` (1..200 characters, required)
+- `suggested_answer`: `str | None` (optional sensible default, max 200 characters; stripped, empty or >200 becomes None)
+- `options`: `list[str]` (0..3 items, each 1..60 characters; invalid items dropped, capped at 3)
+Why: Clarifying questions during architecture discovery often have standard, safe defaults or small discrete option sets. Structured suggestions allow the user to accept sensible architectural baselines in a single click without manual typing.
+Alternatives considered:
+1. Embedding suggestions within question string text: Rejected because parsing delimiter syntax from free-form LLM output is brittle.
+If we removed it: Discovery questions would remain plain text with no proactive clickable suggestions.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-374 — Stage V3-1 — design — Retention of intake_forced_v1 without prompt divergence
+What: Retain `apps/api/src/archnemesis/prompts/intake_forced_v1.md` as the sole forced-synthesis prompt and delete `intake_forced_v2.md`. Update `apps/api/src/archnemesis/modules/intake/service.py` to invoke `intake_forced_v1.md` when the round limit is reached.
+Why: Forced brief synthesis always produces `action: "ready"` with `questions: []` and never asks further questions. Because question objects are never emitted during forced synthesis, `intake_forced_v1.md` operates cleanly with no schema divergence. Furthermore, assumption extraction from user responses is executed deterministically in code, eliminating any need for prompt-level assumption copying instructions.
+Alternatives considered:
+1. Maintaining a separate `intake_forced_v2.md` prompt: Rejected as redundant and prone to prompt divergence.
+If we removed it: Duplicate prompt files would diverge over time.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-375 — Stage V3-1 — design — SessionStorage backward-tolerance via Zod union coercion
+What: In `apps/web/src/lib/api.ts` and `apps/web/src/lib/intakeStorage.ts`, define `intakeQuestionItemSchema` as a `z.union([z.string().transform(...), intakeQuestionSchema.transform(...)])` parsing both legacy plain string questions and new structured question objects into uniform `IntakeQuestion` records. Keep sessionStorage key `archnemesis.intake.v1` unchanged.
+Why: Users restoring tabs with active discovery sessions written under previous versions must not experience deserialization errors or session drops.
+Alternatives considered:
+1. Bumping sessionStorage key to `archnemesis.intake.v2`: Rejected because in-flight user discovery sessions would be discarded.
+If we removed it: Restoring a session with legacy string questions would fail schema validation and clear the chat history.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-376 — Stage V3-1 — design — Composed text format and multi-line delimiter neutralization
+What: Format submitted discovery turn answers into a standardized multiline block:
+- Answered questions: `Q: <question>\nA: <answer>`
+- Blank accepted with suggestion: `Q: <question>\nA: (no answer, assume: <suggestion>)`
+In `apps/web/src/app/page.tsx`, sanitize user-typed input anywhere in a line before submission:
+1. Replace `(no answer, assume:` (case-insensitive) with `[assume:` to prevent users from spoofing assumption markers.
+2. Replace `Q:` and `A:` with `Q -` and `A -` to prevent disruption of dialogue question-answer pairing.
+3. In `apps/api/src/archnemesis/modules/intake/service.py`, parse assumptions from the current user turn text using balanced-parenthesis extraction so suggestions with nested parentheses (e.g. `100 calls (per day)`) round-trip cleanly without truncation.
+Why: Ensures clear dialogue structure for LLM turn context while strictly preventing user prompt injection or accidental delimiter collisions from polluting `brief.assumptions`.
+Alternatives considered:
+1. JSON payload for dialogue turns: Rejected because the intake turn endpoint contract requires `{ session_id, text }`.
+If we removed it: Malicious or accidental `(no answer, assume:` in user inputs would inject fake assumptions into the requirement brief.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-377 — Stage V3-1 — safety — Code-side filter dropping Rule 4 and Rule 8 words from suggestions
+What: In `apps/api/src/archnemesis/modules/intake/schemas.py`, add code-side validators on `IntakeQuestion`:
+- `clean_suggested_answer`: Drop to `None` if the text matches `FORBIDDEN_WORDS_RE` (cost, costs, price, pricing, budget, timeline, effort, roi, savings) or `COMPLIANCE_CLAIMS_RE` (compliant, certified, guarantee, guarantees, guaranteed, fully secure).
+- `clean_options`: Drop any option matching `FORBIDDEN_WORDS_RE` or `COMPLIANCE_CLAIMS_RE`. If all options are filtered out, retain the clean suggestion and input field without triggering an LLM retry.
+Reuses the exact word lists from Phase 5 (`apps/api/src/archnemesis/modules/explainer/verify.py:43-51`) via an import-free copy to strictly adhere to architectural import-linter independence boundaries between sibling modules.
+Why: Rules 4 (no cost/effort/timeline) and 8 (no compliance claims) require code-enforced guarantees. Prompt instructions alone cannot ensure that LLM-generated suggestion chips never mention prohibited estimates or guarantees.
+Alternatives considered:
+1. Importing constants from `explainer.verify`: Rejected because `import-linter` forbids sibling modules from importing each other.
+2. Creating a shared constants module: Rejected because import-free copy minimizes changes across architectural boundaries.
+If we removed it: Hallucinated or speculative cost or compliance claims in LLM suggestions could reach the frontend interface.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+
+### D-373 — Stage V3-1 — design — IntakeQuestion structured schema and Pydantic/Zod models
+What: Replace unstructured question strings with structured `IntakeQuestion` objects in backend (`archnemesis.modules.intake.schemas.IntakeQuestion`) and frontend (`apps/web/src/lib/types.ts` and `apps/web/src/lib/api.ts`):
+- `question`: `str` (1..200 characters, required)
+- `suggested_answer`: `str | None` (optional sensible default, max 200 characters; stripped, empty or >200 becomes None)
+- `options`: `list[str]` (0..3 items, each 1..60 characters; invalid items dropped, capped at 3)
+Why: Clarifying questions during architecture discovery often have standard, safe defaults or small discrete option sets. Structured suggestions allow the user to accept sensible architectural baselines in a single click without manual typing.
+Alternatives considered:
+1. Embedding suggestions within question string text: Rejected because parsing delimiter syntax from free-form LLM output is brittle.
+If we removed it: Discovery questions would remain plain text with no proactive clickable suggestions.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-374 — Stage V3-1 — design — Retention of intake_forced_v1 without prompt divergence
+What: Retain `apps/api/src/archnemesis/prompts/intake_forced_v1.md` as the sole forced-synthesis prompt and delete `intake_forced_v2.md`. Update `apps/api/src/archnemesis/modules/intake/service.py` to invoke `intake_forced_v1.md` when the round limit is reached.
+Why: Forced brief synthesis always produces `action: "ready"` with `questions: []` and never asks further questions. Because question objects are never emitted during forced synthesis, `intake_forced_v1.md` operates cleanly with no schema divergence. Furthermore, assumption extraction from user responses is executed deterministically in code, eliminating any need for prompt-level assumption copying instructions.
+Alternatives considered:
+1. Maintaining a separate `intake_forced_v2.md` prompt: Rejected as redundant and prone to prompt divergence.
+If we removed it: Duplicate prompt files would diverge over time.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-375 — Stage V3-1 — design — SessionStorage backward-tolerance via Zod union coercion
+What: In `apps/web/src/lib/api.ts` and `apps/web/src/lib/intakeStorage.ts`, define `intakeQuestionItemSchema` as a `z.union([z.string().transform(...), intakeQuestionSchema.transform(...)])` parsing both legacy plain string questions and new structured question objects into uniform `IntakeQuestion` records. Keep sessionStorage key `archnemesis.intake.v1` unchanged.
+Why: Users restoring tabs with active discovery sessions written under previous versions must not experience deserialization errors or session drops.
+Alternatives considered:
+1. Bumping sessionStorage key to `archnemesis.intake.v2`: Rejected because in-flight user discovery sessions would be discarded.
+If we removed it: Restoring a session with legacy string questions would fail schema validation and clear the chat history.
+Decided by: user approved Stage V3-1 plan
+Status: active
+
+### D-376 — Stage V3-1 — design — Composed text format and multi-line delimiter neutralization
+What: Format submitted discovery turn answers into a standardized multiline block:
+- Answered questions: `Q: <question>\nA: <answer>`
+- Blank accepted with suggestion: `Q: <question>\nA: (no answer, assume: <suggestion>)`
+In `apps/web/src/app/page.tsx`, sanitize user-typed input anywhere in a line before submission:
+1. Replace `(no answer, assume:` (case-insensitive) with `[assume:` to prevent users from spoofing assumption markers.
+... [truncated for diff preview]

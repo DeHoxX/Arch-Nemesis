@@ -86,9 +86,17 @@ A round represents a discrete interaction cycle in the discovery dialogue:
   - Response: `{ "status": "needs_info" | "ready", "session_id": string, "round": int, "questions": list[IntakeQuestion], "brief": RequirementBrief | null }`
   - `IntakeQuestion` object contract:
     - `question`: `string` (1..200 characters, required)
-    - `suggested_answer`: `string | null` (optional sensible default, max 200 characters; empty or >200 chars becomes null)
-    - `options`: `list[string]` (0..3 items, each 1..60 characters; invalid or >60 char items dropped, extras beyond 3 dropped)
-  - Assumption mapping: If user submits `A: (no answer, assume: X)`, the assistant records `X` in `brief.assumptions`. Direct user replies populate standard brief constraints and `numbers_given`.
+    - `suggested_answer`: `string | null` (optional sensible default, max 200 characters; empty or >200 chars becomes null; Rule 4 cost/timeline and Rule 8 compliance words dropped to null)
+    - `options`: `list[string]` (0..3 items, each 1..60 characters; invalid, >60 char items, or Rule 4/8 forbidden words dropped, extras beyond 3 dropped)
+  - Assumption mapping: If user submits `A: (no answer, assume: X)`, code extracts `X` via balanced-parenthesis parsing and records it in `brief.assumptions`. Direct user replies populate standard brief constraints and `numbers_given`. Delimiters (`(no answer, assume:`, `Q:`, `A:`) inside user-typed text are neutralized by the frontend.
+  - Composed text example:
+    ```text
+    Q: What database engine do you prefer?
+    A: PostgreSQL
+
+    Q: What is the expected query volume?
+    A: (no answer, assume: 1,000 req/sec)
+    ```
 
 #### Example Lifecycle Trace
 1. **Turn 1 (Round 1)**:

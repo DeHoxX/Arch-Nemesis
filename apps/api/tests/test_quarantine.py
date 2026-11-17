@@ -76,7 +76,6 @@ def test_all_system_prompts_contain_untrusted_user_text_quarantine() -> None:
         "intake_v1.md",
         "intake_forced_v1.md",
         "intake_v3.md",
-        "intake_forced_v2.md",
         "architect_v1.md",
         "architect_repair_v1.md",
         "architect_v2.md",

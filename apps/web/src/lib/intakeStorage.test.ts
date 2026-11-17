@@ -134,6 +134,47 @@ describe("intakeStorage", () => {
     ]);
   });
 
+  it("restores session with mixed legacy string and structured question objects", () => {
+    window.sessionStorage.setItem(
+      INTAKE_STORAGE_KEY,
+      JSON.stringify({
+        version: "v1",
+        sessionId: "mixed_session_1",
+        inputText: "",
+        messages: [
+          {
+            id: "m_mixed",
+            sender: "assistant",
+            questions: [
+              "Legacy question string?",
+              {
+                question: "Structured question?",
+                suggested_answer: "Option A",
+                options: ["Option A", "Option B"],
+              },
+            ],
+          },
+        ],
+        brief: null,
+      }),
+    );
+
+    const loaded = loadIntakeState();
+    expect(loaded).not.toBeNull();
+    expect(loaded?.messages?.[0]?.questions).toEqual([
+      {
+        question: "Legacy question string?",
+        suggested_answer: null,
+        options: [],
+      },
+      {
+        question: "Structured question?",
+        suggested_answer: "Option A",
+        options: ["Option A", "Option B"],
+      },
+    ]);
+  });
+
   it("loads legacy v1 JSON without failedRequest cleanly (backward-compatible, D-348)", () => {
     window.sessionStorage.setItem(
       INTAKE_STORAGE_KEY,

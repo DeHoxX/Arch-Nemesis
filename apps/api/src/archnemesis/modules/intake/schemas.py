@@ -1,5 +1,6 @@
 """Schemas for intake API requests, responses, and LLM structured output."""
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -8,6 +9,16 @@ from archnemesis.settings import get_settings
 from archnemesis.shared.brief import BriefNumber, RequirementBrief
 
 MAX_INPUT_CHARS: int = get_settings().max_input_chars
+
+FORBIDDEN_WORDS_RE = re.compile(
+    r"\b(cost|costs|price|pricing|budget|timeline|effort|roi|savings)\b",
+    re.IGNORECASE,
+)
+
+COMPLIANCE_CLAIMS_RE = re.compile(
+    r"\b(compliant|certified|guarantee|guarantees|guaranteed|fully secure)\b",
+    re.IGNORECASE,
+)
 
 
 class IntakeQuestion(BaseModel):
@@ -29,6 +40,8 @@ class IntakeQuestion(BaseModel):
         s = v.strip()
         if not s or len(s) > 200:
             return None
+        if FORBIDDEN_WORDS_RE.search(s) or COMPLIANCE_CLAIMS_RE.search(s):
+            return None
         return s
 
     @field_validator("options", mode="before")
@@ -40,7 +53,9 @@ class IntakeQuestion(BaseModel):
         for item in v:
             if isinstance(item, str):
                 s = item.strip()
-                if 1 <= len(s) <= 60:
+                if 1 <= len(s) <= 60 and not (
+                    FORBIDDEN_WORDS_RE.search(s) or COMPLIANCE_CLAIMS_RE.search(s)
+                ):
                     cleaned.append(s)
             if len(cleaned) == 3:
                 break

@@ -32,7 +32,6 @@ from archnemesis.prompts import load_prompt
 from archnemesis.settings import get_settings
 from archnemesis.shared.brief import BriefConstraint, RequirementBrief
 
-MAX_INTAKE_ROUNDS: int = 3
 MAX_QUESTION_LENGTH: int = 200
 
 TRANSIENT_LLM_ERRORS = (
@@ -42,6 +41,45 @@ TRANSIENT_LLM_ERRORS = (
     LLMNotConfigured,
     FakeScriptExhausted,
 )
+
+
+def extract_assumptions_from_user_turn(text: str) -> list[str]:
+    """Extract assumed values from current user turn text.
+
+    Uses balanced-parenthesis parsing so suggestions containing inner parentheses
+    such as '100 calls (per day)' or 'outer (nested (deep))' are extracted cleanly.
+    """
+    assumptions: list[str] = []
+    marker = "(no answer, assume:"
+    marker_len = len(marker)
+    lower_text = text.lower()
+    text_len = len(text)
+    idx = 0
+
+    while idx < text_len:
+        pos = lower_text.find(marker, idx)
+        if pos == -1:
+            break
+        start_val = pos + marker_len
+        depth = 1
+        curr = start_val
+        while curr < text_len and depth > 0:
+            ch = text[curr]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                depth -= 1
+            curr += 1
+
+        if depth == 0:
+            val = text[start_val : curr - 1].strip()
+            if val:
+                assumptions.append(val)
+            idx = curr
+        else:
+            idx = start_val
+
+    return assumptions
 
 
 def _format_question_for_dialogue(q: Any) -> str:
@@ -236,6 +274,13 @@ async def handle_turn(
     # 6. Process output and update database state
     if output.action == "ready" and output.brief is not None:
         brief = _build_requirement_brief(output)
+        assumed = extract_assumptions_from_user_turn(cleaned_text)
+        seen_assumptions = {a.strip().lower() for a in brief.assumptions}
+        for item in assumed:
+            if item.lower() not in seen_assumptions:
+                brief.assumptions.append(item)
+                seen_assumptions.add(item.lower())
+
         transcript.append({"speaker": "user", "text": cleaned_text})
         transcript.append({"speaker": "assistant", "summary": brief.summary})
         await repo.update_session(
@@ -255,7 +300,7 @@ async def handle_turn(
         )
 
     # LLM returned action: "ask"
-    if stored_rounds < MAX_INTAKE_ROUNDS:
+    if stored_rounds < settings.max_followup_rounds:
         new_rounds = stored_rounds + 1
         filtered_questions = output.questions[: settings.max_questions_per_round]
         transcript.append({"speaker": "user", "text": cleaned_text})
@@ -283,9 +328,9 @@ async def handle_turn(
             brief=None,
         )
 
-    # Stored rounds reached MAX_INTAKE_ROUNDS (3) and LLM asked again:
-    # Trigger forced-brief call with intake_forced_v2.md system prompt.
-    forced_system_prompt = load_prompt("intake_forced_v2.md")
+    # Stored rounds reached settings.max_followup_rounds and LLM asked again:
+    # Trigger forced-brief call with intake_forced_v1.md system prompt.
+    forced_system_prompt = load_prompt("intake_forced_v1.md")
     try:
         forced_output = await _invoke_intake_llm(
             llm=llm,
@@ -297,6 +342,13 @@ async def handle_turn(
         raise LLMNotConfiguredError(str(exc)) from exc
 
     brief = _build_requirement_brief(forced_output)
+    assumed = extract_assumptions_from_user_turn(cleaned_text)
+    seen_assumptions = {a.strip().lower() for a in brief.assumptions}
+    for item in assumed:
+        if item.lower() not in seen_assumptions:
+            brief.assumptions.append(item)
+            seen_assumptions.add(item.lower())
+
     transcript.append({"speaker": "user", "text": cleaned_text})
     transcript.append({"speaker": "assistant", "summary": brief.summary})
     await repo.update_session(

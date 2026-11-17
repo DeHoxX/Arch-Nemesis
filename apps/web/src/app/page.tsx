@@ -42,6 +42,38 @@ import {
 
 type ChatMessage = StoredChatMessage;
 
+export function sanitizeUserAnswer(text: string): string {
+  return text
+    .replace(/\(no answer,\s*assume:/gi, "[assume:")
+    .replace(/Q:/g, "Q -")
+    .replace(/A:/g, "A -");
+}
+
+export function formatSuggestedAnswerAssumption(suggestion: string): string {
+  let open = 0;
+  let clean = "";
+  for (const ch of suggestion) {
+    if (ch === "(") {
+      open++;
+      clean += ch;
+    } else if (ch === ")") {
+      if (open > 0) {
+        open--;
+        clean += ch;
+      } else {
+        clean += "]";
+      }
+    } else {
+      clean += ch;
+    }
+  }
+  while (open > 0) {
+    clean += ")";
+    open--;
+  }
+  return `(no answer, assume: ${clean})`;
+}
+
 function HomeLoading(): React.ReactElement {
   return (
     <main className="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-page-bg text-foreground selection:bg-brand-accent selection:text-brand-accent-ink studio-grid-bg">
@@ -283,11 +315,11 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
       const chip = questionAnswers[i]?.selectedChip;
       let ans = "";
       if (custom) {
-        ans = custom;
+        ans = sanitizeUserAnswer(custom);
       } else if (chip) {
-        ans = chip;
+        ans = sanitizeUserAnswer(chip);
       } else if (q.suggested_answer) {
-        ans = `(no answer, assume: ${q.suggested_answer})`;
+        ans = formatSuggestedAnswerAssumption(q.suggested_answer);
       }
       lines.push(`Q: ${q.question}\nA: ${ans}`);
     }
@@ -358,7 +390,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
 
     setValidationError(null);
     setFailedRequest(null);
-    intakeMutation.mutate(trimmed);
+    intakeMutation.mutate(sanitizeUserAnswer(trimmed));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -394,7 +426,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
 
     setValidationError(null);
     setFailedRequest(null);
-    intakeMutation.mutate(textToRetry);
+    intakeMutation.mutate(sanitizeUserAnswer(textToRetry));
   };
 
   const handleSelectStarter = (promptText: string) => {

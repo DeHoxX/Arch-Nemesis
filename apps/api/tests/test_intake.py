@@ -315,10 +315,10 @@ async def test_intake_round_cap_forces_brief_on_turn_4(
         assert constraints[1]["id"] == "bc2"
         assert constraints[1]["text"] == "No direct access to core CRM"
 
-        # Check that forced-brief call used intake_forced_v2.md system prompt
+        # Check that forced-brief call used intake_forced_v1.md system prompt
         assert len(fake_llm.calls) == 5
         forced_call = fake_llm.calls[-1]
-        assert forced_call["system"] == load_prompt("intake_forced_v2.md")
+        assert forced_call["system"] == load_prompt("intake_forced_v1.md")
 
 
 @pytest.mark.asyncio
@@ -675,3 +675,118 @@ async def test_intake_hostile_strings_stay_inside_untrusted_tags(
     assert hostile_input in call["user"]
     assert "<untrusted_user_text>" in call["user"]
     assert "</untrusted_user_text>" in call["user"]
+
+
+def test_intake_question_rule4_and_rule8_filters() -> None:
+    """IntakeQuestion drops cost/effort/timeline and compliance claims via code-side filter."""
+    # Cost in suggestion
+    q1 = IntakeQuestion(
+        question="What is the budget?",
+        suggested_answer="Estimated cost under $50k",
+        options=["Fixed price", "Hourly pricing"],
+    )
+    assert q1.suggested_answer is None
+    assert q1.options == []
+
+    # Timeline and effort in options
+    q2 = IntakeQuestion(
+        question="What is the rollout schedule?",
+        suggested_answer="Phased rollout",
+        options=["2 weeks timeline", "6 months effort", "Q1 release"],
+    )
+    assert q2.suggested_answer == "Phased rollout"
+    assert q2.options == ["Q1 release"]
+
+    # Compliance in suggestion and options
+    q3 = IntakeQuestion(
+        question="What security is required?",
+        suggested_answer="HIPAA compliant setup",
+        options=["SOC2 certified", "guaranteed SLA", "Standard TLS"],
+    )
+    assert q3.suggested_answer is None
+    assert q3.options == ["Standard TLS"]
+
+    # All options filtered out -> empty list, no error
+    q4 = IntakeQuestion(
+        question="Select support tier",
+        suggested_answer="Tier 1",
+        options=["Guaranteed 99.9%", "Fully secure enclave"],
+    )
+    assert q4.suggested_answer == "Tier 1"
+    assert q4.options == []
+
+
+def test_extract_assumptions_parentheses_and_nested() -> None:
+    """Balanced-parentheses assumption extractor correctly parses nested parens."""
+    text = (
+        "Q: What is expected traffic?\n"
+        "A: (no answer, assume: 100 calls (per day))\n\n"
+        "Q: What caching layer?\n"
+        "A: (no answer, assume: Cache (Redis (clustered)))\n"
+    )
+    extracted = service.extract_assumptions_from_user_turn(text)
+    assert extracted == ["100 calls (per day)", "Cache (Redis (clustered))"]
+
+
+def test_extract_assumptions_midline_qa_and_neutralized_input() -> None:
+    """Extractor handles midline Q: / A: and ignores frontend-neutralized markers."""
+    # User-typed (no answer, assume: was neutralized by frontend to [assume:
+    neutralized_user_text = (
+        "Q: System type?\n"
+        "A: Custom setup with Q: midline and A: midline [assume: malicious assumption)"
+    )
+    extracted = service.extract_assumptions_from_user_turn(neutralized_user_text)
+    assert extracted == []
+
+
+def test_extract_assumptions_ignores_assistant_text() -> None:
+    """Extraction runs strictly on current user turn text; assistant text is never parsed."""
+    assistant_text = (
+        "Assistant questions:\n"
+        "- What volume? (Suggested: 50 req/sec) (no answer, assume: 50 req/sec)"
+    )
+    user_turn_text = "Q: What volume?\nA: 200 req/sec"
+
+    # Direct extraction on assistant text would find it, proving service safety
+    # because the service only invokes extraction on cleaned_text (user turn)
+    assert service.extract_assumptions_from_user_turn(assistant_text) == ["50 req/sec"]
+    assert service.extract_assumptions_from_user_turn(user_turn_text) == []
+
+
+@pytest.mark.asyncio
+async def test_intake_assumptions_merged_and_deduplicated_in_brief(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Service merges assumptions from user turn into brief without duplicates."""
+    user_text = (
+        "Q: What queue?\n"
+        "A: (no answer, assume: RabbitMQ (clustered))\n\n"
+        "Q: Redundancy?\n"
+        "A: (no answer, assume: Multi-region)"
+    )
+    fake_llm = FakeLLMClient(
+        [
+            {
+                "action": "ready",
+                "brief": {
+                    "summary": "Distributed queue system",
+                    "users": "Engineers",
+                    "stated_constraints": [],
+                    "assumptions": ["Multi-region"],  # LLM also happened to return Multi-region
+                },
+            }
+        ]
+    )
+    app = _create_test_app(temp_db_session_factory, fake_llm)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        res = await client.post("/api/intake/turn", json={"text": user_text})
+
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert data["status"] == "ready"
+    brief = data["brief"]
+    # "Multi-region" must appear only once (deduped), and "RabbitMQ (clustered)" added
+    assert len(brief["assumptions"]) == 2
+    assert "RabbitMQ (clustered)" in brief["assumptions"]
+    assert "Multi-region" in brief["assumptions"]
