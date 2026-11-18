@@ -145,6 +145,7 @@ class CaseRunRecord:
     tech_options_total: int = 0
     nodes_with_tech_options: int = 0
     nodes_total: int = 0
+    layer_count: int = 0
     other_warnings: list[str] = field(default_factory=list)
     error_codes: list[str] = field(default_factory=list)
     constraint_kinds_found: list[str] = field(default_factory=list)
@@ -202,6 +203,7 @@ class CaseAggregation:
     avg_decision_node_count: float = 0.0
     avg_tech_options_per_node: float = 0.0
     tech_options_fill_rate: float = 0.0
+    avg_layer_count: float = 0.0
     lint_counts: dict[str, int] = field(default_factory=dict)
     issue_counts: dict[str, int] = field(default_factory=dict)
     design_issue_counts: dict[str, int] = field(default_factory=dict)
@@ -231,6 +233,8 @@ class EvalSummary:
     avg_decision_node_count: float = 0.0
     avg_tech_options_per_node: float = 0.0
     tech_options_fill_rate: float = 0.0
+    avg_layer_count: float = 0.0
+    lint_counts: dict[str, int] = field(default_factory=dict)
     by_case: dict[str, CaseAggregation] = field(default_factory=dict)
     design_issue_counts: dict[str, int] = field(default_factory=dict)
 
@@ -264,6 +268,7 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
             avg_decision_node_count=0.0,
             avg_tech_options_per_node=0.0,
             tech_options_fill_rate=0.0,
+            avg_layer_count=0.0,
             lint_counts={},
             issue_counts={},
             design_issue_counts={},
@@ -304,12 +309,14 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
         total_nodes_with_tech = sum(r.nodes_with_tech_options for r in successful_runs)
         avg_tech_opts = total_tech_opts / total_nodes if total_nodes > 0 else 0.0
         tech_fill_rate = total_nodes_with_tech / total_nodes if total_nodes > 0 else 0.0
+        avg_layer = sum(r.layer_count for r in successful_runs) / s_count
     else:
         avg_branch = 0.0
         avg_fan_in = 0.0
         avg_decision = 0.0
         avg_tech_opts = 0.0
         tech_fill_rate = 0.0
+        avg_layer = 0.0
 
     lint_counts: dict[str, int] = {}
     issue_counts: dict[str, int] = {}
@@ -353,6 +360,7 @@ def aggregate_case_runs(case_id: str, runs: list[CaseRunRecord]) -> CaseAggregat
         avg_decision_node_count=round(avg_decision, 2),
         avg_tech_options_per_node=round(avg_tech_opts, 2),
         tech_options_fill_rate=round(tech_fill_rate, 4),
+        avg_layer_count=round(avg_layer, 2),
         lint_counts=lint_counts,
         issue_counts=issue_counts,
         design_issue_counts=design_issue_counts,
@@ -381,6 +389,8 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
             avg_decision_node_count=0.0,
             avg_tech_options_per_node=0.0,
             tech_options_fill_rate=0.0,
+            avg_layer_count=0.0,
+            lint_counts={},
             by_case={},
             design_issue_counts={},
         )
@@ -418,12 +428,27 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
         total_nodes_with_tech = sum(r.nodes_with_tech_options for r in successful_runs)
         avg_tech_opts = total_tech_opts / total_nodes if total_nodes > 0 else 0.0
         tech_fill_rate = total_nodes_with_tech / total_nodes if total_nodes > 0 else 0.0
+        avg_layer = sum(r.layer_count for r in successful_runs) / s_count
     else:
         avg_branch = 0.0
         avg_fan_in = 0.0
         avg_decision = 0.0
         avg_tech_opts = 0.0
         tech_fill_rate = 0.0
+        avg_layer = 0.0
+
+    overall_lint_counts: dict[str, int] = {}
+    for r in runs:
+        if r.w_merge_as_agent_count > 0:
+            overall_lint_counts["W_MERGE_AS_AGENT"] = (
+                overall_lint_counts.get("W_MERGE_AS_AGENT", 0) + r.w_merge_as_agent_count
+            )
+        if r.w_no_ai_node_count > 0:
+            overall_lint_counts["W_NO_AI_NODE"] = (
+                overall_lint_counts.get("W_NO_AI_NODE", 0) + r.w_no_ai_node_count
+            )
+        for w in r.other_warnings:
+            overall_lint_counts[w] = overall_lint_counts.get(w, 0) + 1
 
     overall_design_issue_counts: dict[str, int] = {}
     for r in runs:
@@ -448,6 +473,8 @@ def aggregate_eval_runs(runs: list[CaseRunRecord]) -> EvalSummary:
         avg_decision_node_count=round(avg_decision, 2),
         avg_tech_options_per_node=round(avg_tech_opts, 2),
         tech_options_fill_rate=round(tech_fill_rate, 4),
+        avg_layer_count=round(avg_layer, 2),
+        lint_counts=overall_lint_counts,
         by_case=by_case,
         design_issue_counts=overall_design_issue_counts,
     )

@@ -30,6 +30,8 @@ def isolate_settings_from_env_file(
     # 3. Ensure secrets and credentials remain unset by default
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("ARCHITECT_PROMPT_NAME", raising=False)
+    monkeypatch.delenv("ARCHITECT_REPAIR_PROMPT_NAME", raising=False)
 
     # 4. Clear cached settings before and after each test
     get_settings.cache_clear()

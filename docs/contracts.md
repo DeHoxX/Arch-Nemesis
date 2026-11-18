@@ -62,6 +62,7 @@ These live only in `settings.py` as environment-overridable settings, never as n
 | --- | --- | --- |
 | MAX_NODES | 25 | Largest allowed design |
 | MAX_EDGES | 60 | Largest allowed design |
+| MAX_LAYERS | 8 | Target max diagram layers (lint warning if exceeded) |
 | MAX_INPUT_CHARS | 4000 | One user message in intake |
 | MAX_FOLLOWUP_ROUNDS | 3 | Intake questions before it must proceed |
 | MAX_REPAIR_ATTEMPTS | 2 | Generator repairs after the first try |
@@ -71,6 +72,8 @@ These live only in `settings.py` as environment-overridable settings, never as n
 | MAX_PATCH_OPS | 20 | Operations in one change proposal |
 | MAX_REFINEMENT_TURNS | 20 | User messages per design |
 | MAX_VERSIONS | 15 | Versions per design |
+| ARCHITECT_PROMPT_NAME | None ("architect_v8") | Optional prompt override for architect initial synthesis |
+| ARCHITECT_REPAIR_PROMPT_NAME | None ("architect_repair_v8") | Optional prompt override for architect validation repair |
 
 ---
 

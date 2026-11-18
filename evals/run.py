@@ -70,6 +70,7 @@ from archnemesis.modules.intake.schemas import IntakeTurnRequest
 from archnemesis.modules.intake.service import handle_turn
 from archnemesis.modules.validation.lints import check_lints
 from archnemesis.modules.validation.models import Limits
+from archnemesis.modules.validation.ordering import order_layers
 from archnemesis.modules.validation.validate import parse_and_validate
 from archnemesis.prompts import _PROMPTS_DIR
 from archnemesis.settings import get_settings
@@ -343,9 +344,10 @@ async def execute_eval_suite(
     chosen_architect_prompt = architect_prompt or architect_service.ARCHITECT_PROMPT_NAME
     chosen_repair_prompt = repair_prompt or architect_service.ARCHITECT_REPAIR_PROMPT_NAME
 
+    orig_settings_arch_prompt = settings.architect_prompt_name
+    orig_settings_repair_prompt = settings.architect_repair_prompt_name
     orig_arch_prompt = architect_service.ARCHITECT_PROMPT_NAME
     orig_repair_prompt = architect_service.ARCHITECT_REPAIR_PROMPT_NAME
-    orig_design_arch_prompt = designs_service.ARCHITECT_PROMPT_NAME
     orig_design_title = designs_service.generate_title_for_design
     orig_designs_title_fn = designs_title.generate_title_for_design
 
@@ -353,10 +355,11 @@ async def execute_eval_suite(
     designs_service.generate_title_for_design = _stub_generate_title_for_design
     designs_title.generate_title_for_design = _stub_generate_title_for_design
 
-    # Bind chosen prompt constants across architect and design services
+    # Bind chosen prompt constants and settings (CLI flags win over .env)
     architect_service.ARCHITECT_PROMPT_NAME = chosen_architect_prompt
     architect_service.ARCHITECT_REPAIR_PROMPT_NAME = chosen_repair_prompt
-    designs_service.ARCHITECT_PROMPT_NAME = chosen_architect_prompt
+    settings.architect_prompt_name = chosen_architect_prompt
+    settings.architect_repair_prompt_name = chosen_repair_prompt
 
     def _flush_results_to_disk(
         current_records: list[CaseRunRecord],
@@ -824,6 +827,7 @@ async def execute_eval_suite(
 
                             elapsed = time.perf_counter() - start_time
                             calls_made = client.call_count - start_calls
+                            spec_layer_count = len(order_layers(spec)) if spec else 0
 
                             rec = CaseRunRecord(
                                 case_id=case_id,
@@ -838,6 +842,7 @@ async def execute_eval_suite(
                                 edge_count=edge_count,
                                 ai_node_count=ai_nodes,
                                 agent_count=agents,
+                                layer_count=spec_layer_count,
                                 branch_count=structural_metrics["branch_count"],
                                 fan_in_count=structural_metrics["fan_in_count"],
                                 decision_node_count=structural_metrics["decision_node_count"],
@@ -929,7 +934,8 @@ async def execute_eval_suite(
     finally:
         architect_service.ARCHITECT_PROMPT_NAME = orig_arch_prompt
         architect_service.ARCHITECT_REPAIR_PROMPT_NAME = orig_repair_prompt
-        designs_service.ARCHITECT_PROMPT_NAME = orig_design_arch_prompt
+        settings.architect_prompt_name = orig_settings_arch_prompt
+        settings.architect_repair_prompt_name = orig_settings_repair_prompt
         designs_service.generate_title_for_design = orig_design_title
         designs_title.generate_title_for_design = orig_designs_title_fn
         await engine.dispose()

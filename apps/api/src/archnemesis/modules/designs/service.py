@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from archnemesis.errors import NotFoundError, NotReadyError
 from archnemesis.llm.base import LLMClient
 from archnemesis.modules.architect import service as architect_service
-from archnemesis.modules.architect.service import ARCHITECT_PROMPT_NAME
+from archnemesis.modules.architect.service import resolve_architect_prompt_names
 from archnemesis.modules.designs import repo
 from archnemesis.modules.designs.schemas import CreateDesignRequest, DesignResponse
 from archnemesis.modules.designs.title import (
@@ -102,7 +102,7 @@ async def create_design(
     # 4. Check spec cache before invoking LLM
     settings = get_settings()
     architect_model = settings.llm_model_architect or ""
-    base_prompt_version = ARCHITECT_PROMPT_NAME
+    base_prompt_version, _ = resolve_architect_prompt_names(settings)
     cache_key = compute_spec_cache_key(brief, base_prompt_version, architect_model)
 
     cached_entry = await repo.get_cached_spec(db, cache_key)

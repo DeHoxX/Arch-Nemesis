@@ -3988,3 +3988,23 @@ Alternatives considered:
 If we removed it: Diagram layout would have undefined layer ordering and backward flows across layers would go unnoticed.
 Decided by: user approved Stage V3-3A plan
 Status: active
+
+### D-382 — Stage V3-3B — prompt — Add architect_v10.md and architect_repair_v10.md for plain-language node layering
+What: Authored `apps/api/src/archnemesis/prompts/architect_v10.md` and `apps/api/src/archnemesis/prompts/architect_repair_v10.md` based strictly on `architect_v8.md` and `architect_repair_v8.md`. In `architect_v10.md`, updated Enterprise Layering (Priority B) wording from "technical layers" to "component roles" and added Section 7 specifying plain-language scenario-specific diagram layer names (max 40 chars, 3 to 6 typical, max 8, each node in exactly one layer, forward flow, no closed list, domain examples marked as hints, no Rule 4 or Rule 8 forbidden terms). In `architect_repair_v10.md`, updated Rule 4 to preserve node `layer` values on retained nodes and instructed repairs that add nodes to assign short, plain, scenario-specific non-technical layer names. Default prompts remain `architect_v8` and `architect_repair_v8`.
+Why: Equips the LLM architect with instructions to produce business-oriented node grouping metadata while maintaining all core architectural principles and constraint semantics from v8 without premature default migration.
+Alternatives considered:
+1. Update existing `architect_v8.md`: Rejected because prompt files are immutable historical artifacts in Arch-Nemesis; new versions require distinct versioned files.
+2. Base v10 on v9: Rejected because v9 altered constraint repair semantics; v10 maintains proven v8 semantics with layering.
+If we removed it: The architect prompt would have no instructions for emitting `layer` fields on nodes.
+Decided by: user approved Stage V3-3B plan
+Status: active
+
+### D-383 — Stage V3-3B — design — Configurable architect prompt overrides with shared resolver and eval isolation
+What: Added optional `architect_prompt_name` and `architect_repair_prompt_name` to `Settings` (`apps/api/src/archnemesis/settings.py`). Implemented `resolve_architect_prompt_names(settings=None) -> tuple[str, str]` in `archnemesis.modules.architect.service` validating prompt names against `^[A-Za-z0-9_-]+$` against path traversal. Integrated the resolver into `architect.service.synthesize_architecture` and `designs.service.create_design` so spec cache keys and version labels strictly align with the resolved prompt. Updated `evals/run.py` to save, set, and restore `settings.architect_prompt_name` and `settings.architect_repair_prompt_name` so CLI `--architect-prompt` and `--repair-prompt` flags win over environment variables without mutating `designs_service.ARCHITECT_PROMPT_NAME`. Added `spec_layer` probe to `scripts/schema_probe.py`, hermetic env cleanup in `tests/conftest.py`, commented keys in `.env.example`, `avg_layer_count` and `W_LAYER_*` counts in `evals/compare.py`, and corresponding unit tests.
+Why: Provides a safe, opt-in mechanism to test and evaluate `architect_v10` against `architect_v8` without changing application defaults or leaking configuration across tests.
+Alternatives considered:
+1. Monkeypatching module constants alone in eval runner: Rejected because service modules reading `Settings` directly would diverge from CLI flags if `.env` had overrides.
+2. Separate prompt resolvers in architect and designs: Rejected because cache key divergence would cause cache misses or wrong version labels.
+If we removed it: Testing alternative architect prompts in evaluation or staging would require hardcoding prompt names in service code.
+Decided by: user approved Stage V3-3B plan
+Status: active

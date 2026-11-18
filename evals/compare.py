@@ -279,6 +279,16 @@ def compare_case_metrics(
             threshold=999.0,
         )
     )
+    diffs.append(
+        evaluate_diff_or_na(
+            case_id,
+            "avg_layer_count",
+            case_a.get("avg_layer_count"),
+            case_b.get("avg_layer_count"),
+            higher_is_better=True,
+            threshold=999.0,
+        )
+    )
 
     return diffs
 
@@ -385,6 +395,14 @@ def compare_overall_summaries(
             higher_is_better=True,
             threshold=999.0,
         ),
+        evaluate_diff_or_na(
+            "OVERALL",
+            "avg_layer_count",
+            summary_a.get("avg_layer_count"),
+            summary_b.get("avg_layer_count"),
+            higher_is_better=True,
+            threshold=999.0,
+        ),
     ]
     return diffs
 
@@ -439,6 +457,29 @@ def format_comparison_table(
             for code in all_design_codes:
                 cnt_a = design_issues_a.get(code, 0)
                 cnt_b = design_issues_b.get(code, 0)
+                diff = cnt_b - cnt_a
+                lines.append(
+                    f"  {code:<30}: Run A = {cnt_a:>3}, Run B = {cnt_b:>3} (diff {diff:+d})"
+                )
+
+        lints_a: dict[str, int] = dict(summary_a.get("lint_counts", {}))
+        lints_b: dict[str, int] = dict(summary_b.get("lint_counts", {}))
+        if not lints_a and "by_case" in summary_a:
+            for c in summary_a["by_case"].values():
+                for k, v in c.get("lint_counts", {}).items():
+                    lints_a[k] = lints_a.get(k, 0) + v
+        if not lints_b and "by_case" in summary_b:
+            for c in summary_b["by_case"].values():
+                for k, v in c.get("lint_counts", {}).items():
+                    lints_b[k] = lints_b.get(k, 0) + v
+
+        layer_lint_codes = ["W_LAYER_MISSING", "W_TOO_MANY_LAYERS", "W_LAYER_BACKWARD"]
+        if any(code in lints_a or code in lints_b for code in layer_lint_codes):
+            lines.append("-" * 80)
+            lines.append("LAYER LINT COUNTS:")
+            for code in layer_lint_codes:
+                cnt_a = lints_a.get(code, 0)
+                cnt_b = lints_b.get(code, 0)
                 diff = cnt_b - cnt_a
                 lines.append(
                     f"  {code:<30}: Run A = {cnt_a:>3}, Run B = {cnt_b:>3} (diff {diff:+d})"

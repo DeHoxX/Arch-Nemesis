@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     max_refinement_turns: int = 20
     max_versions: int = 15
 
+    # Prompt overrides (optional; defaults in service modules win when unset)
+    architect_prompt_name: str | None = None
+    architect_repair_prompt_name: str | None = None
+
     # Rate limiting (Phase 8A, sliding window per client IP per hour)
     rate_limit_intake_per_hour: int = 60
     rate_limit_designs_per_hour: int = 10

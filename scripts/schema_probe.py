@@ -708,6 +708,24 @@ class RefinementLLMOutputI(BaseModel):
     patch: PatchI | None = None
 
 
+async def _probe_spec_layer(client: LLMClient) -> None:
+    raw = await client.generate_json(
+        task=LLMTask.ARCHITECT,
+        system=(
+            "You are an expert software architect. Output a valid ArchitectureSpec "
+            "where every node has a short plain-language layer field (max 40 chars)."
+        ),
+        user=(
+            "Design a minimal 3-node web service: an entry client, an api router, and an exit storage. "
+            "Give each node a distinct scenario layer."
+        ),
+        schema=ArchitectureSpec,
+    )
+    parsed = ArchitectureSpec.model_validate(raw)
+    if not any(n.layer for n in parsed.nodes):
+        raise ValueError("Spec parsed, but no node returned a non-empty layer")
+
+
 # =========================================================================
 # Main execution loop
 # =========================================================================
@@ -720,6 +738,7 @@ async def main() -> int:
 
     probe_names = [
         "spec",
+        "spec_layer",
         "intake",
         "refine_A",
         "suggest_A",
@@ -781,6 +800,7 @@ async def main() -> int:
             user="Design a minimal 3-node web service: an entry client, an api router, and an exit storage.",
             schema=ArchitectureSpec,
         ),
+        "spec_layer": lambda: _probe_spec_layer(client),
         "intake": lambda: client.generate_json(
             task=LLMTask.INTAKE,
             system="You are an intake analyst. Output an IntakeLLMOutput JSON object.",

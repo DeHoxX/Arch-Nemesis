@@ -19,6 +19,7 @@ import archnemesis.modules.architect.service as architect_service
 from archnemesis.llm.base import LLMClient, LLMRateLimited, LLMTask, LLMUnavailable
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.prompts import load_prompt
+from archnemesis.settings import get_settings
 
 DEFAULT_TITLE_OUTPUT: dict[str, Any] = {"title": "Support Chat Assistant"}
 
@@ -1950,7 +1951,42 @@ async def test_run_5c_transient_503_retry_and_abort(tmp_path: Path, repo_root_pa
     data_b = json.loads(out_b.read_text(encoding="utf-8"))
     assert data_b["meta"]["aborted_due_to_quota"] is True
     assert data_b["meta"]["total_runs_completed"] == 0
-    assert out_b.exists()
-    data_b = json.loads(out_b.read_text(encoding="utf-8"))
-    assert data_b["meta"]["aborted_due_to_quota"] is True
-    assert data_b["meta"]["total_runs_completed"] == 0
+
+
+@pytest.mark.asyncio
+async def test_run_prompt_cli_wins_over_settings_and_restores(
+    tmp_path: Path, repo_root_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verify that CLI architect_prompt flag wins over settings.architect_prompt_name, and restores settings."""
+    get_settings.cache_clear()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "architect_prompt_name", "architect_v10")
+    monkeypatch.setattr(settings, "architect_repair_prompt_name", "architect_repair_v10")
+
+    cases = load_eval_cases(repo_root_path / "evals" / "cases", only_case_id="support")
+    assert len(cases) == 1
+
+    fake = FakeLLMClient(script=build_dry_run_script(cases, 1))
+    collector = StructlogEventCollector()
+    out_file = tmp_path / "cli_override_results.json"
+
+    exit_code, records = await execute_eval_suite(
+        cases=cases,
+        runs_per_case=1,
+        client=InstrumentedLLMClient(fake),
+        event_collector=collector,
+        output_path=out_file,
+        dry_mode=True,
+        architect_prompt="architect_v8",
+        repair_prompt="architect_repair_v8",
+    )
+
+    assert exit_code == 0
+    assert len(records) == 1
+    assert records[0].prompt_version == "architect_v8"
+    assert records[0].layer_count >= 0
+
+    # Ensure settings were restored to original values
+    assert settings.architect_prompt_name == "architect_v10"
+    assert settings.architect_repair_prompt_name == "architect_repair_v10"
+    get_settings.cache_clear()

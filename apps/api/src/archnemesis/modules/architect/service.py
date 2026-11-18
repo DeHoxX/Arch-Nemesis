@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import structlog
 
@@ -17,7 +18,7 @@ from archnemesis.modules.validation.models import (
 from archnemesis.modules.validation.repair import patch_constraints, patch_dead_ends
 from archnemesis.modules.validation.validate import parse_and_validate, validate
 from archnemesis.prompts import load_patterns, load_prompt
-from archnemesis.settings import get_settings
+from archnemesis.settings import Settings, get_settings
 from archnemesis.shared.brief import RequirementBrief
 
 logger = structlog.get_logger()
@@ -25,6 +26,27 @@ logger = structlog.get_logger()
 MAX_ARCHITECT_CALLS: int = 3
 ARCHITECT_PROMPT_NAME: str = "architect_v8"
 ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v8"
+
+_PROMPT_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def resolve_architect_prompt_names(settings: Settings | None = None) -> tuple[str, str]:
+    """Resolve (architect_prompt_name, architect_repair_prompt_name) from settings or defaults.
+
+    Validates prompt names against ^[A-Za-z0-9_-]+$ to prevent path traversal.
+    """
+    if settings is None:
+        settings = get_settings()
+
+    arch_name = settings.architect_prompt_name or ARCHITECT_PROMPT_NAME
+    repair_name = settings.architect_repair_prompt_name or ARCHITECT_REPAIR_PROMPT_NAME
+
+    if not _PROMPT_NAME_RE.match(arch_name):
+        raise ValueError(f"Invalid architect prompt name: {arch_name!r}")
+    if not _PROMPT_NAME_RE.match(repair_name):
+        raise ValueError(f"Invalid architect repair prompt name: {repair_name!r}")
+
+    return arch_name, repair_name
 
 
 def _format_brief_prompt(brief: RequirementBrief) -> str:
@@ -91,6 +113,8 @@ async def generate_and_validate(
     if not settings.llm_model_architect:
         raise LLMNotConfiguredError("LLM model for architect is not configured.")
 
+    prompt_name, repair_prompt_name = resolve_architect_prompt_names(settings)
+
     limits = Limits(
         max_nodes=settings.max_nodes,
         max_edges=settings.max_edges,
@@ -100,7 +124,7 @@ async def generate_and_validate(
     brief_text = _format_brief_prompt(brief)
 
     # Call 1: Initial generation
-    system_prompt = load_prompt(f"{ARCHITECT_PROMPT_NAME}.md")
+    system_prompt = load_prompt(f"{prompt_name}.md")
     patterns_text = load_patterns(version="v5")
     user_prompt = (
         f"Architectural Reference Patterns:\n\n{patterns_text}\n\n"
@@ -129,7 +153,7 @@ async def generate_and_validate(
     )
 
     if result.ok and spec is not None:
-        return spec, ARCHITECT_PROMPT_NAME, 1, result
+        return spec, prompt_name, 1, result
 
     # Attempt deterministic code repair after Call 1 failure
     if spec is not None:
@@ -159,7 +183,7 @@ async def generate_and_validate(
                 )
                 return (
                     spec.model_validate(patched_spec.model_dump()),
-                    f"{ARCHITECT_PROMPT_NAME}+code_repair",
+                    f"{prompt_name}+code_repair",
                     1,
                     final_result,
                 )
@@ -168,7 +192,7 @@ async def generate_and_validate(
     last_errors = [err.message for err in result.errors]
 
     # Repair loop: Up to 2 repair calls (total calls = 3)
-    repair_system = load_prompt(f"{ARCHITECT_REPAIR_PROMPT_NAME}.md")
+    repair_system = load_prompt(f"{repair_prompt_name}.md")
 
     for call_idx in range(2, MAX_ARCHITECT_CALLS + 1):
         errors_formatted = "\n".join(f"- {err}" for err in last_errors)
@@ -203,7 +227,7 @@ async def generate_and_validate(
         )
 
         if result.ok and spec is not None:
-            return spec, f"{ARCHITECT_PROMPT_NAME}+{ARCHITECT_REPAIR_PROMPT_NAME}", call_idx, result
+            return spec, f"{prompt_name}+{repair_prompt_name}", call_idx, result
 
         # Attempt deterministic code repair after repair call failure
         if spec is not None:
@@ -230,9 +254,7 @@ async def generate_and_validate(
                         warnings=merged_warnings,
                         skipped=patched_result.skipped,
                     )
-                    version_label = (
-                        f"{ARCHITECT_PROMPT_NAME}+{ARCHITECT_REPAIR_PROMPT_NAME}+code_repair"
-                    )
+                    version_label = f"{prompt_name}+{repair_prompt_name}+code_repair"
                     return (
                         spec.model_validate(patched_spec.model_dump()),
                         version_label,
