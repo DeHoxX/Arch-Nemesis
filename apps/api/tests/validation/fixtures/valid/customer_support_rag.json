@@ -7,7 +7,8 @@
       "role": "Customer interface for submitting queries",
       "inputs": ["user_message"],
       "outputs": ["raw_query"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Client"
     },
     {
       "id": "router",
@@ -16,7 +17,8 @@
       "role": "Classifies intent into billing, tech, or general",
       "inputs": ["raw_query"],
       "outputs": ["intent", "clean_query"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Routing"
     },
     {
       "id": "kb_retriever",
@@ -25,7 +27,8 @@
       "role": "Fetches verified solution documents",
       "inputs": ["clean_query"],
       "outputs": ["kb_articles"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Knowledge Retrieval"
     },
     {
       "id": "response_generator",
@@ -34,7 +37,8 @@
       "role": "Generates natural language response citing knowledge base",
       "inputs": ["clean_query", "kb_articles", "intent"],
       "outputs": ["support_response"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "AI Generation"
     },
     {
       "id": "responder",
@@ -43,7 +47,8 @@
       "role": "Delivers formatted answer back to customer",
       "inputs": ["support_response"],
       "outputs": ["delivered_message"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Delivery"
     }
   ],
   "edges": [

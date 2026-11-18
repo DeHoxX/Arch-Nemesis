@@ -1,0 +1,26 @@
+{
+  "nodes": [
+    {"id": "node_1", "name": "Node 1", "type": "step", "role": "Step 1", "inputs": [], "outputs": ["d1"], "needs_model": false, "layer": "Layer 1"},
+    {"id": "node_2", "name": "Node 2", "type": "step", "role": "Step 2", "inputs": ["d1"], "outputs": ["d2"], "needs_model": true, "layer": "Layer 2"},
+    {"id": "node_3", "name": "Node 3", "type": "step", "role": "Step 3", "inputs": ["d2"], "outputs": ["d3"], "needs_model": false, "layer": "Layer 3"},
+    {"id": "node_4", "name": "Node 4", "type": "step", "role": "Step 4", "inputs": ["d3"], "outputs": ["d4"], "needs_model": false, "layer": "Layer 4"},
+    {"id": "node_5", "name": "Node 5", "type": "step", "role": "Step 5", "inputs": ["d4"], "outputs": ["d5"], "needs_model": false, "layer": "Layer 5"},
+    {"id": "node_6", "name": "Node 6", "type": "step", "role": "Step 6", "inputs": ["d5"], "outputs": ["d6"], "needs_model": false, "layer": "Layer 6"},
+    {"id": "node_7", "name": "Node 7", "type": "step", "role": "Step 7", "inputs": ["d6"], "outputs": ["d7"], "needs_model": false, "layer": "Layer 7"},
+    {"id": "node_8", "name": "Node 8", "type": "step", "role": "Step 8", "inputs": ["d7"], "outputs": ["d8"], "needs_model": false, "layer": "Layer 8"},
+    {"id": "node_9", "name": "Node 9", "type": "step", "role": "Step 9", "inputs": ["d8"], "outputs": [], "needs_model": false, "layer": "Layer 9"}
+  ],
+  "edges": [
+    {"from": "node_1", "to": "node_2", "flows": "f1"},
+    {"from": "node_2", "to": "node_3", "flows": "f2"},
+    {"from": "node_3", "to": "node_4", "flows": "f3"},
+    {"from": "node_4", "to": "node_5", "flows": "f4"},
+    {"from": "node_5", "to": "node_6", "flows": "f5"},
+    {"from": "node_6", "to": "node_7", "flows": "f6"},
+    {"from": "node_7", "to": "node_8", "flows": "f7"},
+    {"from": "node_8", "to": "node_9", "flows": "f8"}
+  ],
+  "constraints": [],
+  "entry_ids": ["node_1"],
+  "exit_ids": ["node_9"]
+}

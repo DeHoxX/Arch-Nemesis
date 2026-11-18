@@ -7,7 +7,8 @@
       "role": "Captures candidate signed offer and personal records",
       "inputs": ["signed_offer"],
       "outputs": ["new_hire_profile"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Intake"
     },
     {
       "id": "doc_verifier",
@@ -16,7 +17,8 @@
       "role": "Verifies identity documents and background check clear status",
       "inputs": ["new_hire_profile"],
       "outputs": ["verified_identity"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Verification"
     },
     {
       "id": "welcome_bot",
@@ -25,7 +27,8 @@
       "role": "Prepares personalized first-week onboarding schedule",
       "inputs": ["verified_identity"],
       "outputs": ["onboarding_plan"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Onboarding"
     },
     {
       "id": "it_provisioner",
@@ -34,7 +37,8 @@
       "role": "Provisions enterprise email, laptop, and security badge access",
       "inputs": ["onboarding_plan"],
       "outputs": ["credentials_pack"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Provisioning"
     }
   ],
   "edges": [

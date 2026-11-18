@@ -91,7 +91,11 @@ async def generate_and_validate(
     if not settings.llm_model_architect:
         raise LLMNotConfiguredError("LLM model for architect is not configured.")
 
-    limits = Limits(max_nodes=settings.max_nodes, max_edges=settings.max_edges)
+    limits = Limits(
+        max_nodes=settings.max_nodes,
+        max_edges=settings.max_edges,
+        max_layers=settings.max_layers,
+    )
     brief_constraints = {c.id: c.text for c in brief.stated_constraints}
     brief_text = _format_brief_prompt(brief)
 

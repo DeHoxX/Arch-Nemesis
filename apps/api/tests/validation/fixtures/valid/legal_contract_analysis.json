@@ -7,7 +7,8 @@
       "role": "Receives signed PDF contracts",
       "inputs": ["pdf_stream"],
       "outputs": ["raw_contract"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Ingress"
     },
     {
       "id": "ocr_parser",
@@ -16,7 +17,8 @@
       "role": "Extracts text blocks and page layout hierarchy",
       "inputs": ["raw_contract"],
       "outputs": ["extracted_sections"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Parsing"
     },
     {
       "id": "clause_extractor",
@@ -25,7 +27,8 @@
       "role": "Identifies liabilities, indemnities, and termination clauses",
       "inputs": ["extracted_sections"],
       "outputs": ["clause_map"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Analysis"
     },
     {
       "id": "risk_scorer",
@@ -34,7 +37,8 @@
       "role": "Computes composite compliance risk score",
       "inputs": ["clause_map"],
       "outputs": ["risk_report"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Scoring"
     },
     {
       "id": "legal_dashboard",
@@ -43,7 +47,8 @@
       "role": "Displays highlighted clauses and flags high-risk contracts",
       "inputs": ["risk_report"],
       "outputs": ["acknowledged_verdict"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Presentation"
     }
   ],
   "edges": [

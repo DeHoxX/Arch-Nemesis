@@ -1,9 +1,14 @@
 """Lint rules and diagnostic warnings for ArchitectureSpec."""
 
-from archnemesis.modules.validation.models import ArchitectureSpec, ValidationIssue
+from archnemesis.modules.validation.models import ArchitectureSpec, Limits, ValidationIssue
+from archnemesis.modules.validation.ordering import (
+    OTHER_PARTS_LAYER,
+    _resolve_layer_display_names,
+    order_layers,
+)
 
 
-def check_lints(spec: ArchitectureSpec) -> list[ValidationIssue]:
+def check_lints(spec: ArchitectureSpec, limits: Limits | None = None) -> list[ValidationIssue]:
     """Run lint checks that produce non-blocking warnings."""
     warnings: list[ValidationIssue] = []
     exit_set = set(spec.exit_ids)
@@ -102,5 +107,61 @@ def check_lints(spec: ArchitectureSpec) -> list[ValidationIssue]:
                     ids=[node.id],
                 )
             )
+
+    # 9. W_LAYER_MISSING: Node has no layer; it is shown under 'Other parts'
+    for node in sorted(spec.nodes, key=lambda n: n.id):
+        if node.layer is None or not node.layer.strip():
+            warnings.append(
+                ValidationIssue(
+                    code="W_LAYER_MISSING",
+                    severity="warning",
+                    message=f"Node '{node.id}' has no layer; it is shown under 'Other parts'.",
+                    ids=[node.id],
+                )
+            )
+
+    # 10. W_TOO_MANY_LAYERS & 11. W_LAYER_BACKWARD
+    try:
+        ordered_layers = order_layers(spec)
+    except ValueError:
+        ordered_layers = []
+
+    if ordered_layers:
+        effective_limits = limits if limits is not None else Limits()
+        if len(ordered_layers) > effective_limits.max_layers:
+            warnings.append(
+                ValidationIssue(
+                    code="W_TOO_MANY_LAYERS",
+                    severity="warning",
+                    message=(
+                        f"The design has {len(ordered_layers)} layers; "
+                        f"more than {effective_limits.max_layers} is hard to read."
+                    ),
+                    ids=[n.id for n in spec.nodes],
+                )
+            )
+
+        layer_index = {l_name: idx for idx, l_name in enumerate(ordered_layers)}
+        layer_display_names = _resolve_layer_display_names(spec)
+        node_layer_map: dict[str, str] = {}
+        for node in spec.nodes:
+            if node.layer is not None and node.layer.strip():
+                cleaned = " ".join(node.layer.split()).strip()
+                node_layer_map[node.id] = layer_display_names[cleaned.casefold()]
+            else:
+                node_layer_map[node.id] = OTHER_PARTS_LAYER
+
+        for edge in sorted(spec.edges, key=lambda e: (e.from_node, e.to, e.flows)):
+            from_idx = layer_index[node_layer_map[edge.from_node]]
+            to_idx = layer_index[node_layer_map[edge.to]]
+            if to_idx < from_idx:
+                warnings.append(
+                    ValidationIssue(
+                        code="W_LAYER_BACKWARD",
+                        severity="warning",
+                        message=f"The flow from '{edge.from_node}' to '{edge.to}' goes back to an earlier layer.",
+                        ids=[edge.from_node, edge.to],
+                    )
+                )
 
     return warnings

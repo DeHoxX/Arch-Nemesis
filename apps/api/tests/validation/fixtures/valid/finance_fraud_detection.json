@@ -8,7 +8,8 @@
       "inputs": ["raw_transaction"],
       "outputs": ["parsed_tx"],
       "tech_options": ["Kong", "Envoy"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Ingress"
     },
     {
       "id": "enricher",
@@ -17,7 +18,8 @@
       "role": "Enriches transaction with customer account history",
       "inputs": ["parsed_tx"],
       "outputs": ["enriched_tx"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Processing"
     },
     {
       "id": "detector",
@@ -26,7 +28,8 @@
       "role": "Evaluates probability of fraudulent activity",
       "inputs": ["enriched_tx"],
       "outputs": ["fraud_score"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Analysis"
     },
     {
       "id": "decision_engine",
@@ -35,7 +38,8 @@
       "role": "Applies regulatory and risk policies",
       "inputs": ["fraud_score"],
       "outputs": ["decision"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Decision"
     },
     {
       "id": "audit_sink",
@@ -44,7 +48,8 @@
       "role": "Persists audit trail and decisions",
       "inputs": ["decision"],
       "outputs": ["ack"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Persistence"
     }
   ],
   "edges": [

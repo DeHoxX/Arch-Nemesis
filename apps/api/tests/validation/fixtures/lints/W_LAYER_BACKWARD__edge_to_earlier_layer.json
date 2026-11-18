@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "node_entry",
+      "name": "Entry Gateway",
+      "type": "gateway",
+      "role": "Receives inbound traffic",
+      "inputs": [],
+      "outputs": ["raw_req"],
+      "needs_model": false,
+      "layer": "Ingress"
+    },
+    {
+      "id": "node_worker",
+      "name": "Worker Node",
+      "type": "processor",
+      "role": "Processes request",
+      "inputs": ["raw_req"],
+      "outputs": ["processed_req"],
+      "needs_model": true,
+      "layer": "Processing"
+    },
+    {
+      "id": "node_exit",
+      "name": "Exit Sink",
+      "type": "sink",
+      "role": "Saves processed traffic back at ingress layer",
+      "inputs": ["processed_req"],
+      "outputs": [],
+      "needs_model": false,
+      "layer": "Ingress"
+    }
+  ],
+  "edges": [
+    {"from": "node_entry", "to": "node_worker", "flows": "inbound"},
+    {"from": "node_worker", "to": "node_exit", "flows": "loopback_to_ingress_layer"}
+  ],
+  "constraints": [],
+  "entry_ids": ["node_entry"],
+  "exit_ids": ["node_exit"]
+}

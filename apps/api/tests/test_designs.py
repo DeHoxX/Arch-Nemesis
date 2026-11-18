@@ -31,6 +31,7 @@ VALID_SPEC_DICT = {
             "outputs": ["raw_request"],
             "tech_options": [],
             "needs_model": False,
+            "layer": "Ingress",
         },
         {
             "id": "worker",
@@ -41,6 +42,7 @@ VALID_SPEC_DICT = {
             "outputs": ["db_record"],
             "tech_options": [],
             "needs_model": False,
+            "layer": "Processing",
         },
         {
             "id": "db_sink",
@@ -51,6 +53,7 @@ VALID_SPEC_DICT = {
             "outputs": [],
             "tech_options": [],
             "needs_model": False,
+            "layer": "Storage",
         },
     ],
     "edges": [

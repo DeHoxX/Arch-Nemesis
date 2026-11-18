@@ -7,7 +7,8 @@
       "role": "Ingests high-frequency sensor readings",
       "inputs": ["mqtt_packet"],
       "outputs": ["sensor_event"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Ingress"
     },
     {
       "id": "stream_filter",
@@ -16,7 +17,8 @@
       "role": "Computes rolling 5-minute aggregations",
       "inputs": ["sensor_event"],
       "outputs": ["windowed_metrics"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Processing"
     },
     {
       "id": "anomaly_detector",
@@ -25,7 +27,8 @@
       "role": "Detects thermal runaway or vibration spikes",
       "inputs": ["windowed_metrics"],
       "outputs": ["anomaly_flag"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Analytics"
     },
     {
       "id": "alert_dispatcher",
@@ -34,7 +37,8 @@
       "role": "Triggers paging alerts and automatic circuit shutdown",
       "inputs": ["anomaly_flag"],
       "outputs": ["pager_alert"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Notification"
     }
   ],
   "edges": [

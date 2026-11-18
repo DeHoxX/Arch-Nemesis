@@ -3960,3 +3960,31 @@ Why: Forced brief generation does not emit clarifying questions and code handles
 Alternatives considered: Keeping intake_forced_v2.md. Rejected as redundant and prone to prompt divergence.
 Decided by: user
 Status: active (supersedes D-367; see D-374)
+
+### D-379 — Stage V3-3A — contract — Optional NodeSpec.layer field with non-blocking 40-character normalization
+What: Added optional `layer: str | None = Field(default=None, max_length=40)` to `NodeSpec` (Pydantic model in `archnemesis.modules.validation.models`) and `layer?: string | null` in frontend TypeScript types (`apps/web/src/lib/types.ts`) and Zod schema (`apps/web/src/lib/api.ts`). Normalization runs via before-validator: trims and collapses whitespace and truncates to 40 characters; empty string becomes None/null.
+Why: Allows architectural nodes to specify semantic layers (e.g., Ingress, Processing, Persistence) for diagram rendering while ensuring invalid layer strings never block design generation or cause 422 errors.
+Alternatives considered:
+1. Strict 40-char rejection: Rejected because layer categorization is non-essential diagnostic metadata and must never block valid architecture specs.
+2. Spec-level layers list: Rejected to preserve simplicity; layers are discovered dynamically from node assignments.
+If we removed it: Nodes would lack structural layer metadata required for left-to-right columnar block layout.
+Decided by: user approved Stage V3-3A plan
+Status: active
+
+### D-380 — Stage V3-3A — contract — Configurable max_layers limit across settings and validation Limits
+What: Added `max_layers: int = 8` to `Settings` (`apps/api/src/archnemesis/settings.py`) and `Limits` dataclass (`archnemesis.modules.validation.models`). Updated `check_lints` signature in `lints.py` to accept `limits: Limits | None = None` and passed `limits` from `architect/service.py`, `designs/service.py`, `refinement/service.py`, and `validate.py`.
+Why: Establishes a system threshold where diagrams with excessive layers emit a readability warning without blocking design delivery.
+Alternatives considered: Hardcoding 8 in `lints.py`. Rejected because architectural boundaries and limits in Arch-Nemesis are centralized in `Limits` and `Settings`.
+If we removed it: Readability threshold for layers could not be configured or tuned across environments.
+Decided by: user approved Stage V3-3A plan
+Status: active
+
+### D-381 — Stage V3-3A — design — Pure deterministic order_layers and non-blocking layer lints
+What: Implemented pure deterministic `order_layers(spec: ArchitectureSpec) -> list[str]` and `OTHER_PARTS_LAYER = "Other parts"` in `archnemesis.modules.validation.ordering`, exported through `validation/__init__.py`. Layers are ordered by the minimum longest-path DAG rank of their member nodes, breaking ties alphabetically by layer name (case-insensitive, then exact). Unassigned nodes fall into "Other parts", which participates in ranking and layer counting. Implemented 3 non-blocking lints in `lints.py`: `W_LAYER_MISSING` (node has no layer), `W_TOO_MANY_LAYERS` (layer count exceeds `limits.max_layers`), and `W_LAYER_BACKWARD` (flow edge directs to an earlier layer).
+Why: Enforces deterministic, topological left-to-right layer ordering for block and diagram views while warning users about missing layers, excessive complexity, or backward flows.
+Alternatives considered:
+1. Order layers purely alphabetically: Rejected because topological flow through the architecture would be lost.
+2. Group missing layer nodes outside the layer ordering: Rejected because "Other parts" represents a distinct visual column that must be positioned based on its constituent node connections.
+If we removed it: Diagram layout would have undefined layer ordering and backward flows across layers would go unnoticed.
+Decided by: user approved Stage V3-3A plan
+Status: active

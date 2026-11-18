@@ -13,7 +13,11 @@ from archnemesis.modules.validation.models import (
     ValidationIssue,
     ValidationResult,
 )
-from archnemesis.modules.validation.ordering import order_nodes
+from archnemesis.modules.validation.ordering import (
+    OTHER_PARTS_LAYER,
+    order_layers,
+    order_nodes,
+)
 from archnemesis.modules.validation.patch import (
     Changes,
     DiffResult,
@@ -30,6 +34,7 @@ from archnemesis.modules.validation.repair import patch_constraints
 from archnemesis.modules.validation.validate import parse_and_validate, validate
 
 __all__ = [
+    "OTHER_PARTS_LAYER",
     "ArchitectureSpec",
     "Changes",
     "ConstraintSpec",
@@ -47,6 +52,7 @@ __all__ = [
     "apply_patch",
     "compute_diff",
     "describe_diff",
+    "order_layers",
     "order_nodes",
     "parse_and_validate",
     "patch_constraints",

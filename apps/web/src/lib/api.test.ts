@@ -173,6 +173,37 @@ describe("api client Zod schema parsing", () => {
     }
   });
 
+  it("parses nodeSpecSchema with optional layer field (string, null, or undefined)", () => {
+    const baseNode = {
+      id: "api_gateway",
+      name: "API Gateway",
+      type: "gateway",
+      role: "Inbound entry",
+      inputs: [],
+      outputs: ["req"],
+      tech_options: [],
+      needs_model: false,
+    };
+
+    const withLayer = nodeSpecSchema.safeParse({ ...baseNode, layer: "Ingress" });
+    expect(withLayer.success).toBe(true);
+    if (withLayer.success) {
+      expect(withLayer.data.layer).toBe("Ingress");
+    }
+
+    const withNullLayer = nodeSpecSchema.safeParse({ ...baseNode, layer: null });
+    expect(withNullLayer.success).toBe(true);
+    if (withNullLayer.success) {
+      expect(withNullLayer.data.layer).toBeNull();
+    }
+
+    const withoutLayer = nodeSpecSchema.safeParse(baseNode);
+    expect(withoutLayer.success).toBe(true);
+    if (withoutLayer.success) {
+      expect(withoutLayer.data.layer).toBeUndefined();
+    }
+  });
+
   it("parses 422 DESIGN_FAILED error envelope including issue messages list", () => {
     const designFailedBody = {
       error: {

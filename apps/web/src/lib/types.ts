@@ -49,6 +49,7 @@ export interface NodeSpec {
   needs_model: boolean;
   ai_role?: "none" | "model" | "agent";
   tools?: string[];
+  layer?: string | null;
 }
 
 export interface EdgeSpec {

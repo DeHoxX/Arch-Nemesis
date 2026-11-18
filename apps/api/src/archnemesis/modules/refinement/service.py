@@ -182,7 +182,11 @@ async def handle_chat(
             spec=current_spec,
             patch=output.patch,
             brief_constraints=brief_constraints,
-            limits=Limits(),
+            limits=Limits(
+                max_nodes=settings.max_nodes,
+                max_edges=settings.max_edges,
+                max_layers=settings.max_layers,
+            ),
             max_patch_ops=settings.max_patch_ops,
         )
 
@@ -336,7 +340,11 @@ async def handle_suggestions(
             spec=current_spec,
             patch=item.patch,
             brief_constraints=brief_constraints,
-            limits=Limits(),
+            limits=Limits(
+                max_nodes=settings.max_nodes,
+                max_edges=settings.max_edges,
+                max_layers=settings.max_layers,
+            ),
             max_patch_ops=settings.max_patch_ops,
         )
 
@@ -474,7 +482,11 @@ async def accept_patch(
         spec=current_spec,
         patch=parsed_patch,
         brief_constraints=brief_constraints,
-        limits=Limits(),
+        limits=Limits(
+            max_nodes=settings.max_nodes,
+            max_edges=settings.max_edges,
+            max_layers=settings.max_layers,
+        ),
         max_patch_ops=settings.max_patch_ops,
     )
 
@@ -489,7 +501,11 @@ async def accept_patch(
             spec=current_spec,
             patch=parsed_patch,
             brief_constraints=brief_constraints,
-            limits=Limits(),
+            limits=Limits(
+                max_nodes=settings.max_nodes,
+                max_edges=settings.max_edges,
+                max_layers=settings.max_layers,
+            ),
             dropped_brief_ids=dropped_ids,
             max_patch_ops=settings.max_patch_ops,
         )

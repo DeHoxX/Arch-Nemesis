@@ -7,7 +7,8 @@
       "role": "Customer initiates item return with reason and photo",
       "inputs": ["order_id", "photo_url", "reason_code"],
       "outputs": ["return_ticket"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Intake"
     },
     {
       "id": "image_evaluator",
@@ -16,7 +17,8 @@
       "role": "Analyzes item condition from uploaded photos",
       "inputs": ["return_ticket"],
       "outputs": ["condition_assessment"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Inspection"
     },
     {
       "id": "policy_checker",
@@ -25,7 +27,8 @@
       "role": "Validates return window and warranty eligibility",
       "inputs": ["condition_assessment"],
       "outputs": ["return_decision"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Validation"
     },
     {
       "id": "refund_issuer",
@@ -34,7 +37,8 @@
       "role": "Generates return shipping label and triggers merchant refund",
       "inputs": ["return_decision"],
       "outputs": ["rma_label", "refund_receipt"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Settlement"
     }
   ],
   "edges": [

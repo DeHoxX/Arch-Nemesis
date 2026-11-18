@@ -36,6 +36,9 @@ ALL_CODES = {
     "W_CODE_REPAIR_APPLIED",
     "W_AGENT_WITHOUT_TOOLS",
     "W_MERGE_AS_AGENT",
+    "W_LAYER_MISSING",
+    "W_TOO_MANY_LAYERS",
+    "W_LAYER_BACKWARD",
 }
 
 TEMPLATE_PATTERNS = {
@@ -67,6 +70,9 @@ TEMPLATE_PATTERNS = {
     "W_CODE_REPAIR_APPLIED": r"^Constraint '[^']+' satisfied by automated graph alignment: routed \d+ edge\(s\) through '[^']+'\.$",
     "W_AGENT_WITHOUT_TOOLS": r"^Agent node '[^']+' is declared as an agent but lists no tools\.$",
     "W_MERGE_AS_AGENT": r"^Merge node '[^']+' combines parallel branches but is marked as an AI agent or model\. Plain code should be used unless AI judgment is required\.$",
+    "W_LAYER_MISSING": r"^Node '[^']+' has no layer; it is shown under 'Other parts'\.$",
+    "W_TOO_MANY_LAYERS": r"^The design has \d+ layers; more than \d+ is hard to read\.$",
+    "W_LAYER_BACKWARD": r"^The flow from '[^']+' to '[^']+' goes back to an earlier layer\.$",
 }
 
 

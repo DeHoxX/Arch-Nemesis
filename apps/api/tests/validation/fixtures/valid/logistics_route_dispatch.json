@@ -7,7 +7,8 @@
       "role": "Consumes verified purchase orders ready for shipping",
       "inputs": ["order_event"],
       "outputs": ["unrouted_order"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Ingress"
     },
     {
       "id": "inventory_checker",
@@ -16,7 +17,8 @@
       "role": "Checks regional distribution hub stock levels",
       "inputs": ["unrouted_order"],
       "outputs": ["allocated_order"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Inventory"
     },
     {
       "id": "route_optimizer",
@@ -25,7 +27,8 @@
       "role": "Computes lowest-cost delivery window and optimal carrier",
       "inputs": ["allocated_order"],
       "outputs": ["manifest_order"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Routing"
     },
     {
       "id": "dispatch_notifier",
@@ -34,7 +37,8 @@
       "role": "Dispatches electronic manifest to carrier API",
       "inputs": ["manifest_order"],
       "outputs": ["tracking_number"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Dispatch"
     }
   ],
   "edges": [

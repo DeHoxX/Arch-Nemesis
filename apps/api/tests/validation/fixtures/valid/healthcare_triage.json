@@ -7,7 +7,8 @@
       "role": "Captures patient symptoms, vital signs, and onset timeline",
       "inputs": ["patient_inputs"],
       "outputs": ["symptom_payload"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Intake"
     },
     {
       "id": "vitals_checker",
@@ -16,7 +17,8 @@
       "role": "Checks critical heart rate, SpO2, and blood pressure ranges",
       "inputs": ["symptom_payload"],
       "outputs": ["checked_vitals"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Validation"
     },
     {
       "id": "triage_ai",
@@ -25,7 +27,8 @@
       "role": "Assesses acuity level: emergency, urgent, or routine",
       "inputs": ["checked_vitals"],
       "outputs": ["triage_score"],
-      "needs_model": true
+      "needs_model": true,
+      "layer": "Triage"
     },
     {
       "id": "queue_router",
@@ -34,7 +37,8 @@
       "role": "Routes patient to ER, urgent care, or telemedicine schedule",
       "inputs": ["triage_score"],
       "outputs": ["queue_ticket"],
-      "needs_model": false
+      "needs_model": false,
+      "layer": "Dispatch"
     }
   ],
   "edges": [

@@ -81,7 +81,7 @@ def validate(
 
     # Step 8: Lints (only if no errors)
     if not errors:
-        warnings.extend(check_lints(spec))
+        warnings.extend(check_lints(spec, limits))
     else:
         skipped.append("lints (skipped due to validation errors)")
 

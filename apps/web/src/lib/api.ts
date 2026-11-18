@@ -110,6 +110,7 @@ export const nodeSpecSchema = z.object({
   needs_model: z.boolean().default(false),
   ai_role: z.enum(["none", "model", "agent"]).default("none").optional(),
   tools: z.array(z.string()).default([]).optional(),
+  layer: z.string().nullable().optional(),
 });
 
 export const edgeSpecSchema = z.object({

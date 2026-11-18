@@ -121,7 +121,11 @@ async def create_design(
                 is_cache_hit = True
                 cached_spec_dict = json.loads(cached_entry.spec_json)
                 spec = ArchitectureSpec.model_validate(cached_spec_dict)
-                limits = Limits(max_nodes=settings.max_nodes, max_edges=settings.max_edges)
+                limits = Limits(
+                    max_nodes=settings.max_nodes,
+                    max_edges=settings.max_edges,
+                    max_layers=settings.max_layers,
+                )
                 brief_constraints = {c.id: c.text for c in brief.stated_constraints}
                 val_res = validate(spec, brief_constraints=brief_constraints, limits=limits)
                 prompt_version = f"{base_prompt_version} (cached)"

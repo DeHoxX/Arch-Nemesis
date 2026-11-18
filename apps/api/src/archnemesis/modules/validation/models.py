@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 DataLabel = Annotated[str, Field(max_length=120)]
 AIRole = Literal["none", "model", "agent"]
@@ -16,6 +16,7 @@ class Limits:
 
     max_nodes: int = 25
     max_edges: int = 60
+    max_layers: int = 8
 
 
 class NodeSpec(BaseModel):
@@ -33,6 +34,19 @@ class NodeSpec(BaseModel):
     needs_model: bool = False
     ai_role: AIRole = "none"
     tools: list[ToolName] = Field(default_factory=list, max_length=5)
+    layer: str | None = Field(default=None, max_length=40)
+
+    @field_validator("layer", mode="before")
+    @classmethod
+    def _normalize_layer(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        if not isinstance(v, str):
+            v = str(v)
+        v = " ".join(v.split()).strip()
+        if not v:
+            return None
+        return v[:40]
 
     @model_validator(mode="before")
     @classmethod

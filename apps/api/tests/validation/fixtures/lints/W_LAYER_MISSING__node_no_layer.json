@@ -1,0 +1,40 @@
+{
+  "nodes": [
+    {
+      "id": "entry_node",
+      "name": "Entry Gateway",
+      "type": "gateway",
+      "role": "Receives external requests",
+      "inputs": [],
+      "outputs": ["request_data"],
+      "needs_model": false,
+      "layer": "Ingress"
+    },
+    {
+      "id": "mid_processor",
+      "name": "Processing Agent",
+      "type": "processor",
+      "role": "Processes requests using AI model",
+      "inputs": ["request_data"],
+      "outputs": ["result_data"],
+      "needs_model": true
+    },
+    {
+      "id": "exit_node",
+      "name": "Response Delivery",
+      "type": "delivery",
+      "role": "Delivers output to client",
+      "inputs": ["result_data"],
+      "outputs": [],
+      "needs_model": false,
+      "layer": "Output"
+    }
+  ],
+  "edges": [
+    {"from": "entry_node", "to": "mid_processor", "flows": "request payload"},
+    {"from": "mid_processor", "to": "exit_node", "flows": "processed response"}
+  ],
+  "constraints": [],
+  "entry_ids": ["entry_node"],
+  "exit_ids": ["exit_node"]
+}
