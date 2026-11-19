@@ -4008,3 +4008,23 @@ Alternatives considered:
 If we removed it: Testing alternative architect prompts in evaluation or staging would require hardcoding prompt names in service code.
 Decided by: user approved Stage V3-3B plan
 Status: active
+
+### D-384 — Stage V3-3C — design — Update FIXED_FLOW_TEXT to "Checked flow"
+What: Change `FIXED_FLOW_TEXT` constant in `archnemesis.modules.validation.repair` from `"Forward payload for verification"` to `"Checked flow"`.
+Why: The previous literal `"Forward payload for verification"` was overly verbose and domain-specific. `"Checked flow"` provides a concise, neutral label for synthetic edges introduced during deterministic graph repair.
+Alternatives considered:
+1. Retaining `"Forward payload for verification"`: Rejected because shorter, domain-neutral labels improve readability in architecture diagrams.
+If we removed it: Graph repairs bridging dead-end nodes would display lengthy domain-specific flow descriptions.
+Decided by: user approved Stage V3-3C plan
+Status: active
+
+### D-385 — Stage V3-3C — safety — Accept deterministic graph repair when only brief constraint coverage errors remain
+What: In `archnemesis.modules.validation.repair.patch_dead_ends`, accept the code-repaired architecture specification when all structural errors (e.g. `E_CANNOT_REACH_EXIT`) are resolved and the only remaining validation error is `E_BRIEF_CONSTRAINT_UNCOVERED`, checked via `_non_coverage_errors`. In `archnemesis.modules.architect.service`, if code repair resolves structural issues but the spec fails full validation due to uncovered brief constraints, update `last_raw` (serialized via `model_dump(by_alias=True)` to preserve `"from"` and `"to"` edge keys) and `last_errors` with the repaired state for subsequent LLM repair iterations (Option A). The acceptance gate `patched_result.ok` and final 422 error handling remain intact, preserving Rule 2.
+Why: Previously, `patch_dead_ends` rejected structural graph fixes if any brief constraint was uncovered, forcing subsequent LLM repair turns to resolve both structural DAG errors and missing brief constraint rules simultaneously. Allowing `patch_dead_ends` to resolve structural dead ends while handing off the cleaned graph and uncovered brief constraint errors to the LLM repair loop reduces compound failure modes while strictly guaranteeing that an invalid spec is never returned as a finished design.
+Alternatives considered:
+1. Option B (leave `service.py` untouched): Rejected because the LLM would receive the unpatched graph with dead-end errors in the repair prompt, discarding the deterministic structural fix.
+2. Accepting spec with uncovered brief constraints as finished: Rejected because Rule 2 strictly prohibits delivering designs that fail validation.
+If we removed it: Architecture generation where the first attempt has a dead end and a missing brief constraint rule would send both error classes to the LLM repair loop instead of leveraging deterministic graph repair for the structural issue.
+Decided by: user approved Stage V3-3C plan
+Status: active
+

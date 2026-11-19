@@ -743,3 +743,164 @@ def test_sanitize_covers_unit_strips_invalid_entries_and_preserves_valid() -> No
     assert warnings[0].code == "W_CODE_REPAIR_APPLIED"
     assert "Sanitized constraint 'c1'" in warnings[0].message
     assert sanitized.constraints[0].covers == ["bc1"]
+
+
+def test_fixed_flow_text_literal_is_checked_flow() -> None:
+    """Test 1: FIXED_FLOW_TEXT literal equals 'Checked flow'."""
+    from archnemesis.modules.validation.repair import FIXED_FLOW_TEXT
+
+    assert FIXED_FLOW_TEXT == "Checked flow"
+
+
+def test_patch_dead_ends_accepts_when_only_brief_coverage_error_remains() -> None:
+    """Test 2: patch_dead_ends accepts repair when the only remaining error is E_BRIEF_CONSTRAINT_UNCOVERED."""
+    nodes = [
+        _create_node("ingress_gateway"),
+        _create_node("processor"),
+        _create_node("dead_end_processor"),
+        _create_node("egress_sink"),
+    ]
+    # ingress -> processor -> egress_sink, ingress -> dead_end_processor (dead end missing from exit_ids)
+    edges = [
+        _edge("ingress_gateway", "processor", "submit"),
+        _edge("processor", "egress_sink", "finish"),
+        _edge("ingress_gateway", "dead_end_processor", "branch"),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["ingress_gateway"],
+        exit_ids=["egress_sink"],
+    )
+    brief_constraints = {"bc_uncovered": "Audit log must be retained"}
+    limits = Limits()
+
+    # Pre-patch validation has E_CANNOT_REACH_EXIT and E_BRIEF_CONSTRAINT_UNCOVERED
+    pre_val = validate(spec, brief_constraints, limits)
+    assert not pre_val.ok
+    assert {e.code for e in pre_val.errors} == {
+        "E_CANNOT_REACH_EXIT",
+        "E_BRIEF_CONSTRAINT_UNCOVERED",
+    }
+
+    patched_spec, warnings = patch_dead_ends(spec, brief_constraints, limits)
+
+    # Patch should be accepted because only E_BRIEF_CONSTRAINT_UNCOVERED remains
+    assert patched_spec is not None
+    assert len(warnings) == 1
+    assert warnings[0].code == "W_CODE_REPAIR_APPLIED"
+    assert "dead_end_processor" in warnings[0].message
+
+    # Post-patch validation errors must be EXACTLY E_BRIEF_CONSTRAINT_UNCOVERED
+    post_val = validate(patched_spec, brief_constraints, limits)
+    assert not post_val.ok
+    assert {e.code for e in post_val.errors} == {"E_BRIEF_CONSTRAINT_UNCOVERED"}
+
+    # dead_end_processor is now in exit_ids
+    assert "dead_end_processor" in patched_spec.exit_ids
+
+
+def test_patch_dead_ends_rejects_when_non_coverage_errors_remain() -> None:
+    """Test 3: patch_dead_ends rejects repair when structural/non-coverage errors remain."""
+    nodes = [
+        _create_node("ingress_gateway"),
+        _create_node("dead_end_processor"),
+        _create_node("cycle_node"),
+        _create_node("egress_sink"),
+    ]
+    # Graph has a cycle cycle_node <-> dead_end_processor plus ingress
+    edges = [
+        _edge("ingress_gateway", "dead_end_processor", "submit"),
+        _edge("dead_end_processor", "cycle_node", "to_cycle"),
+        _edge("cycle_node", "dead_end_processor", "back_cycle"),
+    ]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["ingress_gateway"],
+        exit_ids=["egress_sink"],
+    )
+    brief_constraints = {"bc_uncovered": "Audit log must be retained"}
+    limits = Limits()
+
+    patched_spec, warnings = patch_dead_ends(spec, brief_constraints, limits)
+
+    # Rejection returns original spec unchanged and no warnings
+    assert patched_spec == spec
+    assert warnings == []
+
+
+def test_patch_dead_ends_and_patch_constraints_preserve_node_layers() -> None:
+    """Test 4: patch_dead_ends and patch_constraints never modify or drop node.layer."""
+    nodes = [
+        NodeSpec(
+            id="gateway",
+            name="Gateway",
+            type="service",
+            role="Gateway entry point",
+            inputs=["in"],
+            outputs=["out"],
+            tech_options=["Python"],
+            layer="Intake",
+        ),
+        NodeSpec(
+            id="worker",
+            name="Worker",
+            type="service",
+            role="Worker processing",
+            inputs=["in"],
+            outputs=["out"],
+            tech_options=["Python"],
+            layer="Processing",
+        ),
+        NodeSpec(
+            id="sink",
+            name="Sink",
+            type="service",
+            role="Sink exit point",
+            inputs=["in"],
+            outputs=["out"],
+            tech_options=["Python"],
+            layer="Output",
+        ),
+    ]
+    edges = [_edge("gateway", "worker", "job")]
+    spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=edges,
+        constraints=[],
+        entry_ids=["gateway"],
+        exit_ids=["sink"],
+    )
+    brief_constraints = {"bc1": "Compliance audit"}
+    limits = Limits()
+
+    # Apply patch_dead_ends
+    patched_de, _ = patch_dead_ends(spec, brief_constraints, limits)
+    layer_map_de = {n.id: n.layer for n in patched_de.nodes}
+    assert layer_map_de == {"gateway": "Intake", "worker": "Processing", "sink": "Output"}
+
+    # Apply patch_constraints on a spec with must_pass_through requiring patch
+    must_pass_spec = ArchitectureSpec(
+        nodes=nodes,
+        edges=[
+            _edge("gateway", "sink", "bypass"),
+            _edge("gateway", "worker", "side"),
+        ],
+        constraints=[
+            ConstraintSpec(
+                id="c1",
+                kind="must_pass_through",
+                text="Must pass worker",
+                node_id="worker",
+                covers=["bc1"],
+            )
+        ],
+        entry_ids=["gateway"],
+        exit_ids=["sink"],
+    )
+    patched_pc, _ = patch_constraints(must_pass_spec, brief_constraints, limits)
+    layer_map_pc = {n.id: n.layer for n in patched_pc.nodes}
+    assert layer_map_pc == {"gateway": "Intake", "worker": "Processing", "sink": "Output"}

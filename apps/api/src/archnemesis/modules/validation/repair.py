@@ -20,12 +20,17 @@ from archnemesis.modules.validation.models import (
     ValidationIssue,
 )
 
-FIXED_FLOW_TEXT: str = "Forward payload for verification"
+FIXED_FLOW_TEXT: str = "Checked flow"
 
 
 def _make_edge(from_node: str, to: str, flows: str = FIXED_FLOW_TEXT) -> EdgeSpec:
     """Helper to instantiate EdgeSpec safely with alias handling."""
     return EdgeSpec.model_validate({"from": from_node, "to": to, "flows": flows})
+
+
+def _non_coverage_errors(errors: list[ValidationIssue]) -> list[ValidationIssue]:
+    """Filter out E_BRIEF_CONSTRAINT_UNCOVERED, returning all other validation errors."""
+    return [err for err in errors if err.code != "E_BRIEF_CONSTRAINT_UNCOVERED"]
 
 
 def patch_dead_ends(
@@ -39,8 +44,8 @@ def patch_dead_ends(
     1. Add the dead-end node to exit_ids (deterministic sorted order).
     2. If that introduces a must_pass_through or must_precede violation,
        try rerouting incoming bypass edges through the required node using patch_constraints.
-    3. Accept only if validate(patched) is ok and limits hold;
-       otherwise return the original spec unchanged.
+    3. Accept only if validate(patched) is ok (or only E_BRIEF_CONSTRAINT_UNCOVERED remains)
+       and limits hold; otherwise return the original spec unchanged.
     4. Emit W_CODE_REPAIR_APPLIED with exact change details.
     """
     from archnemesis.modules.validation.validate import validate
@@ -66,9 +71,12 @@ def patch_dead_ends(
     current_edges = list(spec.edges)
     candidate_spec = spec.model_copy(update={"exit_ids": new_exit_ids, "edges": current_edges})
 
-    # Case 1: Simple addition to exit_ids resolves validation
+    # Case 1: Simple addition to exit_ids resolves validation (or leaves only brief constraint coverage)
     val_result = validate(candidate_spec, brief_constraints, limits)
-    if val_result.ok and len(candidate_spec.edges) <= limits.max_edges:
+    if (
+        not _non_coverage_errors(val_result.errors)
+        and len(candidate_spec.edges) <= limits.max_edges
+    ):
         node_str = ", ".join(f"'{n}'" for n in dead_ends)
         warning = ValidationIssue(
             code="W_CODE_REPAIR_APPLIED",
@@ -82,7 +90,10 @@ def patch_dead_ends(
     patched_spec, constraint_warnings = patch_constraints(candidate_spec, brief_constraints, limits)
     if constraint_warnings:
         final_val = validate(patched_spec, brief_constraints, limits)
-        if final_val.ok and len(patched_spec.edges) <= limits.max_edges:
+        if (
+            not _non_coverage_errors(final_val.errors)
+            and len(patched_spec.edges) <= limits.max_edges
+        ):
             node_str = ", ".join(f"'{n}'" for n in dead_ends)
             repaired_targets = [w.ids[1] for w in constraint_warnings if len(w.ids) > 1]
             target_str = ", ".join(f"'{t}'" for t in sorted(set(repaired_targets)))

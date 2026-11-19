@@ -1536,3 +1536,209 @@ async def test_architect_prompt_override_repair_attempt(monkeypatch: pytest.Monk
     _, prompt_version, calls_used, _ = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
     assert prompt_version == "architect_v10+architect_repair_v10"
     assert calls_used == 2
+
+
+DEAD_END_UNCOVERED_SPEC = {
+    "nodes": [
+        {
+            "id": "client_app",
+            "name": "Client App",
+            "type": "web_client",
+            "role": "User interface",
+            "inputs": [],
+            "outputs": ["http_request"],
+            "tech_options": ["React"],
+            "needs_model": False,
+            "layer": "Intake",
+        },
+        {
+            "id": "api_gateway",
+            "name": "API Gateway",
+            "type": "gateway",
+            "role": "Routing and auth",
+            "inputs": ["http_request"],
+            "outputs": ["sql_query", "audit_event"],
+            "tech_options": ["FastAPI"],
+            "needs_model": False,
+            "layer": "Intake",
+        },
+        {
+            "id": "dead_node",
+            "name": "Dead Node",
+            "type": "service",
+            "role": "Processing component",
+            "inputs": ["audit_event"],
+            "outputs": [],
+            "tech_options": ["Python"],
+            "needs_model": False,
+            "layer": "Processing",
+        },
+        {
+            "id": "db_store",
+            "name": "Database Store",
+            "type": "relational_db",
+            "role": "Data storage",
+            "inputs": ["sql_query"],
+            "outputs": [],
+            "tech_options": ["PostgreSQL"],
+            "needs_model": False,
+            "layer": "Storage",
+        },
+    ],
+    "edges": [
+        {"from": "client_app", "to": "api_gateway", "flows": "HTTPS REST"},
+        {"from": "api_gateway", "to": "db_store", "flows": "SQL Query"},
+        {"from": "api_gateway", "to": "dead_node", "flows": "Audit Event"},
+    ],
+    "constraints": [],  # bc1 is uncovered
+    "entry_ids": ["client_app"],
+    "exit_ids": ["db_store"],
+}
+
+
+@pytest.mark.asyncio
+async def test_architect_service_repair_loop_handoff_on_uncovered_brief_constraint() -> None:
+    """Test 5: When code repair fixes dead end but brief constraint remains uncovered,
+
+    repair prompt to LLM includes uncovered brief constraint error and excludes dead end error.
+    """
+    fake_llm = FakeLLMClient([DEAD_END_UNCOVERED_SPEC, VALID_SPEC])
+    spec, version, calls, result = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
+
+    assert spec is not None
+    assert result is not None
+    assert result.ok
+    assert version == "architect_v8+architect_repair_v8"
+    assert calls == 2
+    assert len(fake_llm.calls) == 2
+    call_2_user_prompt = fake_llm.calls[1]["user"]
+
+    # Template-derived expectation strings
+    uncovered_msg = (
+        "The requirement 'Must pass through API gateway' is not covered by any rule. "
+        "Add a rule that lists 'bc1' in covers."
+    )
+    dead_end_msg = "Node 'dead_node' has no path to any exit node."
+
+    assert uncovered_msg in call_2_user_prompt
+    assert dead_end_msg not in call_2_user_prompt
+
+
+@pytest.mark.asyncio
+async def test_architect_service_fails_when_all_llm_repairs_leave_constraint_uncovered() -> None:
+    """Test 6: When code repair fixes graph but brief constraints remain uncovered across 3 calls,
+
+    DesignFailedError is raised after exactly 3 calls.
+    """
+    fake_llm = FakeLLMClient(
+        [
+            DEAD_END_UNCOVERED_SPEC,
+            DEAD_END_UNCOVERED_SPEC,
+            DEAD_END_UNCOVERED_SPEC,
+        ]
+    )
+
+    with pytest.raises(DesignFailedError) as exc_info:
+        await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
+
+    assert len(fake_llm.calls) == 3
+    assert any("bc1" in issue for issue in exc_info.value.issues)
+
+
+@pytest.mark.asyncio
+async def test_architect_repair_user_prompt_serializes_edges_with_from_and_to_aliases() -> None:
+    """Test 7: Candidate JSON in repair prompt serializes edge keys as 'from' and 'to', never 'from_node'."""
+    import json
+
+    fake_llm = FakeLLMClient([DEAD_END_UNCOVERED_SPEC, VALID_SPEC])
+    await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
+
+    call_2_user_prompt = fake_llm.calls[1]["user"]
+    start_marker = "Previous Specification Candidate:\n"
+    end_marker = "\n\n<untrusted_user_text>"
+    json_start = call_2_user_prompt.find(start_marker) + len(start_marker)
+    json_end = call_2_user_prompt.find(end_marker)
+    assert json_start != -1 + len(start_marker)
+    assert json_end != -1
+    candidate_json = json.loads(call_2_user_prompt[json_start:json_end])
+
+    edges = candidate_json["edges"]
+    assert len(edges) >= 2
+    for edge in edges:
+        assert "from" in edge
+        assert "to" in edge
+        assert "from_node" not in edge
+
+
+@pytest.mark.asyncio
+async def test_architect_service_repair_loop_handoff_when_code_repair_rejected_preserves_original_errors() -> (
+    None
+):
+    """When deterministic code repair is rejected due to non-coverage errors (orphan node),
+
+    the LLM repair prompt on call 2 retains all original error messages.
+    """
+    spec_with_orphan_and_dead_end = {
+        "nodes": [
+            {
+                "id": "client_app",
+                "name": "Client App",
+                "type": "web_client",
+                "role": "User interface",
+                "inputs": [],
+                "outputs": ["http_request"],
+                "tech_options": ["React"],
+                "needs_model": False,
+            },
+            {
+                "id": "dead_node",
+                "name": "Dead Node",
+                "type": "service",
+                "role": "Processing component",
+                "inputs": ["http_request"],
+                "outputs": [],
+                "tech_options": ["Python"],
+                "needs_model": False,
+            },
+            {
+                "id": "orphan_node",
+                "name": "Orphan Node",
+                "type": "service",
+                "role": "Unused component",
+                "inputs": [],
+                "outputs": [],
+                "tech_options": ["Python"],
+                "needs_model": False,
+            },
+            {
+                "id": "db_store",
+                "name": "Database Store",
+                "type": "relational_db",
+                "role": "Data storage",
+                "inputs": ["sql_query"],
+                "outputs": [],
+                "tech_options": ["PostgreSQL"],
+                "needs_model": False,
+            },
+        ],
+        "edges": [
+            {"from": "client_app", "to": "dead_node", "flows": "HTTPS REST"},
+        ],
+        "constraints": [],
+        "entry_ids": ["client_app"],
+        "exit_ids": ["db_store"],
+    }
+
+    fake_llm = FakeLLMClient([spec_with_orphan_and_dead_end, VALID_SPEC])
+    spec, version, calls, result = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
+
+    assert spec is not None
+    assert result is not None
+    assert result.ok
+    assert version == "architect_v8+architect_repair_v8"
+    assert calls == 2
+    assert len(fake_llm.calls) == 2
+
+    call_2_user_prompt = fake_llm.calls[1]["user"]
+    assert "Node 'orphan_node' is not connected to anything." in call_2_user_prompt
+    assert "Node 'dead_node' has no path to any exit node." in call_2_user_prompt

@@ -155,6 +155,9 @@ async def generate_and_validate(
     if result.ok and spec is not None:
         return spec, prompt_name, 1, result
 
+    last_raw = raw_output
+    last_errors = [err.message for err in result.errors]
+
     # Attempt deterministic code repair after Call 1 failure
     if spec is not None:
         patched_spec, repair_warnings = _apply_code_repair(spec, brief_constraints, limits)
@@ -187,9 +190,8 @@ async def generate_and_validate(
                     1,
                     final_result,
                 )
-
-    last_raw = raw_output
-    last_errors = [err.message for err in result.errors]
+            last_raw = patched_spec.model_dump(by_alias=True)
+            last_errors = [err.message for err in patched_result.errors]
 
     # Repair loop: Up to 2 repair calls (total calls = 3)
     repair_system = load_prompt(f"{repair_prompt_name}.md")
@@ -229,6 +231,9 @@ async def generate_and_validate(
         if result.ok and spec is not None:
             return spec, f"{prompt_name}+{repair_prompt_name}", call_idx, result
 
+        last_raw = raw_output
+        last_errors = [err.message for err in result.errors]
+
         # Attempt deterministic code repair after repair call failure
         if spec is not None:
             patched_spec, repair_warnings = _apply_code_repair(spec, brief_constraints, limits)
@@ -261,9 +266,8 @@ async def generate_and_validate(
                         call_idx,
                         final_result,
                     )
-
-        last_raw = raw_output
-        last_errors = [err.message for err in result.errors]
+                last_raw = patched_spec.model_dump(by_alias=True)
+                last_errors = [err.message for err in patched_result.errors]
 
     # Exhausted all 3 calls without valid specification
     raise DesignFailedError(issues=last_errors)
