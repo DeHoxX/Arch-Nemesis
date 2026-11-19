@@ -36,7 +36,7 @@ export function NotesPanel({
     <div
       aria-label="Notes and Warnings"
       className={cn(
-        "rounded-xl border border-white/[0.09] bg-[#151517] p-4 text-card-foreground shadow-sm space-y-4",
+        "rounded-xl border border-line bg-surface p-4 text-card-foreground shadow-sm space-y-4",
         className,
       )}
     >
@@ -59,7 +59,7 @@ export function NotesPanel({
 
       {hasUnverifiable && (
         <section aria-label="Not verified by checks">
-          <h3 className="font-mono text-xs uppercase tracking-wider text-amber-500">
+          <h3 className="font-mono text-xs uppercase tracking-wider text-amber-700 dark:text-amber-500">
             Not verified by checks
           </h3>
           <ul className="mt-2 list-disc list-inside space-y-1 text-sm text-muted-foreground">

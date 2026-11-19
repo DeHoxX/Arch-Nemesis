@@ -507,7 +507,7 @@ export function Sidebar({
       >
         {/* Backdrop */}
         <div
-          className="fixed inset-0 bg-black/60 transition-opacity"
+          className="fixed inset-0 bg-black/40 dark:bg-black/60 transition-opacity"
           onClick={onCloseDrawer}
           aria-hidden="true"
         />

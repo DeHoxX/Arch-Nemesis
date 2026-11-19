@@ -4069,3 +4069,14 @@ If we removed it: The home page in light mode would remain illegible with invisi
 Decided by: user approved Stage T3a-1 plan
 Status: active
 
+### D-390 — Stage T3a-2 — design — Results page, side panels, and shell dual-theme tokenization
+What: Tokenize `apps/web/src/app/design/[id]/page.tsx`, `Sidebar.tsx`, `dialog.tsx`, `ExplanationView.tsx`, `FlowPlaybackBar.tsx`, `DiagramLegend.tsx`, `DetailPanel.tsx`, `ConstraintsPanel.tsx`, `NotesPanel.tsx`, `RefinePanel.tsx`, `VersionsPanel.tsx`, `PatchCard.tsx`, `ConfirmDropModal.tsx`, and `ContactDialog.tsx` for full light theme support while preserving dark mode 100% byte-for-byte. Hardcoded dark colors (`bg-[#151517]`, `bg-[#161618]`, `bg-[#1f1f23]`, `border-white/[0.09]`) are mapped to existing semantic tokens (`bg-surface`, `bg-surface-input`, `bg-surface-elevated` / `hover:bg-hover`, `border-line`). Overlays in `Sidebar.tsx` and `dialog.tsx` are updated with explicit dual-theme classes (`bg-black/40 dark:bg-black/60` and `bg-black/50 dark:bg-black/80`). Semantic status badges and alerts (amber, rose, emerald, sky) keep their dark values identical via `dark:*` prefixes while rendering accessible light contrast variants (e.g. `text-amber-700` and `text-rose-700` on light backgrounds).
+Why: Hardcoded dark backgrounds and borders in result panels created dark rectangular blocks and unreadable low-contrast status indicators against the cream `#F7F6F2` canvas in light mode. Mapping them to semantic tokens allows panels to render clean white surfaces (`#FFFFFF`) with warm borders (`#E5E1D9`) in light mode while dark mode resolves to identical dark hex values (`#151517`, `#161618`, `0.09` white borders).
+Alternatives considered:
+1. Re-architecting panel layout and tabs: Rejected because layout redesign is out of scope.
+2. Inverting palette dynamically via CSS filter: Rejected because filters distort accent colors, cause rendering artifacts, and degrade performance.
+If we removed it: Results page tabs, sidebars, playback controls, and refinement panels would appear as broken, mismatched dark containers on the light theme.
+Decided by: user approved Stage T3a-2 instructions
+Status: active
+
+

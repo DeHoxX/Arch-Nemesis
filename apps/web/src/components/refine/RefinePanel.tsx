@@ -125,11 +125,11 @@ export function RefinePanel({
 
   return (
     <Card
-      className="border border-white/[0.09] bg-[#151517] shadow-md flex flex-col h-full"
+      className="border border-line bg-surface shadow-md flex flex-col h-full"
       role="region"
       aria-label="Refine Architecture Design"
     >
-      <CardHeader className="border-b border-white/[0.09] pb-3">
+      <CardHeader className="border-b border-line pb-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <MessageSquare className="size-4 text-brand-accent" aria-hidden="true" />
@@ -195,7 +195,7 @@ export function RefinePanel({
         {/* Suggestions Section (Phase 7D1) */}
         {discardedCount > 0 && (
           <div
-            className="w-full rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-300"
+            className="w-full rounded-lg border border-amber-600/30 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-xs"
             role="status"
           >
             {`${discardedCount} suggestions were discarded because they broke a rule.`}
@@ -217,14 +217,14 @@ export function RefinePanel({
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <Badge
                         variant="outline"
-                        className="text-[10px] font-mono border-amber-500/40 text-amber-400 bg-amber-500/10 py-0 px-1.5"
+                        className="text-[10px] font-mono border-amber-600/40 text-amber-700 bg-amber-50 dark:border-amber-500/40 dark:text-amber-400 dark:bg-amber-500/10 py-0 px-1.5"
                       >
                         Suggestion (opinion, not verified)
                       </Badge>
                       {suggestion.status === "needs_confirmation" && (
                         <Badge
                           variant="outline"
-                          className="text-[10px] font-mono border-rose-500/40 text-rose-400 bg-rose-500/10 py-0 px-1.5"
+                          className="text-[10px] font-mono border-rose-600/40 text-rose-700 bg-rose-50 dark:border-rose-500/40 dark:text-rose-400 dark:bg-rose-500/10 py-0 px-1.5"
                         >
                           Needs confirmation
                         </Badge>
@@ -256,7 +256,7 @@ export function RefinePanel({
 
         {suggestionsError && (
           <div
-            className="w-full flex items-center justify-between rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-xs text-rose-300"
+            className="w-full flex items-center justify-between rounded-lg border border-rose-600/30 bg-rose-50 text-rose-800 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300 px-3 py-2 text-xs"
             role="alert"
           >
             <span>Suggestions are temporarily unavailable. Please try again.</span>
@@ -267,7 +267,7 @@ export function RefinePanel({
                 size="sm"
                 onClick={onAskSuggestions}
                 disabled={isSuggestionsDisabled}
-                className="h-6 px-2 text-xs text-rose-200 hover:text-rose-100 hover:bg-rose-500/20"
+                className="h-6 px-2 text-xs text-rose-700 hover:text-rose-900 hover:bg-rose-100 dark:text-rose-200 dark:hover:text-rose-100 dark:hover:bg-rose-500/20"
               >
                 Retry
               </Button>
@@ -304,8 +304,8 @@ export function RefinePanel({
 
         {/* Cap & Mode Warning Banners */}
         {isViewingHistorical && (
-          <Alert className="py-2 px-3 border-amber-500/30 bg-amber-950/20 text-amber-200">
-            <History className="size-3.5 text-amber-400" />
+          <Alert className="py-2 px-3 border-amber-600/30 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-200">
+            <History className="size-3.5 text-amber-700 dark:text-amber-400" />
             <AlertDescription className="text-xs">
               Refinement is only available on the latest version.
             </AlertDescription>
@@ -313,8 +313,8 @@ export function RefinePanel({
         )}
 
         {isTurnsCapped && (
-          <Alert className="py-2 px-3 border-amber-500/30 bg-amber-950/20 text-amber-200">
-            <AlertCircle className="size-3.5 text-amber-400" />
+          <Alert className="py-2 px-3 border-amber-600/30 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-200">
+            <AlertCircle className="size-3.5 text-amber-700 dark:text-amber-400" />
             <AlertDescription className="text-xs">
               {`This design has reached the limit of ${maxTurns} change requests. Please contact our team to continue.`}
             </AlertDescription>
@@ -322,8 +322,8 @@ export function RefinePanel({
         )}
 
         {!isTurnsCapped && isVersionsCapped && (
-          <Alert className="py-2 px-3 border-amber-500/30 bg-amber-950/20 text-amber-200">
-            <AlertCircle className="size-3.5 text-amber-400" />
+          <Alert className="py-2 px-3 border-amber-600/30 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-200">
+            <AlertCircle className="size-3.5 text-amber-700 dark:text-amber-400" />
             <AlertDescription className="text-xs">
               {`This design has reached the limit of ${maxVersions} versions. Please contact our team to continue.`}
             </AlertDescription>
@@ -350,7 +350,7 @@ export function RefinePanel({
             <span
               className={`text-[10px] font-mono ${
                 inputText.length >= MAX_REFINEMENT_INPUT_CHARS
-                  ? "text-rose-400 font-semibold"
+                  ? "text-rose-700 dark:text-rose-400 font-semibold"
                   : "text-muted-foreground/60"
               }`}
               aria-label={`${inputText.length} of ${MAX_REFINEMENT_INPUT_CHARS} characters used`}

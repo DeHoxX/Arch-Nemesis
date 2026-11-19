@@ -108,24 +108,24 @@ export function PatchCard({
 
   return (
     <Card
-      className="border border-white/[0.09] bg-[#151517] shadow-md"
+      className="border border-line bg-surface shadow-md"
       role="region"
       aria-label="Proposed Architecture Patch Review"
     >
       <CardHeader className="flex flex-row items-center justify-between gap-4 pb-3">
         <div className="flex items-center gap-2">
           {isProposed && (
-            <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+            <Badge className="bg-emerald-50 text-emerald-700 border-emerald-600/30 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/30">
               Proposed Change
             </Badge>
           )}
           {isNeedsConfirmation && (
-            <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/30">
+            <Badge className="bg-amber-50 text-amber-700 border-amber-600/30 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30">
               Requires Confirmation
             </Badge>
           )}
           {isBlocked && (
-            <Badge className="bg-rose-500/10 text-rose-400 border-rose-500/30">
+            <Badge className="bg-rose-50 text-rose-700 border-rose-600/30 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/30">
               Blocked by Rules
             </Badge>
           )}
@@ -139,7 +139,7 @@ export function PatchCard({
         {/* Contextual navigation note (e.g. Explanation tab guidance) */}
         {note && (
           <div
-            className="rounded-md border border-sky-500/30 bg-sky-950/20 p-2.5 text-xs text-sky-200"
+            className="rounded-md border border-sky-600/30 bg-sky-50 text-sky-900 dark:border-sky-500/30 dark:bg-sky-950/20 dark:text-sky-200 p-2.5 text-xs"
             role="note"
           >
             <p className="font-mono text-[11px] leading-relaxed">{note}</p>
@@ -148,11 +148,11 @@ export function PatchCard({
         {/* Blocked Errors List */}
         {isBlocked && errors.length > 0 && (
           <div
-            className="rounded-lg border border-rose-500/30 bg-rose-950/20 p-3 space-y-1.5 text-xs text-rose-200"
+            className="rounded-lg border border-rose-600/30 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-950/20 dark:text-rose-200 p-3 space-y-1.5 text-xs"
             role="alert"
             aria-label="Rule validation errors"
           >
-            <div className="flex items-center gap-1.5 font-semibold text-rose-400">
+            <div className="flex items-center gap-1.5 font-semibold text-rose-700 dark:text-rose-400">
               <ShieldAlert className="size-4 shrink-0" aria-hidden="true" />
               <span>This proposal violates architectural rules and cannot be applied:</span>
             </div>
@@ -169,10 +169,10 @@ export function PatchCard({
         {/* Needs Confirmation Warning */}
         {isNeedsConfirmation && (
           <div
-            className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 space-y-1 text-xs text-amber-200"
+            className="rounded-lg border border-amber-600/30 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-950/20 dark:text-amber-200 p-3 space-y-1 text-xs"
             role="alert"
           >
-            <div className="flex items-center gap-1.5 font-semibold text-amber-400">
+            <div className="flex items-center gap-1.5 font-semibold text-amber-700 dark:text-amber-400">
               <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
               <span>Applies with requirement changes:</span>
             </div>

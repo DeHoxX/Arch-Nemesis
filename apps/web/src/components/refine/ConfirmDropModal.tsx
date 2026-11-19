@@ -60,7 +60,7 @@ export function ConfirmDropModal({
         aria-describedby="confirm-drop-desc"
       >
         <DialogHeader>
-          <div className="flex items-center gap-2 text-rose-500">
+          <div className="flex items-center gap-2 text-rose-600 dark:text-rose-500">
             <AlertTriangle className="size-5 shrink-0" aria-hidden="true" />
             <DialogTitle className="text-base font-semibold">
               Requirement Check Removal
@@ -73,11 +73,11 @@ export function ConfirmDropModal({
 
         {/* Red box listing each requirement that will stop being checked */}
         <div
-          className="rounded-lg border border-rose-500/30 bg-rose-950/20 p-4 space-y-2 text-xs text-rose-200"
+          className="rounded-lg border border-rose-600/30 bg-rose-50 text-rose-900 dark:border-rose-500/30 dark:bg-rose-950/20 dark:text-rose-200 p-4 space-y-2 text-xs"
           role="region"
           aria-label="Requirements that will no longer be checked"
         >
-          <p className="font-semibold text-rose-400">
+          <p className="font-semibold text-rose-700 dark:text-rose-400">
             The following requirements will no longer be verified by checks:
           </p>
           <ul className="list-disc pl-4 space-y-1">
@@ -97,7 +97,7 @@ export function ConfirmDropModal({
             checked={isChecked}
             onChange={(e) => setIsChecked(e.target.checked)}
             disabled={isLoading}
-            className="mt-0.5 size-4 rounded border-border bg-background text-rose-500 focus:ring-2 focus:ring-rose-500 focus:ring-offset-background cursor-pointer disabled:cursor-not-allowed"
+            className="mt-0.5 size-4 rounded border-border bg-background text-rose-600 dark:text-rose-500 focus:ring-2 focus:ring-rose-600 dark:focus:ring-rose-500 focus:ring-offset-background cursor-pointer disabled:cursor-not-allowed"
           />
           <label
             htmlFor="drop-ack-checkbox"

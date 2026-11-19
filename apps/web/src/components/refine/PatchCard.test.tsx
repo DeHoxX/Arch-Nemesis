@@ -1,12 +1,19 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PatchSummary } from "@/lib/types";
 import { PatchCard } from "./PatchCard";
 
 describe("PatchCard", () => {
+  beforeEach(() => {
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    document.documentElement.className = "";
+  });
   it("renders proposed status with Accept and Reject buttons and plain-text diff summary", async () => {
     const user = userEvent.setup();
     const handleAccept = vi.fn();
@@ -186,5 +193,47 @@ describe("PatchCard", () => {
     const acceptBtn = screen.getByRole("button", { name: "Accept proposed patch" });
     await user.click(acceptBtn);
     expect(handleAccept).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders with bg-surface and border-line tokens and dual-theme badge classes", () => {
+    const patch: PatchSummary = {
+      id: "patch_theme_test",
+      status: "proposed",
+      diff: {
+        added_nodes: [],
+        removed_nodes: [],
+        changed_nodes: [],
+        added_edges: [],
+        removed_edges: [],
+        changed_edges: [],
+        added_constraints: [],
+        removed_constraints: [],
+        changed_constraints: [],
+        entry_changed: false,
+        exit_changed: false,
+      },
+      issues: [],
+      ops_count: 1,
+      preview_spec: null,
+    };
+
+    render(
+      <PatchCard
+        patch={patch}
+        onAccept={vi.fn()}
+        onReject={vi.fn()}
+        onDismiss={vi.fn()}
+      />,
+    );
+
+    const card = screen.getByRole("region", { name: "Proposed Architecture Patch Review" });
+    expect(card.classList.contains("bg-surface")).toBe(true);
+    expect(card.classList.contains("border-line")).toBe(true);
+
+    const badge = screen.getByText("Proposed Change");
+    expect(badge.classList.contains("bg-emerald-50")).toBe(true);
+    expect(badge.classList.contains("dark:bg-emerald-500/10")).toBe(true);
+    expect(badge.classList.contains("text-emerald-700")).toBe(true);
+    expect(badge.classList.contains("dark:text-emerald-400")).toBe(true);
   });
 });

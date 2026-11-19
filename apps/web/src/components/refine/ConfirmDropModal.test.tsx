@@ -1,11 +1,18 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConfirmDropModal } from "./ConfirmDropModal";
 
 describe("ConfirmDropModal", () => {
+  beforeEach(() => {
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    document.documentElement.className = "";
+  });
   it("renders dropped requirements as plain text and enforces checkbox gating", async () => {
     const user = userEvent.setup();
     const handleConfirm = vi.fn();
@@ -87,5 +94,28 @@ describe("ConfirmDropModal", () => {
       />,
     );
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("renders dual-theme warning classes on dropped requirements box and header", () => {
+    render(
+      <ConfirmDropModal
+        open={true}
+        onOpenChange={vi.fn()}
+        droppedRequirements={["Must verify payload"]}
+        onConfirm={vi.fn()}
+      />,
+    );
+
+    const title = screen.getByText("Requirement Check Removal").parentElement;
+    expect(title?.classList.contains("text-rose-600")).toBe(true);
+    expect(title?.classList.contains("dark:text-rose-500")).toBe(true);
+
+    const redBox = screen.getByRole("region", {
+      name: "Requirements that will no longer be checked",
+    });
+    expect(redBox.classList.contains("bg-rose-50")).toBe(true);
+    expect(redBox.classList.contains("dark:bg-rose-950/20")).toBe(true);
+    expect(redBox.classList.contains("text-rose-900")).toBe(true);
+    expect(redBox.classList.contains("dark:text-rose-200")).toBe(true);
   });
 });

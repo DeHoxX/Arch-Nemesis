@@ -64,7 +64,7 @@ export function DetailPanel({
     return (
       <aside
         aria-label="Edge Details"
-        className="flex w-full flex-col rounded-xl border border-white/[0.09] bg-[#151517] p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
+        className="flex w-full flex-col rounded-xl border border-line bg-surface p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3">
@@ -140,8 +140,8 @@ export function DetailPanel({
             <>
               <Separator />
               <div>
-                <h4 className="font-mono text-xs uppercase tracking-wider text-amber-500">Condition</h4>
-                <p className="mt-1 font-mono text-xs text-amber-500 leading-relaxed break-words">
+                <h4 className="font-mono text-xs uppercase tracking-wider text-amber-700 dark:text-amber-500">Condition</h4>
+                <p className="mt-1 font-mono text-xs text-amber-700 dark:text-amber-500 leading-relaxed break-words">
                   {condition}
                 </p>
               </div>
@@ -176,7 +176,7 @@ export function DetailPanel({
   return (
     <aside
       aria-label="Node Details"
-      className="flex w-full flex-col rounded-xl border border-white/[0.09] bg-[#151517] p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
+      className="flex w-full flex-col rounded-xl border border-line bg-surface p-5 text-card-foreground shadow-sm lg:w-80 lg:shrink-0"
     >
       {/* 1. Name and type */}
       <div className="flex items-start justify-between gap-3">
@@ -288,7 +288,7 @@ export function DetailPanel({
           <>
             <Separator />
             <div>
-              <h4 className="font-mono text-xs uppercase tracking-wider text-amber-500">
+              <h4 className="font-mono text-xs uppercase tracking-wider text-amber-700 dark:text-amber-500">
                 Suggestions (not verified)
               </h4>
               <ul className="mt-1 list-disc list-inside text-foreground space-y-0.5">
@@ -327,7 +327,7 @@ export function DetailPanel({
             <Separator />
             <div>
               <div className="flex items-center gap-1.5">
-                <Lock className="size-3 text-amber-500 shrink-0" aria-label="Constraint" />
+                <Lock className="size-3 text-amber-700 dark:text-amber-500 shrink-0" aria-label="Constraint" />
                 <h4 className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
                   Rules this part takes part in
                 </h4>
@@ -347,7 +347,7 @@ export function DetailPanel({
         {node.needs_model && (
           <>
             <Separator />
-            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-400">
+            <div className="rounded-md border border-amber-600/30 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400 p-2.5 text-xs">
               This part uses an AI model.
             </div>
           </>

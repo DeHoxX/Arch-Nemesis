@@ -114,7 +114,7 @@ export function FlowPlaybackBar({
     <footer
       aria-label="Flow playback controls"
       className={cn(
-        "relative flex items-center justify-between gap-3 border-t border-white/[0.09] bg-[#151517] px-3 py-2 text-xs select-none",
+        "relative flex items-center justify-between gap-3 border-t border-line bg-surface px-3 py-2 text-xs select-none",
         className,
       )}
     >
@@ -127,7 +127,7 @@ export function FlowPlaybackBar({
           aria-expanded={isFlowOpen}
           aria-controls="diagram-flow-panel"
           aria-label="Toggle flow playback"
-          className="flex items-center gap-1.5 rounded-md border border-white/[0.09] bg-[#161618] px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-[#1f1f23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex items-center gap-1.5 rounded-md border border-line bg-surface-input px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <span>Flow</span>
           <ChevronDown
@@ -148,7 +148,7 @@ export function FlowPlaybackBar({
             role="region"
             aria-label="Flow playback panel"
             onKeyDown={handlePanelKeyDown}
-            className="absolute bottom-full left-0 mb-2 max-h-[calc(100vh-320px)] w-80 sm:w-96 max-w-[calc(100vw-6rem)] overflow-y-auto rounded-md border border-white/[0.09] bg-[#151517] p-3 text-xs shadow-lg z-30 space-y-3"
+            className="absolute bottom-full left-0 mb-2 max-h-[calc(100vh-320px)] w-80 sm:w-96 max-w-[calc(100vw-6rem)] overflow-y-auto rounded-md border border-line bg-surface p-3 text-xs shadow-lg z-30 space-y-3"
           >
             {/* Top row: Transport buttons */}
             <div className="flex items-center gap-1.5">
@@ -209,7 +209,7 @@ export function FlowPlaybackBar({
             </div>
 
             {/* Description & Status section */}
-            <div className="space-y-1 border-t border-white/[0.09] pt-2">
+            <div className="space-y-1 border-t border-line pt-2">
               {isZeroEdges ? (
                 <div className="font-mono text-muted-foreground text-[11px]">
                   No flows to step through
@@ -240,7 +240,7 @@ export function FlowPlaybackBar({
                     <div
                       aria-live="polite"
                       aria-atomic="true"
-                      className="font-mono text-[11px] text-foreground bg-[#161618] p-2 rounded-md border border-white/[0.09]"
+                      className="font-mono text-[11px] text-foreground bg-surface-input p-2 rounded-md border border-line"
                     >
                       <div>
                         <span className="font-semibold text-brand-accent">
@@ -253,7 +253,7 @@ export function FlowPlaybackBar({
                         <span className="text-muted-foreground">: {currentStep.flows}</span>
                       </div>
                       {currentStep.condition && (
-                        <div className="mt-1 text-amber-500 text-[10px]">
+                        <div className="mt-1 text-amber-700 dark:text-amber-500 text-[10px]">
                           When: {currentStep.condition}
                         </div>
                       )}

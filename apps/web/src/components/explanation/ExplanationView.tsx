@@ -23,7 +23,7 @@ export function ExplanationView({
       <div
         role="status"
         aria-label="Loading explanation"
-        className="rounded-xl border border-white/[0.09] bg-[#151517] p-8 flex flex-col items-center justify-center space-y-4 py-16"
+        className="rounded-xl border border-line bg-surface p-8 flex flex-col items-center justify-center space-y-4 py-16"
       >
         <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
         <p className="text-sm font-medium text-muted-foreground">Writing the explanation...</p>
@@ -33,7 +33,7 @@ export function ExplanationView({
 
   if (error) {
     return (
-      <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-6 md:p-8">
+      <div className="rounded-xl border border-line bg-surface p-6 md:p-8">
         <Alert variant="destructive" className="bg-destructive/10 border-destructive/30">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle className="font-semibold">Failed to Load Explanation</AlertTitle>
@@ -54,7 +54,7 @@ export function ExplanationView({
 
   if (!explanation) {
     return (
-      <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-8">
+      <div className="rounded-xl border border-line bg-surface p-8">
         <p className="text-sm text-muted-foreground leading-relaxed">
           No explanation available.
         </p>
@@ -63,12 +63,12 @@ export function ExplanationView({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-6 md:p-8 space-y-8 text-foreground">
+    <div className="rounded-xl border border-line bg-surface p-6 md:p-8 space-y-8 text-foreground">
       {explanation.source === "fallback" && (
         <div
           role="note"
           aria-label="Fallback notice"
-          className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200"
+          className="rounded-lg border border-amber-600/30 bg-amber-50 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200 p-4 text-sm"
         >
           <p className="font-medium">
             Basic explanation: the written version did not pass our checks.

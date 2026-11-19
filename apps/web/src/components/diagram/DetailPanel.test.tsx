@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArchitectureSpec, EdgeSpec, NodeSpec } from "@/lib/types";
 import { DetailPanel } from "./DetailPanel";
 
@@ -424,6 +424,43 @@ describe("DetailPanel component", () => {
       const constraintIcon = screen.getByLabelText("Constraint");
       expect(constraintIcon).toBeDefined();
       expect(screen.getByText("Rules this part takes part in")).toBeDefined();
+    });
+  });
+
+  describe("Stage T3a-2 dual-theme tokenization", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders node panel with bg-surface and border-line tokens", () => {
+      const targetNode = mockSpec.nodes[0] as NodeSpec;
+      render(<DetailPanel node={targetNode} spec={mockSpec} />);
+
+      const aside = screen.getByLabelText("Node Details");
+      expect(aside.classList.contains("bg-surface")).toBe(true);
+      expect(aside.classList.contains("border-line")).toBe(true);
+    });
+
+    it("renders edge panel with bg-surface and border-line tokens and dual-theme condition text", () => {
+      const edgeWithCond: EdgeSpec = {
+        from: "intake_portal",
+        to: "reasoning_engine",
+        flows: "transfers payload",
+        condition: "when payload is valid",
+      };
+      render(<DetailPanel edge={edgeWithCond} spec={mockSpec} />);
+
+      const aside = screen.getByLabelText("Edge Details");
+      expect(aside.classList.contains("bg-surface")).toBe(true);
+      expect(aside.classList.contains("border-line")).toBe(true);
+
+      const conditionHeading = screen.getByText("Condition");
+      expect(conditionHeading.classList.contains("text-amber-700")).toBe(true);
+      expect(conditionHeading.classList.contains("dark:text-amber-500")).toBe(true);
     });
   });
 });

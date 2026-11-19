@@ -27,7 +27,7 @@ export function ConstraintsPanel({
     <section
       aria-label="System Constraints"
       className={cn(
-        "rounded-xl border border-white/[0.09] bg-[#151517] p-4 text-card-foreground shadow-sm",
+        "rounded-xl border border-line bg-surface p-4 text-card-foreground shadow-sm",
         className,
       )}
     >

@@ -78,7 +78,7 @@ export function DiagramLegend({
         aria-expanded={isOpen}
         aria-controls="diagram-legend-panel"
         aria-label="Toggle diagram legend"
-        className="flex items-center gap-1.5 rounded-md border border-white/[0.09] bg-[#161618] px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-[#1f1f23] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1.5 rounded-md border border-line bg-surface-input px-2.5 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span>Legend</span>
         <ChevronDown
@@ -95,7 +95,7 @@ export function DiagramLegend({
           role="region"
           aria-label="Diagram legend"
           onKeyDown={handlePanelKeyDown}
-          className="absolute bottom-full right-0 mb-2 max-h-[calc(100vh-320px)] w-64 overflow-y-auto rounded-md border border-white/[0.09] bg-[#151517] p-3 text-xs shadow-lg z-30"
+          className="absolute bottom-full right-0 mb-2 max-h-[calc(100vh-320px)] w-64 overflow-y-auto rounded-md border border-line bg-surface p-3 text-xs shadow-lg z-30"
         >
           <div className="space-y-3">
             {/* Border Colors */}
@@ -174,13 +174,13 @@ export function DiagramLegend({
                       className={cn(
                         "px-1 py-0 text-[9px] font-mono leading-tight tracking-tight uppercase shrink-0",
                         item.label === "Entry" &&
-                          "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
+                          "border-emerald-600/40 text-emerald-700 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-400 dark:bg-emerald-500/10",
                         item.label === "Exit" &&
-                          "border-violet-500/50 text-violet-400 bg-violet-500/10",
+                          "border-violet-600/40 text-violet-700 bg-violet-50 dark:border-violet-500/50 dark:text-violet-400 dark:bg-violet-500/10",
                         item.label === "AI model" &&
-                          "border-amber-500/50 text-amber-400 bg-amber-500/10",
+                          "border-amber-600/40 text-amber-700 bg-amber-50 dark:border-amber-500/50 dark:text-amber-400 dark:bg-amber-500/10",
                         item.label === "Agent" &&
-                          "border-amber-500/50 text-amber-300 bg-amber-500/20",
+                          "border-amber-600/40 text-amber-800 bg-amber-100 dark:border-amber-500/50 dark:text-amber-300 dark:bg-amber-500/20",
                       )}
                     >
                       {item.label}
@@ -200,7 +200,7 @@ export function DiagramLegend({
               </p>
               <div className="flex items-center gap-2">
                 <Lock
-                  className="size-3 shrink-0 text-amber-500"
+                  className="size-3 shrink-0 text-amber-700 dark:text-amber-500"
                   aria-label={CONSTRAINT_LOCK_LEGEND.label}
                 />
                 <div className="min-w-0 flex-1">

@@ -83,7 +83,7 @@ function DesignPageLoading(): React.ReactElement {
     <main className="relative isolate min-h-screen w-full overflow-x-hidden bg-page-bg text-foreground px-4 py-8 md:py-12 studio-grid-bg">
       <StudioBackground showWaves={false} />
       <div className="relative z-10 mx-auto w-full max-w-7xl space-y-6">
-        <div className="flex items-center justify-between border-b border-white/[0.09] pb-4">
+        <div className="flex items-center justify-between border-b border-line pb-4">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-6 w-24" />
         </div>
@@ -532,7 +532,7 @@ function DesignContent(): React.ReactElement {
           <header className="mb-8 text-center space-y-2">
             <Link
               href="/"
-              className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-[#151517] px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="size-3" /> Arch-Nemesis
             </Link>
@@ -540,7 +540,7 @@ function DesignContent(): React.ReactElement {
 
           <Alert
             variant="destructive"
-            className="rounded-xl border-destructive/50 bg-[#151517] p-6 text-card-foreground shadow-lg"
+            className="rounded-xl border-destructive/50 bg-surface p-6 text-card-foreground shadow-lg"
           >
             <AlertCircle className="size-5 text-destructive" />
             <AlertTitle className="text-base font-semibold text-foreground">
@@ -556,7 +556,7 @@ function DesignContent(): React.ReactElement {
               </p>
               <div className="pt-2 flex items-center gap-3">
                 {isNotFound ? (
-                  <Button asChild variant="outline" size="sm" className="font-semibold text-xs border-white/[0.09] bg-[#161618] hover:bg-[#1f1f23]">
+                  <Button asChild variant="outline" size="sm" className="font-semibold text-xs border-line bg-surface-input hover:bg-hover">
                     <Link href="/">Back to home</Link>
                   </Button>
                 ) : (
@@ -565,7 +565,7 @@ function DesignContent(): React.ReactElement {
                     variant="outline"
                     size="sm"
                     onClick={() => refetch()}
-                    className="font-semibold text-xs gap-1.5 border-white/[0.09] bg-[#161618] hover:bg-[#1f1f23]"
+                    className="font-semibold text-xs gap-1.5 border-line bg-surface-input hover:bg-hover"
                   >
                     <RefreshCw className="size-3.5" /> Retry
                   </Button>
@@ -589,7 +589,7 @@ function DesignContent(): React.ReactElement {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl">
         {/* Page Chrome Header */}
-        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.09] pb-4">
+        <header className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-line pb-4">
           <div className="flex items-center gap-3">
             <Link
               href="/"
@@ -610,7 +610,7 @@ function DesignContent(): React.ReactElement {
               diagramContainerRef={diagramContainerRef}
               onBeforeExportPng={handleBeforeExportPng}
             />
-            <Button asChild variant="outline" size="sm" className="text-xs font-mono border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]">
+            <Button asChild variant="outline" size="sm" className="text-xs font-mono border-line bg-surface hover:bg-hover">
               <Link href="/?new=1">New design</Link>
             </Button>
             <Button
@@ -618,11 +618,11 @@ function DesignContent(): React.ReactElement {
               variant="outline"
               size="sm"
               onClick={() => setIsContactOpen(true)}
-              className="text-xs font-mono border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
+              className="text-xs font-mono border-line bg-surface hover:bg-hover"
             >
               Contact our team
             </Button>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.09] bg-[#161618] px-3 py-1 text-xs font-mono text-muted-foreground">
+            <div className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-input px-3 py-1 text-xs font-mono text-muted-foreground">
               <span className="size-2 rounded-full bg-brand-accent" />
               v{activeDesign?.current_version ?? currentVersion}
               {isViewingHistorical ? " (historical view)" : ` (${design.prompt_version})`}
@@ -662,14 +662,14 @@ function DesignContent(): React.ReactElement {
           className="w-full space-y-6"
         >
           <div className="flex items-center justify-between gap-2">
-            <TabsList className="bg-[#151517] border border-white/[0.09] p-1">
-              <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
+            <TabsList className="bg-surface border border-line p-1">
+              <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono data-active:bg-surface-elevated data-active:text-foreground">
                 Block diagram
               </TabsTrigger>
-              <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
+              <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono data-active:bg-surface-elevated data-active:text-foreground">
                 Architecture
               </TabsTrigger>
-              <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
+              <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono data-active:bg-surface-elevated data-active:text-foreground">
                 Explanation
               </TabsTrigger>
             </TabsList>
@@ -683,7 +683,7 @@ function DesignContent(): React.ReactElement {
                 onClick={toggleFullscreen}
                 aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
                 title={isFullscreen ? "Exit full screen" : "Full screen"}
-                className="h-8 gap-1.5 px-2.5 font-mono text-xs border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23] motion-reduce:transition-none"
+                className="h-8 gap-1.5 px-2.5 font-mono text-xs border-line bg-surface hover:bg-hover motion-reduce:transition-none"
               >
                 {isFullscreen ? (
                   <>
@@ -721,7 +721,7 @@ function DesignContent(): React.ReactElement {
                   <div
                     ref={diagramContainerRef}
                     className={cn(
-                      "w-full rounded-lg border border-white/[0.09] bg-[#151517] overflow-hidden relative",
+                      "w-full rounded-lg border border-line bg-surface overflow-hidden relative",
                       isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
                     )}
                   >
@@ -769,7 +769,7 @@ function DesignContent(): React.ReactElement {
                         <div
                           ref={diagramContainerRef}
                           className={cn(
-                            "w-full rounded-lg border border-white/[0.09] bg-[#151517] overflow-hidden relative",
+                            "w-full rounded-lg border border-line bg-surface overflow-hidden relative",
                             isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
                           )}
                         >

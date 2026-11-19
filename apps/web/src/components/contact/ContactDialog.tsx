@@ -127,7 +127,7 @@ export function ContactDialog({
 
         {isSuccess ? (
           <div className="space-y-4 py-4" data-testid="contact-success-state">
-            <div className="flex items-center gap-2 text-emerald-400">
+            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
               <CheckCircle2 className="size-5 shrink-0" />
               <p className="text-sm font-medium text-foreground">
                 Thanks. Our team will contact you about this design.
@@ -147,7 +147,7 @@ export function ContactDialog({
         ) : (
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
             {!isDesignLoaded && (
-              <p className="text-xs text-amber-400">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
                 Design specification is not loaded yet.
               </p>
             )}
