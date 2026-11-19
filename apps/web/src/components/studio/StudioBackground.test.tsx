@@ -1,6 +1,6 @@
 import React from "react";
 import { render, renderHook, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StudioBackground } from "./StudioBackground";
 import { useStudioWavesGate } from "./useStudioWavesGate";
 
@@ -18,6 +18,16 @@ vi.mock("./Waves", () => ({
 }));
 
 describe("StudioBackground Component", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "";
+  });
+
   it("renders circuits without Waves when showWaves is false (D-355)", () => {
     const { container } = render(
       <StudioBackground showWaves={false} wavesLayerTestId="custom-waves-layer" />,
@@ -84,6 +94,24 @@ describe("StudioBackground Component", () => {
 
     // Fade mask applied to bottom of header band
     expect(wavesLayer.style.maskImage || wavesLayer.style.webkitMaskImage).toContain("linear-gradient");
+  });
+
+  it("renders Waves with warm light colors when theme is light (D-388)", () => {
+    document.documentElement.classList.remove("dark");
+    document.documentElement.classList.add("light");
+
+    render(
+      <StudioBackground
+        showWaves={true}
+        wavesScope="full"
+        wavesLayerTestId="light-waves-layer"
+      />,
+    );
+
+    const wavesMock = screen.getByTestId("waves-mock");
+    expect(wavesMock).toBeDefined();
+    expect(wavesMock.getAttribute("data-line-color")).toBe("#D1CCC0");
+    expect(wavesMock.getAttribute("data-accent-color")).toBe("#E87532");
   });
 });
 

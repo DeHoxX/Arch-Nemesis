@@ -13,6 +13,7 @@ import { DiagramView } from "@/components/diagram/DiagramView";
 import { NotesPanel } from "@/components/diagram/NotesPanel";
 import { ExplanationView } from "@/components/explanation/ExplanationView";
 import { StudioBackground } from "@/components/studio/StudioBackground";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,6 +221,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             <span className="rounded-full border border-white/[0.09] bg-[#161618] px-3 py-1 text-xs font-mono text-muted-foreground">
               Admin Inspection Mode
             </span>
+            <ThemeToggle />
           </div>
         </div>
 

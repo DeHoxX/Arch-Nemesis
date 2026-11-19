@@ -29,7 +29,7 @@ export function StudioCornerCircuits(): React.ReactElement {
     >
       {/* Top-Left Corner Circuit */}
       <svg
-        className="absolute top-0 left-0 text-white/[0.14]"
+        className="absolute top-0 left-0 text-line-strong dark:text-white/[0.14]"
         width="340"
         height="260"
         viewBox="0 0 340 260"
@@ -60,7 +60,7 @@ export function StudioCornerCircuits(): React.ReactElement {
 
       {/* Bottom-Right Corner Circuit */}
       <svg
-        className="absolute bottom-0 right-0 text-white/[0.14]"
+        className="absolute bottom-0 right-0 text-line-strong dark:text-white/[0.14]"
         width="340"
         height="260"
         viewBox="0 0 340 260"

@@ -4049,3 +4049,13 @@ If we removed it: Light mode components would have no CSS variable definitions t
 Decided by: user approved Stage T2 plan
 Status: active
 
+### D-388 — Stage T3 — design — ThemeToggle placement, studio background adaptation, and Waves dual-theme rendering
+What: Mount the `ThemeToggle` component across both standard and admin layouts: in `apps/web/src/components/shell/AppShell.tsx` at `fixed top-3 right-3 z-40` (covering Home `/`, History `/history`, and Results `/design/[id]`), and in admin navigation headers (`apps/web/src/app/admin/page.tsx:137` and `apps/web/src/app/admin/designs/[id]/[n]/page.tsx:219`). In `apps/web/src/app/globals.css` inside `.light`, fix `--sidebar-primary-foreground: #171717` to guarantee 6.0:1 contrast on orange. Adapt `StudioCornerCircuits.tsx` with `dark:text-white/[0.14] text-line-strong` so dark rendering stays byte-identical while light renders subtle `#D1CCC0` lines. Adapt `StudioBackground.tsx` to mount `Waves` in both themes: dark uses existing unchanged props (`lineColor="#ffffff"`, `accentColor="#10b981"`, `opacity={0.55}`), while light uses warm neutrals (`lineColor="#D1CCC0"`, `accentColor="#E87532"`, `opacity={0.35}`). When toggling themes, `StudioBackground` re-renders and `Waves` triggers an immediate canvas redraw without page reload via its internal `settingsRef` and `wakeRef` update hook.
+Why: Preserves dark mode visuals 100% without moving or shifting existing UI elements, while providing immediate, seamless theme toggling. Mounting `ThemeToggle` as a fixed viewport element in `AppShell` ensures consistent accessibility without disturbing route-specific DOM structures, while admin pages receive inline header placement matching their isolated navigation bars. Updating `Waves` dynamically through props maintains the interactive studio aesthetic across both themes without requiring canvas recreation or page reload.
+Alternatives considered:
+1. Unmounting Waves in light mode: Rejected per user Stage T3 Addendum, which preserves the interactive waves canvas with light warm colors.
+2. Route-by-route header insertion for Home/History/Results: Rejected because `AppShell` provides a unified shell where fixed viewport positioning avoids layout shifts across all three views.
+If we removed it: Users would have no interactive UI control to toggle themes, or light mode would display jarring high-contrast white/green waves designed for dark obsidian backdrops.
+Decided by: user approved Stage T3 plan and T3 addendum
+Status: active
+

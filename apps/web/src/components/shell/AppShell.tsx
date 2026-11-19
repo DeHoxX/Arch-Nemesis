@@ -6,6 +6,7 @@ import { PanelLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { postDesignTitles } from "@/lib/api";
 import { batchUpdateHistoryTitles, getHistory } from "@/lib/history";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Sidebar } from "./Sidebar";
 
 export const SIDEBAR_COLLAPSE_STORAGE_KEY = "archnemesis.sidebar.collapsed";
@@ -201,6 +202,11 @@ function AppShellInner({ children }: AppShellInnerProps): React.ReactElement {
             </Button>
           </div>
         )}
+
+        {/* Theme Toggle Button: fixed top-3 right-3 across non-admin routes (Home, History, Results) */}
+        <div className="fixed top-3 right-3 z-40">
+          <ThemeToggle />
+        </div>
 
         {/* Page Content */}
         {children}

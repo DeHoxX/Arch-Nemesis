@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   THEME_STORAGE_KEY,
   getSnapshot,
@@ -14,6 +14,11 @@ describe("useTheme", () => {
     localStorage.clear();
     document.documentElement.className = "";
     vi.restoreAllMocks();
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "";
   });
 
   it("defaults to dark when storage is empty and no theme classes are set", () => {

@@ -9,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StudioBackground } from "@/components/studio/StudioBackground";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import {
   Table,
   TableBody,
@@ -134,18 +135,21 @@ export default function AdminLeadsPage(): React.ReactElement {
             <ArrowLeft className="size-3.5" />
             Home
           </Link>
-          {token && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleSignOut}
-              className="text-xs font-mono text-muted-foreground hover:text-destructive gap-1.5 h-7 px-2 border border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
-            >
-              <LogOut className="size-3.5" />
-              Sign Out
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            {token && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-xs font-mono text-muted-foreground hover:text-destructive gap-1.5 h-7 px-2 border border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
+              >
+                <LogOut className="size-3.5" />
+                Sign Out
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Authentication Form if token is not active or lead fetching failed with auth error */}

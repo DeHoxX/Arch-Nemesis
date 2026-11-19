@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
+import { useTheme } from "@/lib/useTheme";
 import { StudioCornerCircuits } from "./StudioCornerCircuits";
 import Waves from "./Waves";
 
@@ -12,14 +13,15 @@ export interface StudioBackgroundProps {
 /**
  * StudioBackground: Shared decorative studio background stack.
  *
- * Rules (D-347, D-351, D-355):
+ * Rules (D-347, D-351, D-355, D-388):
  * - Renders static StudioCornerCircuits at z-0.
  * - When showWaves is true, renders WebGL2 Waves at z-0, pointer-events-none, aria-hidden.
  * - wavesScope:
  *   - "full" (default for "/"): inset-0 covering the full studio canvas.
  *   - "header-band" (for "/design/[id]" in H2b): inset-x-0 top-0 h-[260px] with a bottom fade mask
  *     so waves never run behind the React Flow diagram canvas.
- * - Waves props are copied exactly from the approved studio home configuration.
+ * - In dark mode, Waves uses approved studio home configuration (white lines, emerald accent).
+ * - In light mode (D-388), Waves uses warm neutrals (#D1CCC0 lines, faint #E87532 accent, 0.35 opacity).
  */
 export function StudioBackground({
   showWaves = false,
@@ -27,10 +29,12 @@ export function StudioBackground({
   wavesScope = "full",
 }: StudioBackgroundProps): React.ReactElement {
   const isHeaderBand = wavesScope === "header-band";
+  const { theme } = useTheme();
+  const isLight = theme === "light";
 
   return (
     <>
-      {/* Interactive WebGL2 Waves layer (D-351, D-355) */}
+      {/* Interactive WebGL2 Waves layer (D-351, D-355, D-388) */}
       {showWaves && (
         <div
           aria-hidden="true"
@@ -50,20 +54,20 @@ export function StudioBackground({
           }
         >
           <Waves
-            lineColor="#ffffff"
+            lineColor={isLight ? "#D1CCC0" : "#ffffff"}
             spacing={5}
             amplitude={13}
             twist={0}
             speed={0.45}
             mouseRadius={100}
             mouseStrength={0.3}
-            accentColor="#10b981"
+            accentColor={isLight ? "#E87532" : "#10b981"}
             lineStyle="dashed"
             lineWidth={0.5}
             scale={0.7}
             bounce={0.3}
             returnDuration={1}
-            opacity={0.55}
+            opacity={isLight ? 0.35 : 0.55}
             lightMode
           />
         </div>
