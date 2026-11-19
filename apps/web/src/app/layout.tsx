@@ -32,7 +32,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html
       lang="en"
       className={`${anton.variable} ${plusJakartaSans.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        {/* eslint-disable-next-line @next/next/no-sync-scripts */}
+        <script src="/theme-init.js" />
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <Providers>
           <AppShell>{children}</AppShell>

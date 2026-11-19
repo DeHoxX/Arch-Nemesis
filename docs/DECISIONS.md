@@ -4028,3 +4028,14 @@ If we removed it: Architecture generation where the first attempt has a dead end
 Decided by: user approved Stage V3-3C plan
 Status: active
 
+### D-386 — Stage T1 — design — Static theme-init.js and zero-flash theme architecture
+What: Implement zero-flash theme initialization using a static script file `apps/web/public/theme-init.js` loaded via `<script src="/theme-init.js" />` in the `<head>` of `apps/web/src/app/layout.tsx`, with `suppressHydrationWarning` added to `<html>`. The theme is stored under a single localStorage key `"arch-theme"`, defaulting to `"dark"` if the key is missing, corrupt, or unreadable. Active theme state in React components is managed via `apps/web/src/lib/useTheme.ts` using `useSyncExternalStore` with server snapshot `"dark"`. Light theme is represented by class `"light"` present and `"dark"` absent on `document.documentElement`; dark theme is represented by class `"dark"` present and `"light"` absent.
+Why: Loading an inline script via `dangerouslySetInnerHTML` is prohibited by Rule 5 and ESLint `react/no-danger` (`D-110`). Serving `theme-init.js` from `public/` as a static script ensures synchronous evaluation before first DOM paint, avoiding theme flash on reload while maintaining 100% compliance with Rule 5 and compatibility with Next.js component caching (`cacheComponents: true` in `next.config.ts`) and standard `script-src 'self'` Content Security Policies. Using a single storage key `"arch-theme"` and explicit `"light"` / `"dark"` classes prevents token collision and hydration mismatches.
+Alternatives considered:
+1. `next-themes` third-party library: Rejected because Rule 9 requires zero new dependencies for this feature.
+2. `dangerouslySetInnerHTML` inline script in layout: Rejected because it violates Rule 5 and ESLint rule `react/no-danger` (`D-110`).
+3. `next/script` with `beforeInteractive`: Rejected because Next.js App Router restricts `beforeInteractive` outside the root layout or can defer execution, risking flash of unstyled content.
+If we removed it: Switching to light theme would cause a visible white/dark flash on every page navigation or hard reload, or violate Rule 5 if inline HTML script injection were attempted.
+Decided by: user approved Stage T1 plan
+Status: active
+
