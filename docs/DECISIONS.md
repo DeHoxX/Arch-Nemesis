@@ -4059,3 +4059,13 @@ If we removed it: Users would have no interactive UI control to toggle themes, o
 Decided by: user approved Stage T3 plan and T3 addendum
 Status: active
 
+### D-389 — Stage T3a-1 — design — Home page studio hero and shared primitives dual-theme tokenization
+What: Tokenize `apps/web/src/app/page.tsx`, `components/BriefCard.tsx`, and `components/Banner.tsx` for full light theme support while preserving dark mode byte-for-byte. In dark mode, all existing colors, gradients, and opacities (`#151517`, `#161618`, `#d3e1dd` sage gradient, `text-amber-500`, `border-white/10`) remain active via `dark:*` prefixes. In light mode, apply the approved Ember Studio aesthetic: "building today?" heading renders the approved `#E87532` to `#B94E25` horizontal gradient; subtitles and step guide render in `#666666` (`text-text-muted`) with "NEED A STARTING POINT?" in `#B94E25` (`text-rust`); the studio pill renders as a white/cream capsule (`bg-surface border-line text-text-muted`); the input card renders with a white background (`bg-surface-input`), 1px orange border (`border-[#E87532]`), visible pencil, and an orange gradient send button with dark `#171717` arrow; the 3 example starter chips render with white card surfaces (`bg-surface`), subtle borders (`border-line`), orange icons (`text-brand-accent`), and dark readable text (`text-foreground/90`); and amber indicators in Banner and BriefCard use `text-amber-700` in light mode for 5.25:1 WCAG AA contrast.
+Why: Previously in light mode, hardcoded dark classes (`bg-[#151517]`, `bg-[#161618]`) combined with light-mode dark text (`--foreground: #171717`) caused severe visibility failure (black-on-black text in starter chips) and low-opacity subtitle text was washed out. Semantic tokenization coupled with scoped `dark:*` preservation completely resolves light theme legibility while ensuring zero visual regression in dark mode.
+Alternatives considered:
+1. Universal CSS variables for all gradients: Rejected because the dark heading gradient has a 3-stop vertical color definition (`#d3e1dd`, `#b7c6c2`, `#98aba6`) while the light gradient has a 2-stop horizontal direction (`#E87532`, `#B94E25`).
+2. Global opacity overrides: Rejected because applying full opacity globally would alter the carefully tuned dark zinc micro-contrast hierarchy.
+If we removed it: The home page in light mode would remain illegible with invisible starter prompt titles, washed-out metadata labels, and dark card artifacts on a cream canvas.
+Decided by: user approved Stage T3a-1 plan
+Status: active
+

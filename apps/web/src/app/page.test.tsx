@@ -2,7 +2,7 @@ import React from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import HomePage from "./page";
 import { AppShell } from "../components/shell/AppShell";
 import { INTAKE_STORAGE_KEY } from "../lib/intakeStorage";
@@ -55,6 +55,13 @@ describe("HomePage Component", () => {
     mockSearchParams = new URLSearchParams();
     window.sessionStorage.clear();
     window.localStorage.clear();
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+    document.documentElement.className = "";
   });
 
   it("renders exact heading, placeholder, capsule tag, corner circuits, waves, and Send button (D-347, D-349, D-351)", async () => {
@@ -1540,6 +1547,83 @@ describe("HomePage Component", () => {
       });
 
       expect(capturedBody).toContain("A: (no answer, assume: 100 calls (per day))");
+    });
+  });
+
+  describe("HomePage Dual-Theme Styling (Stage T3a-1)", () => {
+    it("renders hero studio capsule pill with light tokens and dark fallback classes", () => {
+      renderWithClient(<HomePage />);
+
+      const pill = screen.getByText("SYSTEM DESIGN STUDIO");
+      // Explicit class assertions (avoiding substring traps)
+      const classes = pill.className.split(/\s+/);
+      expect(classes).toContain("bg-surface");
+      expect(classes).toContain("border-line");
+      expect(classes).toContain("text-text-muted");
+      expect(classes).toContain("dark:border-white/10");
+      expect(classes).toContain("dark:bg-[#161618]");
+      expect(classes).toContain("dark:text-muted-foreground/80");
+    });
+
+    it("renders hero headline with dual-theme gradient classes", () => {
+      renderWithClient(<HomePage />);
+
+      const gradientSpan = screen.getByText("building today?");
+      const classes = gradientSpan.className.split(/\s+/);
+      expect(classes).toContain("bg-gradient-to-r");
+      expect(classes).toContain("from-[#E87532]");
+      expect(classes).toContain("to-[#B94E25]");
+      expect(classes).toContain("dark:bg-gradient-to-b");
+      expect(classes).toContain("dark:from-[#d3e1dd]");
+      expect(classes).toContain("dark:via-[#b7c6c2]");
+      expect(classes).toContain("dark:to-[#98aba6]");
+    });
+
+    it("renders input card with 1px orange border and surface-input background in light mode", () => {
+      renderWithClient(<HomePage />);
+
+      const textarea = screen.getByPlaceholderText("Describe the system you have in mind...");
+      const card = textarea.closest("div.relative");
+      expect(card).not.toBeNull();
+      const classes = card!.className.split(/\s+/);
+      expect(classes).toContain("border-[#E87532]");
+      expect(classes).toContain("bg-surface-input");
+      expect(classes).toContain("dark:border-white/10");
+      expect(classes).toContain("dark:bg-[#161618]");
+    });
+
+    it("renders starter buttons with light tokens (bg-surface, border-line, hover:bg-hover) and dark fallback classes", async () => {
+      renderWithClient(<HomePage />);
+
+      await waitFor(() => {
+        const starterButtons = screen.getAllByRole("button").filter((btn) =>
+          btn.querySelector(".lucide-arrow-up-right"),
+        );
+        expect(starterButtons.length).toBeGreaterThan(0);
+        const btn = starterButtons[0]!;
+        const classes = btn.className.split(/\s+/);
+        expect(classes).toContain("bg-surface");
+        expect(classes).toContain("border-line");
+        expect(classes).toContain("hover:bg-hover");
+        expect(classes).toContain("dark:bg-[#151517]");
+        expect(classes).toContain("dark:border-white/[0.09]");
+        expect(classes).toContain("dark:hover:bg-[#191b1a]");
+      });
+    });
+
+    it("renders subtitle, starter divider, and step guide with accessible text-text-muted and text-rust in light mode", () => {
+      renderWithClient(<HomePage />);
+
+      const divider = screen.getByText("NEED A STARTING POINT?").parentElement;
+      expect(divider).not.toBeNull();
+      const dividerClasses = divider!.className.split(/\s+/);
+      expect(dividerClasses).toContain("text-rust");
+      expect(dividerClasses).toContain("dark:text-muted-foreground/60");
+
+      const stepGuide = screen.getByText("DESCRIBE → CLARIFY → GENERATE");
+      const stepClasses = stepGuide.className.split(/\s+/);
+      expect(stepClasses).toContain("text-text-muted");
+      expect(stepClasses).toContain("dark:text-muted-foreground/50");
     });
   });
 });

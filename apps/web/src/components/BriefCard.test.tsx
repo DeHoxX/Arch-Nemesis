@@ -1,10 +1,20 @@
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { BriefCard } from "./BriefCard";
 import type { RequirementBrief } from "@/lib/types";
 
 describe("BriefCard", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.className = "";
+  });
+
   const sampleBrief: RequirementBrief = {
     summary: "Cloud Migration Pipeline",
     users: "DevOps Engineers",
@@ -24,5 +34,14 @@ describe("BriefCard", () => {
       screen.getByText("PostgreSQL 16 deployed in primary region")
     ).toBeDefined();
     expect(screen.getByText("Must support AWS and GCP")).toBeDefined();
+  });
+
+  it("renders unverifiable requirements header with high-contrast amber in light mode and amber-500 in dark mode", () => {
+    render(<BriefCard brief={sampleBrief} onGenerate={vi.fn()} />);
+
+    const unverifiableHeading = screen.getByText("Not verified by checks");
+    const classes = unverifiableHeading.className.split(/\s+/);
+    expect(classes).toContain("text-amber-700");
+    expect(classes).toContain("dark:text-amber-500");
   });
 });

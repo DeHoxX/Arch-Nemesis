@@ -161,7 +161,7 @@ export function BriefCard({
         {hasUnverifiable && (
           <div>
             <Separator className="my-3" />
-            <h4 className="font-mono text-xs uppercase tracking-wider text-amber-500">
+            <h4 className="font-mono text-xs uppercase tracking-wider text-amber-700 dark:text-amber-500">
               Not verified by checks
             </h4>
             <ul className="mt-1 list-disc list-inside space-y-1 text-muted-foreground">

@@ -16,7 +16,7 @@ export function Banner(): React.ReactElement {
       aria-label="Compliance disclaimer"
       className="flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-foreground"
     >
-      <AlertTriangle className="size-5 shrink-0 text-amber-500" aria-hidden="true" />
+      <AlertTriangle className="size-5 shrink-0 text-amber-700 dark:text-amber-500" aria-hidden="true" />
       <p className="font-mono text-xs sm:text-sm text-foreground/90">
         {BANNER_TEXT}
       </p>

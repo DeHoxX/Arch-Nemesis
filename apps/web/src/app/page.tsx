@@ -481,17 +481,17 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
           <div className="my-auto flex flex-1 flex-col items-center justify-center text-center py-8">
             <div className="mx-auto flex w-full max-w-2xl flex-col items-center">
               {/* Mono studio tag in subtle capsule pill: no dot, no - 01 */}
-              <div className="animate-studio-fade-up inline-flex items-center rounded-full border border-white/10 bg-[#161618] px-3.5 py-1 font-mono text-[11px] font-semibold tracking-widest text-muted-foreground/80 uppercase">
+              <div className="animate-studio-fade-up inline-flex items-center rounded-full border border-line bg-surface text-text-muted dark:border-white/10 dark:bg-[#161618] dark:text-muted-foreground/80 px-3.5 py-1 font-mono text-[11px] font-semibold tracking-widest uppercase">
                 SYSTEM DESIGN STUDIO
               </div>
 
-              {/* Headline: Plus_Jakarta_Sans, second line subtle sage gradient (D-347) */}
+              {/* Headline: Plus_Jakarta_Sans, second line subtle sage gradient in dark, burnt orange gradient in light (D-347, D-387) */}
               <h1
                 style={{ animationDelay: "60ms" }}
                 className="animate-studio-fade-up mt-4 font-heading text-4xl sm:text-5xl md:text-6xl font-semibold tracking-tight text-foreground leading-[1.12]"
               >
                 What are we
-                <span className="block bg-gradient-to-b from-[#d3e1dd] via-[#b7c6c2] to-[#98aba6] bg-clip-text text-transparent font-semibold">
+                <span className="block bg-gradient-to-r from-[#E87532] to-[#B94E25] dark:bg-gradient-to-b dark:from-[#d3e1dd] dark:via-[#b7c6c2] dark:to-[#98aba6] bg-clip-text text-transparent font-semibold">
                   building today?
                 </span>
               </h1>
@@ -499,7 +499,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
               {/* Subtitle */}
               <p
                 style={{ animationDelay: "120ms" }}
-                className="animate-studio-fade-up mt-3 max-w-lg text-sm text-muted-foreground md:text-base leading-relaxed"
+                className="animate-studio-fade-up mt-3 max-w-lg text-sm text-text-muted dark:text-muted-foreground md:text-base leading-relaxed"
               >
                 Start with an idea. We&apos;ll work through the technical details together.
               </p>
@@ -548,9 +548,9 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                   </Alert>
                 )}
 
-                <div className="relative w-full rounded-xl border border-white/10 bg-[#161618] p-3 shadow-xs transition-colors focus-within:border-brand-accent/55 focus-within:ring-1 focus-within:ring-brand-accent/35">
+                <div className="relative w-full rounded-xl border border-[#E87532] bg-surface-input dark:border-white/10 dark:bg-[#161618] p-3 shadow-xs transition-colors focus-within:border-brand-accent/55 focus-within:ring-1 focus-within:ring-brand-accent/35">
                   <div className="flex items-start gap-2.5">
-                    <Pencil className="size-4 text-muted-foreground/60 shrink-0 mt-2 ml-1" />
+                    <Pencil className="size-4 text-text-muted dark:text-muted-foreground/60 shrink-0 mt-2 ml-1" />
                     <Textarea
                       ref={textareaRef}
                       value={inputText}
@@ -559,12 +559,12 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                       placeholder="Describe the system you have in mind..."
                       disabled={intakeMutation.isPending}
                       rows={1}
-                      className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1 text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 md:text-base flex-1"
+                      className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1 text-sm text-foreground placeholder:text-text-muted dark:placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 md:text-base flex-1"
                     />
                   </div>
 
-                  <div className="mt-2 flex items-center justify-between border-t border-border/40 px-1 pt-2">
-                    <span className="font-mono text-[11px] text-muted-foreground/70">
+                  <div className="mt-2 flex items-center justify-between border-t border-line dark:border-border/40 px-1 pt-2">
+                    <span className="font-mono text-[11px] text-text-muted dark:text-muted-foreground/70">
                       {counterText}
                     </span>
 
@@ -573,7 +573,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                       onClick={handleSend}
                       disabled={intakeMutation.isPending || !inputText.trim()}
                       aria-label="Send"
-                      className="size-8 rounded-lg bg-brand-accent p-0 text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60 flex items-center justify-center shrink-0"
+                      className="size-8 rounded-lg bg-gradient-to-b from-[#E87532] to-[#B94E25] text-[#171717] dark:bg-none dark:bg-brand-accent dark:text-brand-accent-ink p-0 transition-colors hover:brightness-105 dark:hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60 flex items-center justify-center shrink-0"
                     >
                       <ArrowUp className="size-4" />
                     </Button>
@@ -584,11 +584,11 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
               {/* Starter Divider */}
               <div
                 style={{ animationDelay: "240ms" }}
-                className="animate-studio-fade-up my-7 flex items-center gap-3 w-full max-w-2xl text-[10px] font-mono tracking-widest text-muted-foreground/60 uppercase"
+                className="animate-studio-fade-up my-7 flex items-center gap-3 w-full max-w-2xl text-[10px] font-mono tracking-widest text-rust dark:text-muted-foreground/60 uppercase"
               >
-                <span className="flex-1 h-px bg-border/40" />
+                <span className="flex-1 h-px bg-line dark:bg-border/40" />
                 <span>NEED A STARTING POINT?</span>
-                <span className="flex-1 h-px bg-border/40" />
+                <span className="flex-1 h-px bg-line dark:bg-border/40" />
               </div>
 
               {/* Example Starter Buttons in ONE horizontal 3-column row on desktop (D-346) */}
@@ -601,7 +601,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                       <div
                         key={`placeholder-slot-${slotIdx}`}
                         aria-hidden="true"
-                        className="h-10 rounded-lg border border-white/[0.09] bg-[#151517]"
+                        className="h-10 rounded-lg border border-line bg-surface dark:border-white/[0.09] dark:bg-[#151517]"
                       />
                     ))
                   : randomPrompts.map((starter) => {
@@ -611,15 +611,15 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                           key={starter.id}
                           type="button"
                           onClick={() => handleSelectStarter(starter.prompt)}
-                          className="group flex h-10 w-full items-center justify-between rounded-lg border border-white/[0.09] bg-[#151517] px-3 py-2 text-xs text-foreground/90 transition-colors hover:border-brand-accent/45 hover:bg-[#191b1a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-accent/60"
+                          className="group flex h-10 w-full items-center justify-between rounded-lg border border-line bg-surface dark:border-white/[0.09] dark:bg-[#151517] px-3 py-2 text-xs text-foreground/90 transition-colors hover:border-brand-accent/45 hover:bg-hover dark:hover:bg-[#191b1a] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-accent/60"
                         >
                           <div className="flex items-center gap-2 truncate min-w-0">
-                            <Icon className="size-3.5 text-brand-accent/70 shrink-0 transition-colors" />
+                            <Icon className="size-3.5 text-brand-accent dark:text-brand-accent/70 shrink-0 transition-colors" />
                             <span className="font-medium text-foreground/90 truncate">
                               {starter.title}
                             </span>
                           </div>
-                          <ArrowUpRight className="size-3.5 text-muted-foreground/50 group-hover:text-foreground shrink-0 transition-colors ml-1" />
+                          <ArrowUpRight className="size-3.5 text-text-muted dark:text-muted-foreground/50 group-hover:text-foreground shrink-0 transition-colors ml-1" />
                         </button>
                       );
                     })}
@@ -628,7 +628,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
               {/* Step Flow Guide */}
               <div
                 style={{ animationDelay: "300ms" }}
-                className="animate-studio-fade-up mt-8 font-mono text-[11px] tracking-widest text-muted-foreground/50 uppercase select-none"
+                className="animate-studio-fade-up mt-8 font-mono text-[11px] tracking-widest text-text-muted dark:text-muted-foreground/50 uppercase select-none"
               >
                 DESCRIBE → CLARIFY → GENERATE
               </div>
@@ -639,7 +639,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
           <div className="mx-auto w-full max-w-2xl space-y-6 pb-4">
             {/* Header label when messages are active: plain mono label, no dot */}
             <div className="flex justify-center pt-2">
-              <div className="font-mono text-[11px] font-semibold tracking-widest text-muted-foreground/80 uppercase">
+              <div className="font-mono text-[11px] font-semibold tracking-widest text-text-muted dark:text-muted-foreground/80 uppercase">
                 System Architect Session
               </div>
             </div>
@@ -820,11 +820,11 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                 placeholder="Describe the system you have in mind..."
                 disabled={intakeMutation.isPending}
                 rows={1}
-                className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1 text-sm text-foreground placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 md:text-base"
+                className="min-h-[44px] max-h-40 resize-none border-0 bg-transparent p-1 text-sm text-foreground placeholder:text-text-muted dark:placeholder:text-muted-foreground/60 focus-visible:outline-none focus-visible:ring-0 md:text-base"
               />
 
               <div className="mt-1 flex items-center justify-between border-t border-border/40 px-1 pt-1.5">
-                <span className="font-mono text-[11px] text-muted-foreground/70">
+                <span className="font-mono text-[11px] text-text-muted dark:text-muted-foreground/70">
                   {counterText}
                 </span>
 
@@ -833,7 +833,7 @@ function HomeContent({ isNew }: HomeContentProps): React.ReactElement {
                   onClick={handleSend}
                   disabled={intakeMutation.isPending || !inputText.trim()}
                   aria-label="Send"
-                  className="size-8 rounded-lg bg-brand-accent p-0 text-brand-accent-ink transition-colors hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60 flex items-center justify-center shrink-0"
+                  className="size-8 rounded-lg bg-gradient-to-b from-[#E87532] to-[#B94E25] text-[#171717] dark:bg-none dark:bg-brand-accent dark:text-brand-accent-ink p-0 transition-colors hover:brightness-105 dark:hover:bg-brand-accent-hover disabled:opacity-40 disabled:bg-brand-accent/50 disabled:text-brand-accent-ink/60 flex items-center justify-center shrink-0"
                 >
                   <ArrowUp className="size-4" />
                 </Button>
