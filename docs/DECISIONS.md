@@ -4119,6 +4119,17 @@ If we removed it: The application would remain permanently locked to dark mode, 
 Decided by: user approved Stage T5 completion
 Status: active
 
+### D-395 — Stage V3-4A — layout — Pure deterministic layered block diagram layout engine and DAG depth fallback
+What: Implement pure TypeScript layout calculation utilities (`apps/web/src/components/diagram/blockLayout.ts`) and unit tests (`blockLayout.test.ts`) for the layered Block diagram view. Computes deterministic layer ordering mirroring backend `order_layers` with rightmost placement for "Other parts", DAG depth fallback ("Stage 1", "Stage 2"...) for unlayered designs, deterministic node positioning within columns (sorted by flow order or ID), font-derived node height (92px for 240px width), backward edge detection (`targetColumnIndex <= sourceColumnIndex`), role line truncation (`formatShortRole`: first sentence, max 60 chars with ellipsis), and non-overlapping column bounds.
+Why: The layered Block diagram presents a high-level conceptual swimlane architecture where nodes are organized into functional columns (e.g., Ingest, Processing, Storage). Calculating column ordering, node placement, and backward edge flags in pure client-side TypeScript ensures zero latency, zero backend contract modifications, and 100% deterministic rendering across screen sizes and node array permutations.
+Alternatives considered:
+1. Calculating layer ordering and coordinates on the backend and storing them in DesignResponse schema: Rejected because it breaks backend/frontend contracts, requires database schema migrations, and ties frontend display geometry to backend persistence.
+2. Using dagre or d3-hierarchy for the Block view layout: Rejected because dagre produces variable column widths and arbitrary node packing instead of structured, predictable swimlane columns with clear channels for backward loop edges.
+If we removed it: The Block view would either rely on dagre's unstructured graph placement or require backend schema changes, failing to produce a clear left-to-right layered narrative.
+Decided by: user approved V3-4 plan (Stage V3-4A)
+Status: active
+
+
 
 
 
