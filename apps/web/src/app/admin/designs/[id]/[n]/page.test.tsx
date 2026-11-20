@@ -420,4 +420,51 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
       expect(api.postExplanation).not.toHaveBeenCalled();
     });
   });
+
+  describe("Dual-theme tokens (Stage T5, D-393)", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders admin inspection token form with dual-theme surface tokens", () => {
+      renderPage();
+
+      const form = document.querySelector("form") as HTMLFormElement;
+      expect(form.classList.contains("border-line")).toBe(true);
+      expect(form.classList.contains("bg-surface")).toBe(true);
+      expect(form.classList.contains("dark:bg-[#151517]")).toBe(true);
+
+      const input = screen.getByLabelText(/Admin Secret Token/i);
+      expect(input.classList.contains("border-line")).toBe(true);
+      expect(input.classList.contains("bg-surface-input")).toBe(true);
+      expect(input.classList.contains("dark:bg-[#161618]")).toBe(true);
+    });
+
+    it("renders inspection tabs with dual-theme tab triggers and canvas borders", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.getAdminDesignVersion).mockResolvedValueOnce(mockAdminVersionData);
+
+      renderPage();
+
+      await user.type(screen.getByLabelText(/Admin Secret Token/i), "valid-token");
+      await user.click(screen.getByRole("button", { name: /Unlock Design Version/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Cloud Native Event Store")).toBeDefined();
+      });
+
+      const tabsList = screen.getByRole("tablist");
+      expect(tabsList.classList.contains("border-line")).toBe(true);
+      expect(tabsList.classList.contains("bg-surface")).toBe(true);
+      expect(tabsList.classList.contains("dark:bg-[#151517]")).toBe(true);
+
+      const blockTab = screen.getByRole("tab", { name: /Block diagram/i });
+      expect(blockTab.classList.contains("data-active:bg-surface-elevated")).toBe(true);
+      expect(blockTab.classList.contains("dark:data-active:bg-[#1f1f23]")).toBe(true);
+    });
+  });
 });

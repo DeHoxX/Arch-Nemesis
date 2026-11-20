@@ -243,4 +243,56 @@ describe("Admin Leads Page (/admin)", () => {
       expect(container.querySelectorAll("img")).toHaveLength(0);
     });
   });
+
+  describe("Dual-theme tokens (Stage T5, D-393)", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders admin login card with dual-theme surface tokens", () => {
+      renderWithAdminContext();
+
+      const form = document.querySelector("form") as HTMLFormElement;
+      expect(form.classList.contains("border-line")).toBe(true);
+      expect(form.classList.contains("bg-surface")).toBe(true);
+      expect(form.classList.contains("dark:bg-[#151517]")).toBe(true);
+
+      const input = screen.getByLabelText(/Admin Secret Token/i);
+      expect(input.classList.contains("border-line")).toBe(true);
+      expect(input.classList.contains("bg-surface-input")).toBe(true);
+      expect(input.classList.contains("dark:bg-[#161618]")).toBe(true);
+    });
+
+    it("renders leads table with dual-theme border and hover classes", async () => {
+      vi.mocked(api.getAdminLeads).mockResolvedValueOnce([
+        {
+          id: "lead-12345678",
+          name: "Alice Corp",
+          email: "alice@example.com",
+          note: "Need pricing",
+          created_at: "2026-11-20T00:00:00Z",
+          design_id: "design-abc-123",
+          version_no: 1,
+        },
+      ]);
+
+      const user = userEvent.setup();
+      renderWithAdminContext();
+
+      await user.type(screen.getByLabelText(/Admin Secret Token/i), "valid-token");
+      await user.click(screen.getByRole("button", { name: /View Leads/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Alice Corp")).toBeDefined();
+      });
+
+      const leadLink = screen.getByRole("link", { name: /v1 \(design\)/i });
+      expect(leadLink.classList.contains("text-rust")).toBe(true);
+      expect(leadLink.classList.contains("dark:text-brand-accent")).toBe(true);
+    });
+  });
 });

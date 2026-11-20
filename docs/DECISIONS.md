@@ -4099,6 +4099,27 @@ If we removed it: In dark mode, ReactFlow's wrapper element matches `.light`, in
 Decided by: user instructions for Stage T4 dark bug fix
 Status: active
 
+### D-393 — Stage T5 — Admin pages dual-theme tokenization
+What: Tokenize administrative lead management (`/admin`) and design version inspection (`/admin/designs/[id]/[n]`) pages for dual-theme light/dark support. Replace hardcoded dark card surfaces (`bg-[#151517]`), input surfaces (`bg-[#161618]`), elevated hover states (`hover:bg-[#1f1f23]`), and subtle borders (`border-white/[0.09]`) with semantic dual-theme tokens (`bg-surface`, `bg-surface-input`, `hover:bg-hover`, `border-line`, `bg-flow-canvas-bg`). Small link text on cream uses `text-rust` with dark fallback `dark:text-brand-accent`.
+Why: Admin leads and inspection interfaces previously contained hardcoded dark hex codes that remained black/dark charcoal when light mode was toggled, conflicting with the Ember Studio aesthetic. Tokenizing these pages with semantic tokens and retaining exact dark values via `dark:*` preserves 100% byte-for-byte visual equivalence in dark mode while producing a cohesive, high-contrast cream layout in light mode.
+Alternatives considered:
+1. Retaining hardcoded dark styling on admin routes as an "admin-only dark aesthetic": Rejected because users toggling between public and admin routes experienced jarring visual inconsistency.
+2. Introducing separate admin-specific CSS tokens: Rejected because the existing design tokens (`--surface`, `--surface-input`, `--surface-elevated`, `--line`, `--hover`, `--flow-canvas-bg`) map 1:1 to every admin surface pattern.
+If we removed it: Admin pages in light theme would display stark black cards, borders, and inputs on a cream canvas background.
+Decided by: user approved Stage T5 instructions
+Status: active
+
+### D-394 — Dual-theme system summary (Stages T1 to T5)
+What: Comprehensive architectural summary of the dual-theme tokenization effort spanning Stages T1 through T5 (Decisions D-386 through D-394). Implemented zero-flash static theme initialization (`theme-init.js`), hermetic root state synchronization (`useTheme`), single storage key (`arch-theme`), root-scoped CSS variables (`html.light { ... }`), semantic design tokens (`--surface`, `--surface-input`, `--surface-elevated`, `--line`, `--line-strong`, `--hover`, `--flow-canvas-bg`, `--flow-pattern-dots`, `--edge-stroke`), dual-theme component coverage (Home studio, Results shell, Panels, FlowPlaybackBar, DiagramLegend, DiagramView, BlockDiagramView, DiagramNode, BlockNode, DiagramEdge, BlockEdge, FallbackList, Admin leads, and Admin inspection), and export compatibility (`--page-bg` preserved).
+Why: Complete, accessible light mode implementation based on Ember Studio architecture aesthetics with strict 4.5:1 contrast ratios on body text and 3:1 on UI elements, while enforcing a zero-regression invariant on the original dark theme.
+Alternatives considered:
+1. Third-party theme libraries (`next-themes`): Rejected to avoid external dependencies, hydration mismatches, and maintain full control over static initialization scripts without dangerouslySetInnerHTML.
+2. Dynamic CSS-in-JS: Rejected in favor of pure Tailwind v4 `@theme inline` and CSS variables for maximum runtime performance and zero layout shift.
+If we removed it: The application would remain permanently locked to dark mode, unable to support users requiring high-contrast light environments.
+Decided by: user approved Stage T5 completion
+Status: active
+
+
 
 
 

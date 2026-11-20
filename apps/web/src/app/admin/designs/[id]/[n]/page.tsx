@@ -30,7 +30,7 @@ function AdminDesignInspectionLoading(): React.ReactElement {
     <main className="relative isolate min-h-screen w-full overflow-x-hidden bg-page-bg text-foreground px-4 py-8 md:py-12 studio-grid-bg">
       <StudioBackground showWaves={false} />
       <div className="relative z-10 mx-auto w-full max-w-7xl space-y-6">
-        <div className="flex items-center justify-between border-b border-white/[0.09] pb-4">
+        <div className="flex items-center justify-between border-b border-line pb-4">
           <Skeleton className="h-6 w-32" />
           <Skeleton className="h-6 w-24" />
         </div>
@@ -209,7 +209,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
 
       <div className="relative z-10 mx-auto w-full max-w-7xl space-y-6">
         {/* Top Navigation */}
-        <div className="flex items-center justify-between border-b border-white/[0.09] pb-4">
+        <div className="flex items-center justify-between border-b border-line pb-4">
           <Link
             href="/admin"
             className="inline-flex items-center gap-1.5 text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
@@ -218,7 +218,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             Back to Leads
           </Link>
           <div className="flex items-center gap-2">
-            <span className="rounded-full border border-white/[0.09] bg-[#161618] px-3 py-1 text-xs font-mono text-muted-foreground">
+            <span className="rounded-full border border-line bg-surface-input dark:bg-[#161618] px-3 py-1 text-xs font-mono text-muted-foreground">
               Admin Inspection Mode
             </span>
             <ThemeToggle />
@@ -229,7 +229,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
         {!token || !data ? (
           <div className="mx-auto w-full max-w-md space-y-6 pt-12">
             <div className="text-center space-y-2">
-              <div className="mx-auto size-12 rounded-full border border-white/[0.09] bg-[#151517] flex items-center justify-center">
+              <div className="mx-auto size-12 rounded-full border border-line bg-surface dark:bg-[#151517] flex items-center justify-center">
                 <KeyRound className="size-6 text-brand-accent" />
               </div>
               <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
@@ -241,7 +241,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             </div>
 
             {effectiveError === "401" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-surface dark:bg-[#151517]">
                 <AlertCircle className="size-4" />
                 <AlertTitle className="text-sm font-semibold">Authentication Failed</AlertTitle>
                 <AlertDescription className="text-xs font-medium">
@@ -251,7 +251,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             )}
 
             {effectiveError === "404" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-surface dark:bg-[#151517]">
                 <AlertCircle className="size-4" />
                 <AlertTitle className="text-sm font-semibold">Not Found</AlertTitle>
                 <AlertDescription className="text-xs font-medium">
@@ -261,7 +261,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             )}
 
             {effectiveError === "500" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-surface dark:bg-[#151517]">
                 <AlertCircle className="size-4" />
                 <AlertTitle className="text-sm font-semibold">Incompatible Data Format</AlertTitle>
                 <AlertDescription className="text-xs font-medium">
@@ -271,7 +271,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             )}
 
             {effectiveError === "network" && (
-              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-[#151517]">
+              <Alert variant="destructive" className="rounded-xl border-destructive/50 bg-surface dark:bg-[#151517]">
                 <AlertCircle className="size-4" />
                 <AlertTitle className="text-sm font-semibold">Error</AlertTitle>
                 <AlertDescription className="text-xs font-medium">
@@ -283,7 +283,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             {/* Inline password form (preserves on-page position) */}
             <form
               onSubmit={handleTokenSubmit}
-              className="rounded-2xl border border-white/[0.09] bg-[#151517] p-6 shadow-xl space-y-4"
+              className="rounded-2xl border border-line bg-surface dark:bg-[#151517] p-6 shadow-xl space-y-4"
             >
               <div className="space-y-2">
                 <label
@@ -300,7 +300,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                   placeholder="Enter token..."
                   disabled={isLoading}
                   autoComplete="off"
-                  className="border-white/[0.09] bg-[#161618] font-mono text-sm"
+                  className="border-line bg-surface-input dark:bg-[#161618] font-mono text-sm"
                 />
               </div>
 
@@ -320,7 +320,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
             <Banner />
 
             {/* Design Version Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/[0.09] pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-line pb-4">
               <div>
                 <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground">
                   {data.brief.summary || "System Architecture"}
@@ -335,7 +335,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                 size="sm"
                 onClick={() => void refetch()}
                 disabled={isLoading}
-                className="text-xs font-mono gap-1.5 h-8 border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23]"
+                className="text-xs font-mono gap-1.5 h-8 border-line bg-surface dark:bg-[#151517] hover:bg-hover dark:hover:bg-[#1f1f23]"
               >
                 <RefreshCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} />
                 Refresh
@@ -349,14 +349,14 @@ function AdminDesignInspectionContent(): React.ReactElement {
               className="w-full space-y-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <TabsList className="bg-[#151517] border border-white/[0.09] p-1">
-                  <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
+                <TabsList className="bg-surface dark:bg-[#151517] border border-line p-1">
+                  <TabsTrigger value="block-diagram" className="px-4 py-1.5 text-xs font-mono data-active:bg-surface-elevated dark:data-active:bg-[#1f1f23] data-active:text-foreground">
                     Block diagram
                   </TabsTrigger>
-                  <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
+                  <TabsTrigger value="architecture" className="px-4 py-1.5 text-xs font-mono data-active:bg-surface-elevated dark:data-active:bg-[#1f1f23] data-active:text-foreground">
                     Architecture
                   </TabsTrigger>
-                  <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono data-active:bg-[#1f1f23] data-active:text-foreground">
+                  <TabsTrigger value="explanation" className="px-4 py-1.5 text-xs font-mono data-active:bg-surface-elevated dark:data-active:bg-[#1f1f23] data-active:text-foreground">
                     Explanation
                   </TabsTrigger>
                 </TabsList>
@@ -370,7 +370,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                     onClick={toggleFullscreen}
                     aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
                     title={isFullscreen ? "Exit full screen" : "Full screen"}
-                    className="h-8 gap-1.5 px-2.5 font-mono text-xs border-white/[0.09] bg-[#151517] hover:bg-[#1f1f23] motion-reduce:transition-none"
+                    className="h-8 gap-1.5 px-2.5 font-mono text-xs border-line bg-surface dark:bg-[#151517] hover:bg-hover dark:hover:bg-[#1f1f23] motion-reduce:transition-none"
                   >
                     {isFullscreen ? (
                       <>
@@ -399,7 +399,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                     {/* Read-only Block Diagram Canvas */}
                     <div className={cn(
                       isFullscreen ? "lg:col-span-4 h-full min-h-0" : "lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]",
-                      "rounded-lg border border-white/[0.09] bg-[#151517] overflow-hidden relative"
+                      "rounded-lg border border-line bg-flow-canvas-bg overflow-hidden relative"
                     )}>
                       <BlockDiagramView spec={data.spec} fitViewTrigger={isFullscreen} />
                     </div>
@@ -407,7 +407,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                     {/* Summary / Notes Panel */}
                     {!isFullscreen && (
                       <div className="space-y-4">
-                        <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-4 space-y-2">
+                        <div className="rounded-xl border border-line bg-surface dark:bg-[#151517] p-4 space-y-2">
                           <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
                             User / Audience
                           </h2>
@@ -425,7 +425,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                     {/* Read-only Architecture Canvas */}
                     <div className={cn(
                       Boolean(selectedNode || selectedEdge) ? "lg:col-span-3" : (isFullscreen ? "lg:col-span-4" : "lg:col-span-3"),
-                      "rounded-lg border border-white/[0.09] bg-[#151517] overflow-hidden relative",
+                      "rounded-lg border border-line bg-flow-canvas-bg overflow-hidden relative",
                       isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
                     )}>
                       <DiagramView
@@ -466,7 +466,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
 
                         {!isFullscreen && (
                           <>
-                            <div className="rounded-xl border border-white/[0.09] bg-[#151517] p-4 space-y-2">
+                            <div className="rounded-xl border border-line bg-surface dark:bg-[#151517] p-4 space-y-2">
                               <h2 className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
                                 User / Audience
                               </h2>
@@ -487,7 +487,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
                 {data.explanation ? (
                   <ExplanationView explanation={data.explanation} />
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/[0.09] bg-[#151517] p-12 text-center space-y-2">
+                  <div className="rounded-2xl border border-dashed border-line bg-surface dark:bg-[#151517] p-12 text-center space-y-2">
                     <p className="text-sm font-medium text-foreground">No explanation generated yet.</p>
                     <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                       This design version has not had a walkthrough generated by a visitor.
