@@ -70,7 +70,7 @@ export function BlockNode({
       aria-label={accessibleLabel}
       style={{ width, height }}
       className={cn(
-        "relative flex select-none flex-col justify-between rounded-lg border border-line bg-surface dark:bg-card px-3 py-2 text-card-foreground shadow-xs transition-all",
+        "relative flex select-none flex-col justify-between rounded-lg border border-line bg-surface dark:bg-card px-3 py-1.5 text-card-foreground shadow-xs transition-all",
         data.diffStatus === "added" &&
           "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
         data.diffStatus === "removed" &&
@@ -86,10 +86,10 @@ export function BlockNode({
         aria-hidden="true"
       />
 
-      {/* Top: Node Name (max 2 lines) */}
+      {/* Top: Node Name (max 2 lines @ 13px) */}
       <div className="min-w-0 overflow-hidden w-full flex items-center justify-center">
         <p
-          className="line-clamp-2 break-words text-xs font-semibold text-foreground tracking-tight leading-snug text-center"
+          className="line-clamp-2 break-words text-[13px] font-semibold text-foreground tracking-tight leading-snug text-center"
           title={data.name}
         >
           {data.name}

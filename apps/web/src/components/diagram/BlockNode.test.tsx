@@ -50,13 +50,13 @@ describe("BlockNode component (Stage V3-4B)", () => {
     document.documentElement.className = "";
   });
 
-  it("renders node name clearly with text-xs and line-clamp-2", () => {
+  it("renders node name clearly with text-[13px] and line-clamp-2", () => {
     renderBlockNode({ name: "Customer Intent Router" });
 
     const nameEl = screen.getByText("Customer Intent Router");
     expect(nameEl).toBeDefined();
     expect(nameEl.classList.contains("line-clamp-2")).toBe(true);
-    expect(nameEl.classList.contains("text-xs")).toBe(true);
+    expect(nameEl.classList.contains("text-[13px]")).toBe(true);
   });
 
   it("renders single role line via formatShortRole with text-[11px] and text-text-muted", () => {

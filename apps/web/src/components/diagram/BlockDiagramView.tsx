@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -15,13 +15,14 @@ import "@xyflow/react/dist/style.css";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BlockEdge, type BlockEdgeData } from "./BlockEdge";
-import { BlockLayerHeader, type BlockLayerHeaderData } from "./BlockLayerHeader";
+import { BlockLayerFrame, type BlockLayerFrameData } from "./BlockLayerFrame";
+import { BlockLayerHeader } from "./BlockLayerHeader";
 import {
   type BlockLayoutResult,
-  COLUMN_HEADER_HEIGHT,
   computeBlockLayout,
 } from "./blockLayout";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
+import { computeBlockRoutes } from "./blockRouting";
 import { FitViewWatcher } from "./FitViewWatcher";
 
 export interface BlockDiagramViewProps {
@@ -33,6 +34,7 @@ export interface BlockDiagramViewProps {
 
 const nodeTypes = {
   blockNode: BlockNode,
+  blockLayerFrame: BlockLayerFrame,
   blockLayerHeader: BlockLayerHeader,
 };
 
@@ -45,31 +47,35 @@ function buildFlowNodes(
   spec: ArchitectureSpec | UnionArchitectureSpec,
   entryIds: Set<string>,
   exitIds: Set<string>,
-): Node<BlockNodeData | BlockLayerHeaderData>[] {
+): Node<BlockNodeData | BlockLayerFrameData>[] {
   const nodeMap = new Map<string, (typeof spec.nodes)[number]>();
   for (const node of spec.nodes) {
     nodeMap.set(node.id, node);
   }
 
-  const headerNodes: Node<BlockLayerHeaderData>[] = layout.columns.map((col) => ({
-    id: `layer-${col.id}`,
-    type: "blockLayerHeader",
+  // 1. One dashed swimlane frame per column (covers header and all cards)
+  const frameNodes: Node<BlockLayerFrameData>[] = layout.columns.map((col) => ({
+    id: `frame-${col.id}`,
+    type: "blockLayerFrame",
     position: { x: col.x, y: col.y },
     width: col.width,
-    height: COLUMN_HEADER_HEIGHT,
+    height: col.height,
     initialWidth: col.width,
-    initialHeight: COLUMN_HEADER_HEIGHT,
+    initialHeight: col.height,
     selectable: false,
     draggable: false,
     focusable: false,
-    zIndex: 0,
+    zIndex: -1,
     data: {
       id: col.id,
       name: col.name,
       count: col.nodeIds.length,
+      width: col.width,
+      height: col.height,
     },
   }));
 
+  // 2. Compact node cards positioned inside their swimlane columns
   const cardNodes: Node<BlockNodeData>[] = layout.nodes.map((pn) => {
     const origNode = nodeMap.get(pn.id);
     return {
@@ -82,6 +88,7 @@ function buildFlowNodes(
       initialHeight: pn.height,
       selectable: false,
       draggable: false,
+      zIndex: 10,
       handles: [
         {
           id: null,
@@ -118,36 +125,49 @@ function buildFlowNodes(
     };
   });
 
-  return [...headerNodes, ...cardNodes];
+  return [...frameNodes, ...cardNodes];
 }
 
 function buildFlowEdges(
   layout: BlockLayoutResult,
   spec: ArchitectureSpec | UnionArchitectureSpec,
+  hoveredNodeId: string | null,
 ): Edge<BlockEdgeData>[] {
   const edgeMap = new Map<string, (typeof spec.edges)[number]>();
   for (const edge of spec.edges) {
     edgeMap.set(`${edge.from}->${edge.to}`, edge);
   }
 
+  const routing = computeBlockRoutes(spec, layout);
+
   return layout.edges.map((le) => {
     const origEdge = edgeMap.get(`${le.from}->${le.to}`);
     const isRemoved = (origEdge as { diffStatus?: string })?.diffStatus === "removed";
+    const route = routing.routes.get(le.id);
+
+    const isConnectedToHovered =
+      hoveredNodeId !== null && (le.from === hoveredNodeId || le.to === hoveredNodeId);
+    const isHighlighted = isConnectedToHovered;
+    const isDimmed = hoveredNodeId !== null && !isConnectedToHovered;
+
     return {
       id: le.id,
       source: le.from,
       target: le.to,
       type: "blockEdge",
       data: {
-        isBackward: le.isBackward,
+        pathD: route?.pathD,
+        isBackward: route ? route.isBackward : le.isBackward,
+        isHighlighted,
+        isDimmed,
         diffStatus: (origEdge as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
       },
-      zIndex: isRemoved ? 0 : 1,
+      zIndex: isRemoved ? 1 : isHighlighted ? 20 : 5,
       markerEnd: {
         type: MarkerType.ArrowClosed,
         width: 14,
         height: 14,
-        color: isRemoved ? "#f43f5e" : "var(--edge-stroke)",
+        color: isRemoved ? "#f43f5e" : isHighlighted ? "var(--brand-accent, #2dd4bf)" : "var(--edge-stroke)",
       },
     };
   });
@@ -156,12 +176,12 @@ function buildFlowEdges(
 /**
  * BlockDiagramView: High-level layered conceptual block diagram view.
  *
- * Implements Stage V3-4B (D-396):
+ * Implements Stage V3-4B & V3-4B2 (D-396, D-397):
  * - Replaces dagre graph with pure deterministic computeBlockLayout.
- * - Swimlane column headers rendered as non-interactive BlockLayerHeader nodes at y=0.
- * - Compact 240x92px rectangular node cards arranged inside swimlane columns.
- * - Smooth-step edges with backward edges automatically dashed.
- * - Supports legacy/unlayered designs through DAG depth fallback ("Stage 1", "Stage 2"...).
+ * - Each column is enclosed in a dashed swimlane frame (BlockLayerFrame).
+ * - Obstacle-avoiding edge routing (computeBlockRoutes): zero card intersections.
+ * - Adjacent edges route in inter-column gutters; skip/backward edges in bottom channel.
+ * - Card hover interaction: hovering a card brightens its edges and dims others.
  * - Read-only: nodesDraggable={false}, nodesConnectable={false}, elementsSelectable={false}.
  * - Standard Controls, Background dots using CSS token var(--flow-pattern-dots), fitView padding 0.2.
  */
@@ -182,16 +202,29 @@ export function BlockDiagramView({
   const entryIds = useMemo(() => new Set(spec.entry_ids || []), [spec.entry_ids]);
   const exitIds = useMemo(() => new Set(spec.exit_ids || []), [spec.exit_ids]);
 
-  // Combine swimlane column headers and node cards into React Flow node structure
+  // Hover state for edge highlighting (read-only, no selection change)
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+
+  const handleNodeMouseEnter = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.type === "blockNode") {
+      setHoveredNodeId(node.id);
+    }
+  }, []);
+
+  const handleNodeMouseLeave = useCallback(() => {
+    setHoveredNodeId(null);
+  }, []);
+
+  // Combine swimlane column frames and node cards into React Flow node structure
   const nodes = useMemo(
     () => buildFlowNodes(layout, spec, entryIds, exitIds),
     [layout, spec, entryIds, exitIds],
   );
 
-  // Transform layout edges to React Flow Edge structure without flow labels
+  // Transform layout edges with custom obstacle-avoiding routing and hover state
   const edges = useMemo(
-    () => buildFlowEdges(layout, spec),
-    [layout, spec],
+    () => buildFlowEdges(layout, spec, hoveredNodeId),
+    [layout, spec, hoveredNodeId],
   );
 
   return (
@@ -211,6 +244,8 @@ export function BlockDiagramView({
         nodesDraggable={false}
         nodesConnectable={false}
         elementsSelectable={false}
+        onNodeMouseEnter={handleNodeMouseEnter}
+        onNodeMouseLeave={handleNodeMouseLeave}
         panOnDrag={true}
         zoomOnScroll={true}
         minZoom={0.2}

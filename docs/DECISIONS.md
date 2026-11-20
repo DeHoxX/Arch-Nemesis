@@ -4139,6 +4139,17 @@ If we removed it: The Block view would remain an unstructured graph identical in
 Decided by: user approved Stage V3-4B instructions
 Status: active
 
+### D-397 — Stage V3-4B2 — design — Layered Block view edge routing, swimlane frames, and visual polish
+What: Introduce dedicated deterministic obstacle-avoiding edge routing (`apps/web/src/components/diagram/blockRouting.ts`) and swimlane layer frames (`BlockLayerFrame.tsx`), with visual polish in `BlockNode.tsx` (13px titles, hover brightening/dimming) and `BlockDiagramView.tsx`. Edges between adjacent columns route through inter-frame gutters with dedicated parallel lanes; edges that skip columns, go backward, or stay within the same column route through an uncluttered bottom channel below all swimlanes. Each column is enclosed in a dashed swimlane frame (`border-dashed border-line bg-surface/40 dark:bg-card/25`) with `pointer-events-none`.
+Why: Default smooth-step edge paths cut directly through intermediate node cards, obscuring titles and roles in multi-column designs. Additionally, column headers appeared disconnected without visual swimlane boundaries, and card titles were difficult to read at fitView zoom. Routing all non-adjacent and backward edges through a dedicated channel below frames guarantees zero card-edge collisions, while dashed frames establish clear visual grouping for each functional stage.
+Alternatives considered:
+1. Using dagre or React Flow default routing algorithms: Rejected because neither dagre nor default step paths account for swimlane frame boundaries or skip-column obstacles, continually routing through intervening node cards.
+2. Routing long edges above column headers: Rejected because the top area is occupied by layer header bands and status badges, creating visual competition with column titles. Routing through the bottom channel maintains a clean forward reading hierarchy.
+If we removed it: Long and backward edges would cross directly through node cards and text, rendering multi-layer architectures illegible and visually disordered.
+Decided by: user approved Stage V3-4B2 instructions
+Status: active
+
+
 
 
 
