@@ -202,7 +202,7 @@ describe("DesignPage Component (/design/[id])", () => {
     expect(screen.queryByRole("region", { name: "Component Flow Order" })).toBeNull();
   });
 
-  it("mounts FallbackList in flow_order and unmounts canvas when width < 768px", async () => {
+  it("mounts BlockFallbackList in flow_order and unmounts canvas when width < 768px", async () => {
     window.matchMedia = vi.fn().mockImplementation((query: string) => ({
       matches: false, // mobile viewport
       media: query,
@@ -224,16 +224,57 @@ describe("DesignPage Component (/design/[id])", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("region", { name: "Component Flow Order" })
+        screen.getByRole("region", { name: "Layered Component Breakdown" })
       ).toBeDefined();
     });
 
-    // FallbackList items follow flow_order: node_a ("Ingest Node") before node_b ("Buffer Node")
-    const fallbackRegion = screen.getByRole("region", { name: "Component Flow Order" });
+    // BlockFallbackList items follow flow_order: node_a ("Ingest Node") before node_b ("Buffer Node")
+    const fallbackRegion = screen.getByRole("region", { name: "Layered Component Breakdown" });
     const listItems = within(fallbackRegion).getAllByRole("listitem");
     expect(listItems.length).toBe(2);
     expect(listItems[0]?.textContent).toContain("Ingest Node");
     expect(listItems[1]?.textContent).toContain("Buffer Node");
+  });
+
+  it("mounts flat FallbackList in Component Flow Order region when Architecture tab is active on mobile (<768px)", async () => {
+    const user = userEvent.setup();
+
+    window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+      matches: false, // mobile viewport
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => mockValidDesign,
+    } as unknown as Response);
+
+    renderWithClient(<DesignPage />);
+
+    // Switch to Architecture tab
+    const archTab = await screen.findByRole("tab", { name: "Architecture" });
+    await user.click(archTab);
+
+    // On mobile Architecture tab renders flat FallbackList in Component Flow Order region
+    const fallbackSection = await screen.findByRole("region", {
+      name: "Component Flow Order",
+    });
+    expect(fallbackSection).toBeDefined();
+
+    // Verify flat flow order items (interactive FallbackList items have role="button")
+    const listItems = within(fallbackSection).getAllByRole("button");
+    expect(listItems.length).toBe(2);
+    expect(listItems[0]?.textContent).toContain("Ingest Node");
+    expect(listItems[0]?.textContent).toContain("Buffer Node");
+    expect(listItems[1]?.textContent).toContain("Buffer Node");
+    expect(listItems[1]?.textContent).toContain("None (exit node)");
   });
 
   it("selecting a node shows DetailPanel, and Escape / close clears selection", async () => {
@@ -1953,9 +1994,9 @@ describe("DesignPage Component (/design/[id])", () => {
 
       renderWithClient(<DesignPage />);
 
-      // On mobile FallbackList is rendered in Component Flow Order region
+      // On mobile BlockFallbackList is rendered in Layered Component Breakdown region
       const fallbackSection = await screen.findByRole("region", {
-        name: "Component Flow Order",
+        name: "Layered Component Breakdown",
       });
       expect(within(fallbackSection).getByRole("heading", { name: "Buffer Node" })).toBeDefined();
       expect(screen.queryByTestId("design-waves-layer")).toBeNull();

@@ -8,6 +8,7 @@ import AdminDesignInspectionPage from "./page";
 import { AdminTokenProvider } from "../../../context";
 import * as api from "@/lib/api";
 import { ApiError } from "@/lib/api";
+import { setupMatchMediaMock } from "@/test/matchMedia";
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "design-xyz-123", n: "1" }),
@@ -145,6 +146,7 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
     vi.resetAllMocks();
     localStorage.clear();
     sessionStorage.clear();
+    setupMatchMediaMock({ isDesktop: true });
   });
 
   afterEach(() => {
@@ -465,6 +467,29 @@ describe("Admin Design Inspection Page (/admin/designs/[id]/[n])", () => {
       const blockTab = screen.getByRole("tab", { name: /Block diagram/i });
       expect(blockTab.classList.contains("data-active:bg-surface-elevated")).toBe(true);
       expect(blockTab.classList.contains("dark:data-active:bg-[#1f1f23]")).toBe(true);
+    });
+
+    it("renders BlockFallbackList grouped list on narrow mobile viewports (<768px)", async () => {
+      const user = userEvent.setup();
+      vi.mocked(api.getAdminDesignVersion).mockResolvedValueOnce(mockAdminVersionData);
+
+      // Mock mobile viewport (<768px)
+      setupMatchMediaMock({ isDesktop: false });
+
+      renderPage();
+
+      await user.type(screen.getByLabelText(/Admin Secret Token/i), "valid-token");
+      await user.click(screen.getByRole("button", { name: /Unlock Design Version/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText("Cloud Native Event Store")).toBeDefined();
+      });
+
+      // Assert canvas mock is NOT mounted
+      expect(screen.queryByTestId("mock-block-diagram-view")).toBeNull();
+
+      // Assert BlockFallbackList region is mounted
+      expect(screen.getByRole("region", { name: /Layered Component Breakdown/i })).toBeDefined();
     });
   });
 });

@@ -38,3 +38,6 @@ export function normalizeColorToHex(color: string | null | undefined): string {
   return trimmed;
 }
 
+export { setupMatchMediaMock, type SetupMatchMediaOptions } from "./matchMedia";
+
+

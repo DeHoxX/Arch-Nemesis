@@ -8,6 +8,7 @@ import { AlertCircle, ArrowLeft, KeyRound, Maximize2, Minimize2, RefreshCw } fro
 
 import { Banner } from "@/components/Banner";
 import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
+import { BlockFallbackList } from "@/components/diagram/BlockFallbackList";
 import { DetailPanel } from "@/components/diagram/DetailPanel";
 import { DiagramView } from "@/components/diagram/DiagramView";
 import { NotesPanel } from "@/components/diagram/NotesPanel";
@@ -23,6 +24,7 @@ import { ApiError, getAdminDesignVersion } from "@/lib/api";
 import type { AdminDesignVersionResponse } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { useFullscreen } from "@/lib/useFullscreen";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { useAdminToken } from "../../../context";
 
 function AdminDesignInspectionLoading(): React.ReactElement {
@@ -57,6 +59,7 @@ function AdminDesignInspectionContent(): React.ReactElement {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("block-diagram");
+  const isDesktop = useMediaQuery("(min-width: 768px)", true);
   const fullscreenWrapperRef = useRef<HTMLDivElement>(null);
   const { isFullscreen, isFullscreenSupported, toggleFullscreen } =
     useFullscreen(fullscreenWrapperRef);
@@ -396,13 +399,20 @@ function AdminDesignInspectionContent(): React.ReactElement {
               >
                 <TabsContent value="block-diagram" className={cn("space-y-6", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
                   <div className={cn("grid grid-cols-1 lg:grid-cols-4 gap-6", isFullscreen && "flex-1 min-h-0 h-full")}>
-                    {/* Read-only Block Diagram Canvas */}
-                    <div className={cn(
-                      isFullscreen ? "lg:col-span-4 h-full min-h-0" : "lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]",
-                      "rounded-lg border border-line bg-flow-canvas-bg overflow-hidden relative"
-                    )}>
-                      <BlockDiagramView spec={data.spec} fitViewTrigger={isFullscreen} />
-                    </div>
+                    {isDesktop ? (
+                      /* Read-only Block Diagram Canvas */
+                      <div className={cn(
+                        isFullscreen ? "lg:col-span-4 h-full min-h-0" : "lg:col-span-3 h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]",
+                        "rounded-lg border border-line bg-flow-canvas-bg overflow-hidden relative"
+                      )}>
+                        <BlockDiagramView spec={data.spec} fitViewTrigger={isFullscreen} />
+                      </div>
+                    ) : (
+                      /* Mobile grouped fallback list */
+                      <div className="col-span-1 lg:col-span-3">
+                        <BlockFallbackList spec={data.spec} flowOrder={data.flow_order} />
+                      </div>
+                    )}
 
                     {/* Summary / Notes Panel */}
                     {!isFullscreen && (

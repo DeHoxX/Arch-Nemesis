@@ -4149,6 +4149,17 @@ If we removed it: Long and backward edges would cross directly through node card
 Decided by: user approved Stage V3-4B2 instructions
 Status: active
 
+### D-398 — Stage V3-4C — design — Block view mobile grouped fallback list and admin page alignment
+What: Introduce `BlockFallbackList.tsx` for mobile (<768px) rendering in the Block diagram tab, presenting nodes grouped under swimlane layer headings ordered via `blockLayout.ts` (`orderLayers` / `computeBlockLayout`). Old designs without layers fall back to "Stage 1", "Stage 2"... by DAG rank; unassigned nodes group under "Other parts" rightmost. Each group renders an `<h3>` with layer title and component count, containing cards with `<h4>` name, 1-line `formatShortRole` description, target destinations (`sendsTo`), and Entry/Exit/AI badges only (node `type` is omitted). Architecture tab retains its flat `FallbackList.tsx`. Wire the admin design inspection page (`admin/designs/[id]/[n]/page.tsx`) with the same `<768px` responsive switch via shared `useMediaQuery` to render `BlockFallbackList`.
+Why: On mobile viewports under 768px, rendering complex multi-column canvas graphs leads to illegible node text and clumsy horizontal panning. Grouping components into readable, functional swimlane sections matching the desktop Block view maintains conceptual clarity on mobile devices while keeping Architecture tab's detailed flow-order list intact. Aligning the admin inspection page ensures engineers and reviewers experience the exact same responsive layout when viewing historical design versions.
+Alternatives considered:
+1. Reusing the flat Architecture `FallbackList` for the Block tab: Rejected because it does not convey the functional grouping, layer hierarchy, or "Other parts" taxonomy that defines the Block diagram.
+2. Embedding mobile grouping logic directly inside `FallbackList.tsx`: Rejected to prevent shared behavior regressions between the high-level Block view and the detailed Architecture view.
+If we removed it: Mobile users on the Block tab would see either a cramped, illegible canvas or an unorganized flat list that contradicts the desktop swimlane layout, and admin reviewers on small screens would lack a mobile-friendly view.
+Decided by: user approved Stage V3-4C instructions
+Status: active
+
+
 
 
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,6 +8,7 @@ import { AlertCircle, ArrowLeft, Maximize2, Minimize2, RefreshCw } from "lucide-
 
 import { Banner } from "@/components/Banner";
 import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
+import { BlockFallbackList } from "@/components/diagram/BlockFallbackList";
 import { ConstraintsPanel } from "@/components/diagram/ConstraintsPanel";
 import { DetailPanel } from "@/components/diagram/DetailPanel";
 import { DiagramView } from "@/components/diagram/DiagramView";
@@ -42,41 +43,9 @@ import {
 import { buildUnionGraph } from "@/lib/diff";
 import { updateHistoryEntryTitle } from "@/lib/history";
 import { useFullscreen } from "@/lib/useFullscreen";
+import { useMediaQuery } from "@/lib/useMediaQuery";
 import { cn } from "@/lib/utils";
 import type { ArchitectureSpec, PatchSummary, SuggestionItemResponse, UnionArchitectureSpec } from "@/lib/types";
-
-/**
- * SSR-safe and hydration-safe media query hook.
- *
- * Requirements (BUILD_PLAN.md:442 & Stage 4C2):
- * - Evaluates media queries (e.g. min-width: 768px) safely.
- * - During SSR and initial hydration, returns serverFallback to prevent hydration mismatch.
- * - Handles missing window.matchMedia gracefully without crashing.
- */
-function useMediaQuery(query: string, serverFallback = true): boolean {
-  const subscribe = useCallback(
-    (callback: () => void) => {
-      if (typeof window === "undefined" || !("matchMedia" in window)) {
-        return () => {};
-      }
-      const media = window.matchMedia(query);
-      media.addEventListener("change", callback);
-      return () => media.removeEventListener("change", callback);
-    },
-    [query]
-  );
-
-  const getSnapshot = () => {
-    if (typeof window === "undefined" || !("matchMedia" in window)) {
-      return serverFallback;
-    }
-    return window.matchMedia(query).matches;
-  };
-
-  const getServerSnapshot = () => serverFallback;
-
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-}
 
 function DesignPageLoading(): React.ReactElement {
   return (
@@ -733,7 +702,7 @@ function DesignContent(): React.ReactElement {
                     />
                   </div>
                 ) : (
-                  <FallbackList
+                  <BlockFallbackList
                     spec={displaySpec}
                     flowOrder={activeDesign?.flow_order ?? []}
                   />
