@@ -490,5 +490,23 @@ describe("Export Module: exportDiagramToPng background color resolution", () => 
       }),
     );
   });
+
+  it("resolves light theme backgroundColor #F7F6F2 directly from --page-bg without classList check", async () => {
+    document.documentElement.style.setProperty("--page-bg", "#F7F6F2");
+
+    const container = document.createElement("div");
+    const viewport = document.createElement("div");
+    viewport.className = "react-flow__viewport";
+    container.appendChild(viewport);
+
+    await exportDiagramToPng(container, "test-design", 1);
+
+    expect(toPng).toHaveBeenCalledWith(
+      viewport,
+      expect.objectContaining({
+        backgroundColor: "#F7F6F2",
+      }),
+    );
+  });
 });
 

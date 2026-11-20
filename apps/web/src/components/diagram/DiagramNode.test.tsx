@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ReactFlowProvider } from "@xyflow/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeColorToHex } from "@/test/helpers";
 import { DiagramNode, type DiagramNodeData } from "./DiagramNode";
 import { computeNodeDimensions, DIAMOND_INNER_WIDTH } from "./layout";
@@ -81,8 +81,9 @@ describe("DiagramNode component", () => {
     });
 
     expect(screen.getByText("Entry")).toBeDefined();
-    const nodeEl = container.querySelector(".border-emerald-500");
-    expect(nodeEl).not.toBeNull();
+    const nodeEl = container.firstElementChild as HTMLElement;
+    expect(nodeEl.classList.contains("border-emerald-600")).toBe(true);
+    expect(nodeEl.classList.contains("dark:border-emerald-500")).toBe(true);
   });
 
   it("displays Exit badge and violet border for exit nodes", () => {
@@ -534,6 +535,62 @@ describe("DiagramNode component", () => {
         expect(rootEl.className).toContain("opacity-30");
         expect(rootEl.className).not.toContain("opacity-70");
       });
+    });
+  });
+
+  describe("Stage T4 dual-theme node borders and surfaces", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders entry node with explicit light border-emerald-600 and dark:border-emerald-500", () => {
+      const { container } = renderNode({
+        id: "entry_node",
+        entry_ids: ["entry_node"],
+      });
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.classList.contains("border-emerald-600")).toBe(true);
+      expect(rootEl.classList.contains("dark:border-emerald-500")).toBe(true);
+      expect(rootEl.classList.contains("bg-surface")).toBe(true);
+      expect(rootEl.classList.contains("dark:bg-card")).toBe(true);
+    });
+
+    it("renders exit node with explicit light border-violet-500 and dark:border-violet-500", () => {
+      const { container } = renderNode({
+        id: "exit_node",
+        exit_ids: ["exit_node"],
+      });
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.classList.contains("border-violet-500")).toBe(true);
+      expect(rootEl.classList.contains("dark:border-violet-500")).toBe(true);
+    });
+
+    it("renders AI model node with explicit light border-amber-600 and dark:border-amber-500", () => {
+      const { container } = renderNode({
+        id: "model_node",
+        needs_model: true,
+        type: "neural agent",
+      });
+      // Hexagon shape uses SVG polygon stroke
+      const polygon = container.querySelector("polygon");
+      expect(polygon?.classList.contains("stroke-amber-600")).toBe(true);
+      expect(polygon?.classList.contains("dark:stroke-amber-500")).toBe(true);
+      expect(polygon?.classList.contains("fill-surface")).toBe(true);
+      expect(polygon?.classList.contains("dark:fill-card")).toBe(true);
+    });
+
+    it("renders plain node with explicit light border-slate-500 and dark:border-slate-500", () => {
+      const { container } = renderNode({
+        id: "plain_node",
+        needs_model: false,
+      });
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.classList.contains("border-slate-500")).toBe(true);
+      expect(rootEl.classList.contains("dark:border-slate-500")).toBe(true);
     });
   });
 });

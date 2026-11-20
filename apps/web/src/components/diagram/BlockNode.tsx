@@ -90,7 +90,7 @@ export function BlockNode({
       style={{ width, height }}
       className={cn(
         "relative flex select-none flex-col items-center justify-center text-center text-card-foreground shadow-xs transition-all",
-        !isHexagon && !isDiamond && "border border-border/80 bg-card",
+        !isHexagon && !isDiamond && "border border-line bg-surface dark:border-border/80 dark:bg-card",
         !isHexagon && !isDiamond && (isPill ? "rounded-full px-8 py-2" : "rounded-lg px-3 py-2"),
         isHexagon && "px-7 py-2.5",
         data.diffStatus === "added" && "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
@@ -109,7 +109,7 @@ export function BlockNode({
         >
           <polygon
             points={`18,1 ${width - 18},1 ${width - 1},${height / 2} ${width - 18},${height - 1} 18,${height - 1} 1,${height / 2}`}
-            className="fill-card stroke-border/80"
+            className="fill-surface stroke-line dark:fill-card dark:stroke-border/80"
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
@@ -126,7 +126,7 @@ export function BlockNode({
         >
           <polygon
             points={`${width / 2},1 ${width - 1},${height / 2} ${width / 2},${height - 1} 1,${height / 2}`}
-            className="fill-card stroke-border/80"
+            className="fill-surface stroke-line dark:fill-card dark:stroke-border/80"
             strokeWidth="1.5"
             strokeLinejoin="round"
           />
@@ -153,9 +153,9 @@ export function BlockNode({
                 <span
                   className={cn(
                     "font-mono text-[9px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
-                    data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                    data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                    data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                    data.diffStatus === "added" && "border-emerald-600/40 text-emerald-700 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-400 dark:bg-emerald-500/10",
+                    data.diffStatus === "removed" && "border-rose-600/40 text-rose-700 bg-rose-50 dark:border-rose-500/50 dark:text-rose-400 dark:bg-rose-500/10",
+                    data.diffStatus === "edited" && "border-sky-600/40 text-sky-700 bg-sky-50 dark:border-sky-500/50 dark:text-sky-400 dark:bg-sky-500/10",
                   )}
                 >
                   {diffBadge}
@@ -192,9 +192,9 @@ export function BlockNode({
                 <span
                   className={cn(
                     "font-mono text-[10px] font-semibold uppercase tracking-wider px-1 py-0 rounded border",
-                    data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                    data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                    data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                    data.diffStatus === "added" && "border-emerald-600/40 text-emerald-700 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-400 dark:bg-emerald-500/10",
+                    data.diffStatus === "removed" && "border-rose-600/40 text-rose-700 bg-rose-50 dark:border-rose-500/50 dark:text-rose-400 dark:bg-rose-500/10",
+                    data.diffStatus === "edited" && "border-sky-600/40 text-sky-700 bg-sky-50 dark:border-sky-500/50 dark:text-sky-400 dark:bg-sky-500/10",
                   )}
                 >
                   {diffBadge}

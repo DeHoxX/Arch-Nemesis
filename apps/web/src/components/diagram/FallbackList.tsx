@@ -84,7 +84,7 @@ export function FallbackList({
               role={onSelectNode ? "button" : undefined}
               aria-pressed={onSelectNode ? isSelected : undefined}
               className={cn(
-                "rounded-xl border bg-card p-4 text-card-foreground shadow-sm transition-colors",
+                "rounded-xl border border-line bg-surface dark:border-border dark:bg-card p-4 text-card-foreground shadow-sm transition-colors",
                 isSelected
                   ? "border-primary ring-1 ring-primary"
                   : "hover:border-foreground/30",
@@ -106,7 +106,7 @@ export function FallbackList({
                   </p>
                 </div>
                 {node.needs_model && (
-                  <span className="shrink-0 rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[10px] text-amber-400 border border-amber-500/30">
+                  <span className="shrink-0 rounded bg-amber-50 text-amber-700 border border-amber-600/30 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/30 px-1.5 py-0.5 font-mono text-[10px]">
                     AI model
                   </span>
                 )}

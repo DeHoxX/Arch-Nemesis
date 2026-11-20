@@ -145,7 +145,7 @@ export function BlockDiagramView({
       role="region"
       aria-label="Block Diagram"
       className={cn(
-        "relative h-full w-full overflow-hidden rounded-xl border border-white/[0.09] bg-[#151517] outline-none",
+        "relative h-full w-full overflow-hidden rounded-xl border border-line bg-flow-canvas-bg outline-none",
         className,
       )}
     >
@@ -165,7 +165,7 @@ export function BlockDiagramView({
         fitViewOptions={{ padding: 0.2 }}
       >
         <FitViewWatcher trigger={fitViewTrigger} nodesKey={computedNodesKey} />
-        <Background gap={25} size={1} color="rgba(255, 255, 255, 0.06)" />
+        <Background gap={25} size={1} color="var(--flow-pattern-dots)" />
         <Controls showInteractive={false} showFitView={false} />
       </ReactFlow>
     </div>

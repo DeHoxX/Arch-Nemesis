@@ -64,6 +64,7 @@
   --color-rust: var(--rust);
   --color-flow-canvas-bg: var(--flow-canvas-bg);
   --color-flow-pattern-dots: var(--flow-pattern-dots);
+  --color-edge-stroke: var(--edge-stroke);
 }
 
 :root {
@@ -119,6 +120,7 @@
   --rust: #B94E25;
   --flow-canvas-bg: #151517;
   --flow-pattern-dots: rgba(255, 255, 255, 0.06);
+  --edge-stroke: #a1a1aa;
 }
 
 .dark {
@@ -173,9 +175,10 @@
   --rust: #B94E25;
   --flow-canvas-bg: #151517;
   --flow-pattern-dots: rgba(255, 255, 255, 0.06);
+  --edge-stroke: #a1a1aa;
 }
 
-.light {
+html.light {
   --page-bg: #F7F6F2;
   --sidebar-bg: #F1F0EC;
   --card-bg: #FFFFFF;
@@ -228,6 +231,11 @@
   --rust: #B94E25;
   --flow-canvas-bg: #F7F6F2;
   --flow-pattern-dots: #D1CCC0;
+  --edge-stroke: #8C857B;
+}
+
+html.light .react-flow__edge-path {
+  stroke: var(--edge-stroke);
 }
 
 @layer base {

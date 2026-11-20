@@ -102,7 +102,7 @@ export function DiagramEdge({
     ? "var(--brand-accent, #b7c6c2)"
     : isRemoved
       ? "#f43f5e"
-      : "var(--muted-foreground, #94a3b8)";
+      : "var(--edge-stroke, var(--muted-foreground, #94a3b8))";
   const strokeWidth = isSelected ? 2.5 : 1.5;
   const strokeOpacity = isRemoved ? 0.6 : 1;
 
@@ -179,10 +179,10 @@ export function DiagramEdge({
                 }
               }}
               className={cn(
-                "group relative flex flex-col items-center justify-center cursor-pointer rounded-md border bg-card px-2 py-1 text-center shadow-xs transition-colors outline-none",
+                "group relative flex flex-col items-center justify-center cursor-pointer rounded-md border border-line bg-surface dark:border-border dark:bg-card px-2 py-1 text-center shadow-xs transition-colors outline-none",
                 isSelected
                   ? "border-[var(--brand-accent,#b7c6c2)] ring-1 ring-[var(--brand-accent,#b7c6c2)] text-foreground"
-                  : "border-border hover:border-foreground/50 text-muted-foreground",
+                  : "hover:border-foreground/50 text-muted-foreground",
                 "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
               )}
             >
@@ -202,7 +202,7 @@ export function DiagramEdge({
               {hasCondition && (
                 <span
                   style={{ maxWidth: `${MAX_LABEL_TEXT_WIDTH}px` }}
-                  className="block truncate font-mono text-[10px] text-amber-500 leading-tight select-none"
+                  className="block truncate font-mono text-[10px] text-amber-700 dark:text-amber-500 leading-tight select-none"
                 >
                   {displayCondition}
                 </span>
@@ -222,7 +222,7 @@ export function DiagramEdge({
                   className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 hidden -translate-x-1/2 rounded-md border border-border bg-popover px-2.5 py-1 text-xs text-popover-foreground shadow-lg group-hover:block group-focus:block group-focus-visible:block whitespace-normal max-w-xs break-words text-left"
                 >
                   {hasCondition && (
-                    <p className="font-mono text-[10px] text-amber-500 mb-0.5">
+                    <p className="font-mono text-[10px] text-amber-700 dark:text-amber-500 mb-0.5">
                       Condition: {condition}
                     </p>
                   )}

@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -85,5 +87,14 @@ describe("useTheme", () => {
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(document.documentElement.classList.contains("light")).toBe(false);
     expect(getSnapshot()).toBe("dark");
+  });
+
+  it("enforces root-scoped html.light token selector in globals.css to prevent nested light collisions", () => {
+    const globalsCss = fs.readFileSync(
+      path.resolve(__dirname, "../app/globals.css"),
+      "utf8",
+    );
+    expect(globalsCss).toContain("html.light {");
+    expect(globalsCss).not.toMatch(/(^|\n)\.light\s*\{/);
   });
 });

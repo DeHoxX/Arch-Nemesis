@@ -21,10 +21,17 @@ export type DiagramNodeData = NodeSpec & {
 };
 
 const borderClassMap: Record<BorderColor, string> = {
-  emerald: "border-emerald-500",
-  violet: "border-violet-500",
-  amber: "border-amber-500",
-  slate: "border-slate-500",
+  emerald: "border-emerald-600 dark:border-emerald-500",
+  violet: "border-violet-500 dark:border-violet-500",
+  amber: "border-amber-600 dark:border-amber-500",
+  slate: "border-slate-500 dark:border-slate-500",
+};
+
+const strokeClassMap: Record<BorderColor, string> = {
+  emerald: "stroke-emerald-600 dark:stroke-emerald-500",
+  violet: "stroke-violet-500 dark:stroke-violet-500",
+  amber: "stroke-amber-600 dark:stroke-amber-500",
+  slate: "stroke-slate-500 dark:stroke-slate-500",
 };
 
 const strokeColorMap: Record<BorderColor, string> = {
@@ -116,7 +123,7 @@ export function DiagramNode({
       className={cn(
         "relative flex select-none flex-col text-card-foreground transition-all outline-none",
         isDiamond ? "items-center justify-center" : "justify-between",
-        !isHexagon && !isDiamond && "bg-card",
+        !isHexagon && !isDiamond && "bg-surface dark:bg-card",
         !isHexagon && !isDiamond && (isPill ? "rounded-full px-8 py-2 border" : "rounded-xl border px-3 py-2"),
         !isHexagon && !isDiamond && borderClassMap[borderColor],
         isHexagon && "px-7 py-2.5",
@@ -141,7 +148,7 @@ export function DiagramNode({
         >
           <polygon
             points={`18,1 ${width - 18},1 ${width - 1},${height / 2} ${width - 18},${height - 1} 18,${height - 1} 1,${height / 2}`}
-            className="fill-card transition-colors"
+            className={cn("fill-surface dark:fill-card transition-colors", strokeClassMap[borderColor])}
             stroke={strokeColorMap[borderColor]}
             strokeWidth="1.5"
             strokeLinejoin="round"
@@ -149,7 +156,7 @@ export function DiagramNode({
           {isAgent && (
             <polygon
               points={`21,5 ${width - 21},5 ${width - 6},${height / 2} ${width - 21},${height - 5} 21,${height - 5} 6,${height / 2}`}
-              className="fill-none"
+              className={cn("fill-none", strokeClassMap[borderColor])}
               stroke={strokeColorMap[borderColor]}
               strokeWidth="1"
               strokeLinejoin="round"
@@ -169,7 +176,7 @@ export function DiagramNode({
         >
           <polygon
             points={`${width / 2},1 ${width - 1},${height / 2} ${width / 2},${height - 1} 1,${height / 2}`}
-            className="fill-card transition-colors"
+            className={cn("fill-surface dark:fill-card transition-colors", strokeClassMap[borderColor])}
             stroke={strokeColorMap[borderColor]}
             strokeWidth="1.5"
             strokeLinejoin="round"
@@ -215,7 +222,7 @@ export function DiagramNode({
               >
                 {b === "Entry" ? (
                   <>
-                    <User className="size-2 mr-0.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                    <User className="size-2 mr-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden="true" />
                     Entry
                   </>
                 ) : (
@@ -230,9 +237,9 @@ export function DiagramNode({
                 variant="outline"
                 className={cn(
                   "px-1 py-0 text-[8px] font-mono leading-tight tracking-tight uppercase",
-                  data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                  data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                  data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                  data.diffStatus === "added" && "border-emerald-600/40 text-emerald-700 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-400 dark:bg-emerald-500/10",
+                  data.diffStatus === "removed" && "border-rose-600/40 text-rose-700 bg-rose-50 dark:border-rose-500/50 dark:text-rose-400 dark:bg-rose-500/10",
+                  data.diffStatus === "edited" && "border-sky-600/40 text-sky-700 bg-sky-50 dark:border-sky-500/50 dark:text-sky-400 dark:bg-sky-500/10",
                 )}
               >
                 {diffBadge}
@@ -259,9 +266,9 @@ export function DiagramNode({
                     variant="outline"
                     className={cn(
                       "px-1 py-0 text-[9px] font-mono leading-tight tracking-tight uppercase",
-                      data.diffStatus === "added" && "border-emerald-500/50 text-emerald-400 bg-emerald-500/10",
-                      data.diffStatus === "removed" && "border-rose-500/50 text-rose-400 bg-rose-500/10",
-                      data.diffStatus === "edited" && "border-sky-500/50 text-sky-400 bg-sky-500/10",
+                      data.diffStatus === "added" && "border-emerald-600/40 text-emerald-700 bg-emerald-50 dark:border-emerald-500/50 dark:text-emerald-400 dark:bg-emerald-500/10",
+                      data.diffStatus === "removed" && "border-rose-600/40 text-rose-700 bg-rose-50 dark:border-rose-500/50 dark:text-rose-400 dark:bg-rose-500/10",
+                      data.diffStatus === "edited" && "border-sky-600/40 text-sky-700 bg-sky-50 dark:border-sky-500/50 dark:text-sky-400 dark:bg-sky-500/10",
                     )}
                   >
                     {diffBadge}
@@ -294,7 +301,7 @@ export function DiagramNode({
                 >
                   {b === "Entry" ? (
                     <>
-                      <User className="size-2.5 mr-0.5 text-emerald-400 shrink-0" aria-hidden="true" />
+                      <User className="size-2.5 mr-0.5 text-emerald-700 dark:text-emerald-400 shrink-0" aria-hidden="true" />
                       Entry
                     </>
                   ) : (

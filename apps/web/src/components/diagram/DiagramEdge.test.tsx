@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Position, ReactFlowProvider } from "@xyflow/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { UnionArchitectureSpec } from "@/lib/types";
 import { normalizeColorToHex } from "@/test/helpers";
 import { DiagramEdge, type DiagramEdgeData } from "./DiagramEdge";
@@ -409,6 +409,32 @@ describe("DiagramEdge component", () => {
         expect(labelWrapper.className).toContain("opacity-25");
         expect(labelWrapper.className).toContain("focus-within:opacity-100");
       });
+    });
+  });
+
+  describe("Stage T4 dual-theme tokens on DiagramEdge", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders edge label button with bg-surface, border-line, and dark tokens", () => {
+      renderEdge({ flows: "telemetry sync" });
+      const flowBtn = screen.getByRole("button", { name: "Flow: telemetry sync" });
+      expect(flowBtn.classList.contains("bg-surface")).toBe(true);
+      expect(flowBtn.classList.contains("dark:bg-card")).toBe(true);
+      expect(flowBtn.classList.contains("border-line")).toBe(true);
+      expect(flowBtn.classList.contains("dark:border-border")).toBe(true);
+    });
+
+    it("renders edge condition text with explicit light text-amber-700 and dark:text-amber-500", () => {
+      renderEdge({ flows: "telemetry sync", condition: "when payload valid" });
+      const condSpan = screen.getByText("when payload valid");
+      expect(condSpan.classList.contains("text-amber-700")).toBe(true);
+      expect(condSpan.classList.contains("dark:text-amber-500")).toBe(true);
     });
   });
 });

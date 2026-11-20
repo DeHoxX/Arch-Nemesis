@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
 import { computeNodeDimensions, DIAMOND_INNER_WIDTH } from "./layout";
 
@@ -359,6 +359,53 @@ describe("BlockNode component", () => {
       renderBlockNode({ name: mdName });
       expect(screen.getByText(mdName)).toBeDefined();
       expect(document.querySelector("strong")).toBeNull();
+    });
+  });
+
+  describe("Stage T4 dual-theme tokens on BlockNode", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders rectangular block node with bg-surface, border-line, and dark tokens", () => {
+      const { container } = renderBlockNode({
+        name: "Order Processing",
+        isEntry: false,
+        isExit: false,
+      });
+      const rootEl = container.firstElementChild as HTMLElement;
+      expect(rootEl.classList.contains("bg-surface")).toBe(true);
+      expect(rootEl.classList.contains("dark:bg-card")).toBe(true);
+      expect(rootEl.classList.contains("border-line")).toBe(true);
+      expect(rootEl.classList.contains("dark:border-border/80")).toBe(true);
+    });
+
+    it("renders Entry and Exit text markers with explicit light classes", () => {
+      renderBlockNode({ name: "Gateway", isEntry: true, isExit: true });
+      const entrySpan = screen.getByText("[Entry]");
+      const exitSpan = screen.getByText("[Exit]");
+
+      expect(entrySpan.classList.contains("text-emerald-600")).toBe(true);
+      expect(entrySpan.classList.contains("dark:text-emerald-400")).toBe(true);
+
+      expect(exitSpan.classList.contains("text-violet-600")).toBe(true);
+      expect(exitSpan.classList.contains("dark:text-violet-400")).toBe(true);
+    });
+
+    it("renders hexagon block node with fill-surface, stroke-line, and dark tokens", () => {
+      const { container } = renderBlockNode({
+        name: "Neural Analyzer",
+        needs_model: true,
+      });
+      const polygon = container.querySelector("polygon");
+      expect(polygon?.classList.contains("fill-surface")).toBe(true);
+      expect(polygon?.classList.contains("dark:fill-card")).toBe(true);
+      expect(polygon?.classList.contains("stroke-line")).toBe(true);
+      expect(polygon?.classList.contains("dark:stroke-border/80")).toBe(true);
     });
   });
 });

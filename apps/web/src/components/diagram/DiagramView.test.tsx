@@ -1,7 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { DiagramView } from "./DiagramView";
 
@@ -609,6 +609,23 @@ describe("DiagramView component", () => {
       expect(screen.queryByLabelText("Step 1")).toBeNull();
       const nodeC = screen.getByRole("button", { name: "Node: Service C, service" });
       expect(nodeC.className).not.toContain("opacity-30");
+    });
+  });
+
+  describe("Stage T4 canvas container tokens", () => {
+    beforeEach(() => {
+      document.documentElement.className = "dark";
+    });
+
+    afterEach(() => {
+      document.documentElement.className = "";
+    });
+
+    it("renders diagram canvas container with border-line and bg-flow-canvas-bg tokens", () => {
+      render(<DiagramView spec={mockLegalSpec} />);
+      const container = screen.getByRole("region", { name: "Architecture Diagram" });
+      expect(container.classList.contains("border-line")).toBe(true);
+      expect(container.classList.contains("bg-flow-canvas-bg")).toBe(true);
     });
   });
 });

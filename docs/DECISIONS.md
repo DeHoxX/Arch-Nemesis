@@ -4079,4 +4079,26 @@ If we removed it: Results page tabs, sidebars, playback controls, and refinement
 Decided by: user approved Stage T3a-2 instructions
 Status: active
 
+### D-391 — Stage T4 — design — Diagram canvas, nodes, edges, Block view, and FallbackList dual-theme tokenization
+What: Tokenize diagram canvas views (`DiagramView.tsx`, `BlockDiagramView.tsx`), node components (`DiagramNode.tsx`, `BlockNode.tsx`), edge components (`DiagramEdge.tsx`, `BlockEdge.tsx`), and `FallbackList.tsx` for light theme support while preserving dark mode byte-for-byte. The canvas container is tokenized to `border-line bg-flow-canvas-bg`, and the React Flow `<Background>` dots are bound via CSS variable `color="var(--flow-pattern-dots)"`, where dark resolves identically to `rgba(255, 255, 255, 0.06)` and light to `#D1CCC0`. Node cards in light render white surfaces (`bg-surface`) with accessible 3:1 borders against white (entry: `border-emerald-600 dark:border-emerald-500`, exit: `border-violet-500 dark:border-violet-500`, AI model: `border-amber-600 dark:border-amber-500`, plain: `border-slate-500 dark:border-zinc-700`), with dark classes preserved via `dark:*`. Amber badge text in light uses `text-amber-700` (`dark:text-amber-400`). Edge paths render light stroke `#8C857B` (`dark:stroke-muted-foreground/60`), and edge labels/badges use semantic tokens. Block view columns/nodes and FallbackList items map hardcoded `#151517` surfaces and borders to `bg-surface`, `bg-surface-elevated`, and `border-line`.
+Why: Hardcoded dark canvas containers (`bg-[#151517]`), faint white dot patterns, and dark node card surfaces clashed with the surrounding light cream dashboard and illegibly inverted node text. Passing CSS variables through `@xyflow/react`'s inline `--xy-background-pattern-color-props` mechanism enables seamless theme reactivity without requiring the problematic `colorMode` prop. Preserving original dark classes with `dark:*` prefixes ensures 100% visual parity in dark mode while meeting WCAG AA contrast standards in light mode.
+Alternatives considered:
+1. Passing `colorMode="system"` or `colorMode="light"` to `ReactFlow`: Rejected because React Flow's internal dark mode injects hardcoded color variables that alter dark theme styling and control buttons.
+2. Overriding SVG patterns via external CSS rules with `!important`: Rejected because `@xyflow/react` sets `--xy-background-pattern-color-props` via inline styles on the container SVG, which natively accepts `var(--flow-pattern-dots)` without specificity battles.
+If we removed it: Diagram canvas, node boxes, and edge paths in light mode would remain dark obsidian blocks against cream page cards, breaking visual hierarchy.
+Decided by: user approved Stage T4 instructions
+Status: active
+
+### D-392 — Stage T4 fix — Root-scoped html.light token block selector in globals.css
+What: Replace the bare `.light { ... }` token block selector in `apps/web/src/app/globals.css` with `html.light { ... }`, and update `.light .react-flow__edge-path` to `html.light .react-flow__edge-path`.
+Why: ReactFlow defaults to `colorMode="light"`, which attaches `className="react-flow light"` to the `.react-flow` canvas wrapper. A bare `.light { ... }` token selector matched this wrapper even when `document.documentElement` (`<html>`) was in dark mode (`class="dark"`), causing the canvas subtree to inherit light theme variables (`--card: #FFFFFF` and `--surface: #FFFFFF`) and rendering dark mode diagram nodes with stark white backgrounds. Scoping the selector to `html.light` ensures that light tokens are only applied when the entire document root is explicitly set to light theme, completely isolating the canvas from ReactFlow's internal wrapper class.
+Alternatives considered:
+1. Passing `colorMode="dark"` or a dynamic colorMode prop to `ReactFlow`: Rejected because React Flow's internal dark mode injects hardcoded styles that alter controls and edges, and styling should remain cleanly governed by CSS tokens at the document root.
+2. Passing `colorMode="system"`: Rejected because OS-level media query preferences diverge from the in-app theme toggle state.
+If we removed it: In dark mode, ReactFlow's wrapper element matches `.light`, injecting white card and surface tokens into the canvas and causing diagram nodes to render stark white.
+Decided by: user instructions for Stage T4 dark bug fix
+Status: active
+
+
+
 
