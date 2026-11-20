@@ -1,10 +1,10 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { normalizeColorToHex } from "@/test/helpers";
 import { BlockDiagramView } from "./BlockDiagramView";
-import { computeLayout } from "./layout";
+import { BLOCK_NODE_HEIGHT, BLOCK_NODE_WIDTH, computeBlockLayout } from "./blockLayout";
 
 const mockSpec: ArchitectureSpec = {
   nodes: [
@@ -48,7 +48,15 @@ const mockSpec: ArchitectureSpec = {
   exit_ids: ["attorney_review"],
 };
 
-describe("BlockDiagramView component", () => {
+describe("BlockDiagramView component (Stage V3-4B)", () => {
+  beforeEach(() => {
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    document.documentElement.className = "";
+  });
+
   it("renders block diagram region with all nodes as block cards", () => {
     render(<BlockDiagramView spec={mockSpec} />);
 
@@ -58,11 +66,58 @@ describe("BlockDiagramView component", () => {
     expect(screen.getByText("Attorney Review Desk")).toBeDefined();
   });
 
-  it("renders entry and exit text markers on appropriate nodes", () => {
+  it("renders swimlane column headers via DAG depth fallback when spec has no layers", () => {
     render(<BlockDiagramView spec={mockSpec} />);
 
-    expect(screen.getByText("[Entry]")).toBeDefined();
-    expect(screen.getByText("[Exit]")).toBeDefined();
+    // Fallback creates "Stage 1", "Stage 2", "Stage 3"
+    expect(screen.getByText("Stage 1")).toBeDefined();
+    expect(screen.getByText("Stage 2")).toBeDefined();
+    expect(screen.getByText("Stage 3")).toBeDefined();
+  });
+
+  it("renders explicit layer names and node counts when spec defines layers", () => {
+    const layeredSpec: ArchitectureSpec = {
+      nodes: [
+        {
+          id: "n1",
+          name: "Ingest Gateway",
+          type: "service",
+          role: "Ingests data",
+          inputs: [],
+          outputs: [],
+          tech_options: [],
+          needs_model: false,
+          layer: "Ingest",
+        },
+        {
+          id: "n2",
+          name: "Worker Pool",
+          type: "service",
+          role: "Processes jobs",
+          inputs: [],
+          outputs: [],
+          tech_options: [],
+          needs_model: false,
+          layer: "Processing",
+        },
+      ],
+      edges: [{ from: "n1", to: "n2", flows: "jobs" }],
+      constraints: [],
+      entry_ids: ["n1"],
+      exit_ids: ["n2"],
+    };
+
+    render(<BlockDiagramView spec={layeredSpec} />);
+
+    expect(screen.getByText("Ingest")).toBeDefined();
+    expect(screen.getByText("Processing")).toBeDefined();
+  });
+
+  it("renders entry and exit pills on appropriate nodes", () => {
+    render(<BlockDiagramView spec={mockSpec} />);
+
+    expect(screen.getByText("Entry")).toBeDefined();
+    expect(screen.getByText("Exit")).toBeDefined();
   });
 
   it("renders node handles oriented Left for target and Right for source", () => {
@@ -210,20 +265,7 @@ describe("BlockDiagramView component", () => {
     expect(screen.getByRole("region", { name: "Block Diagram" })).toBeDefined();
   });
 
-  it("renders Controls with zoom in/out and no fit-view button (Stage H2g, D-363)", () => {
-    const { container } = render(<BlockDiagramView spec={mockSpec} />);
-
-    const zoomInBtn = container.querySelector(".react-flow__controls-zoomin");
-    const zoomOutBtn = container.querySelector(".react-flow__controls-zoomout");
-    const fitViewBtn = container.querySelector(".react-flow__controls-fitview");
-
-    // Non-empty guards: zoom in/out exist, fit view button is omitted
-    expect(zoomInBtn).not.toBeNull();
-    expect(zoomOutBtn).not.toBeNull();
-    expect(fitViewBtn).toBeNull();
-  });
-
-  it("renders custom blockEdge edges with edge count matching spec.edges.length and unchanged node coordinates (Stage 1D, D-336)", () => {
+  it("renders custom blockEdge edges with edge count matching spec.edges.length and computeBlockLayout coordinates", () => {
     const branchingSpec: ArchitectureSpec = {
       nodes: [
         {
@@ -235,6 +277,7 @@ describe("BlockDiagramView component", () => {
           outputs: ["stream"],
           tech_options: [],
           needs_model: false,
+          layer: "Ingest",
         },
         {
           id: "branch_a",
@@ -245,6 +288,7 @@ describe("BlockDiagramView component", () => {
           outputs: ["a_out"],
           tech_options: [],
           needs_model: false,
+          layer: "Processing",
         },
         {
           id: "branch_b",
@@ -255,6 +299,7 @@ describe("BlockDiagramView component", () => {
           outputs: ["b_out"],
           tech_options: [],
           needs_model: false,
+          layer: "Processing",
         },
         {
           id: "sink_node",
@@ -265,6 +310,7 @@ describe("BlockDiagramView component", () => {
           outputs: [],
           tech_options: [],
           needs_model: false,
+          layer: "Output",
         },
       ],
       edges: [
@@ -279,7 +325,7 @@ describe("BlockDiagramView component", () => {
       exit_ids: ["sink_node"],
     };
 
-    const layout = computeLayout(branchingSpec);
+    const layout = computeBlockLayout(branchingSpec);
     expect(branchingSpec.edges.length).toBe(5);
     expect(layout.nodes.length).toBe(4);
 
@@ -295,15 +341,14 @@ describe("BlockDiagramView component", () => {
       expect(edgeEl.getAttribute("class")).toContain("react-flow__edge-blockEdge");
     }
 
-    // Node coordinates in BlockDiagramView must match computeLayout output exactly
+    // Node coordinates in BlockDiagramView must match computeBlockLayout dimensions
     for (const expectedNode of layout.nodes) {
       const nodeEl = screen.getByRole("img", {
-        name: new RegExp(expectedNode.data.name, "i"),
+        name: new RegExp(expectedNode.name, "i"),
       });
       expect(nodeEl).not.toBeNull();
-      expect(nodeEl.style.width).toBe(`${expectedNode.width}px`);
-      expect(nodeEl.style.height).toBe(`${expectedNode.height}px`);
+      expect(nodeEl.style.width).toBe(`${BLOCK_NODE_WIDTH}px`);
+      expect(nodeEl.style.height).toBe(`${BLOCK_NODE_HEIGHT}px`);
     }
   });
 });
-

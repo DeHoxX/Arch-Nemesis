@@ -15,9 +15,14 @@ import "@xyflow/react/dist/style.css";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { BlockEdge, type BlockEdgeData } from "./BlockEdge";
+import { BlockLayerHeader, type BlockLayerHeaderData } from "./BlockLayerHeader";
+import {
+  type BlockLayoutResult,
+  COLUMN_HEADER_HEIGHT,
+  computeBlockLayout,
+} from "./blockLayout";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
 import { FitViewWatcher } from "./FitViewWatcher";
-import { computeLayout } from "./layout";
 
 export interface BlockDiagramViewProps {
   spec: ArchitectureSpec | UnionArchitectureSpec;
@@ -28,47 +33,49 @@ export interface BlockDiagramViewProps {
 
 const nodeTypes = {
   blockNode: BlockNode,
+  blockLayerHeader: BlockLayerHeader,
 };
 
 const edgeTypes = {
   blockEdge: BlockEdge,
 };
 
-/**
- * BlockDiagramView: Simple conceptual block diagram view.
- *
- * Requirements (Stage B4e1):
- * - Boxes and arrows only.
- * - Top-to-bottom layout with custom node heights and width 240px.
- * - Handles: Top (target) and Bottom (source).
- * - ReactFlow minZoom 0.3, maxZoom 1.5, fitView padding 0.2.
- * - Directed arrows with no edge/flow label text.
- * - Non-interactive: elementsSelectable={false}, nodesDraggable={false}, nodesConnectable={false}.
- * - Standard pan/zoom controls enabled; no minimap.
- */
-export function BlockDiagramView({
-  spec,
-  fitViewTrigger,
-  nodesKey,
-  className,
-}: BlockDiagramViewProps): React.ReactElement {
-  // Pure Dagre top-to-bottom layout calculation
-  const layout = useMemo(() => computeLayout(spec), [spec]);
+function buildFlowNodes(
+  layout: BlockLayoutResult,
+  spec: ArchitectureSpec | UnionArchitectureSpec,
+  entryIds: Set<string>,
+  exitIds: Set<string>,
+): Node<BlockNodeData | BlockLayerHeaderData>[] {
+  const nodeMap = new Map<string, (typeof spec.nodes)[number]>();
+  for (const node of spec.nodes) {
+    nodeMap.set(node.id, node);
+  }
 
-  const computedNodesKey = useMemo(
-    () => nodesKey ?? spec.nodes.map((n) => n.id).sort().join(","),
-    [nodesKey, spec.nodes],
-  );
+  const headerNodes: Node<BlockLayerHeaderData>[] = layout.columns.map((col) => ({
+    id: `layer-${col.id}`,
+    type: "blockLayerHeader",
+    position: { x: col.x, y: col.y },
+    width: col.width,
+    height: COLUMN_HEADER_HEIGHT,
+    initialWidth: col.width,
+    initialHeight: COLUMN_HEADER_HEIGHT,
+    selectable: false,
+    draggable: false,
+    focusable: false,
+    zIndex: 0,
+    data: {
+      id: col.id,
+      name: col.name,
+      count: col.nodeIds.length,
+    },
+  }));
 
-  const entryIds = useMemo(() => new Set(spec.entry_ids || []), [spec.entry_ids]);
-  const exitIds = useMemo(() => new Set(spec.exit_ids || []), [spec.exit_ids]);
-
-  // Transform layout nodes to React Flow Node structure
-  const nodes: Node<BlockNodeData>[] = useMemo(() => {
-    return layout.nodes.map((pn) => ({
+  const cardNodes: Node<BlockNodeData>[] = layout.nodes.map((pn) => {
+    const origNode = nodeMap.get(pn.id);
+    return {
       id: pn.id,
       type: "blockNode",
-      position: pn.position,
+      position: { x: pn.x, y: pn.y },
       width: pn.width,
       height: pn.height,
       initialWidth: pn.width,
@@ -97,48 +104,95 @@ export function BlockDiagramView({
       ],
       data: {
         id: pn.id,
-        name: pn.data.name,
-        needs_model: pn.data.needs_model,
-        ai_role: pn.data.ai_role,
+        name: pn.name,
+        role: origNode?.role,
+        layer: pn.layer,
+        needs_model: origNode?.needs_model,
+        ai_role: origNode?.ai_role,
         isEntry: entryIds.has(pn.id),
         isExit: exitIds.has(pn.id),
-        edges: spec.edges,
-        diffStatus: (pn.data as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
+        diffStatus: (origNode as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
         width: pn.width,
         height: pn.height,
       },
-    }));
-  }, [layout.nodes, entryIds, exitIds, spec.edges]);
+    };
+  });
+
+  return [...headerNodes, ...cardNodes];
+}
+
+function buildFlowEdges(
+  layout: BlockLayoutResult,
+  spec: ArchitectureSpec | UnionArchitectureSpec,
+): Edge<BlockEdgeData>[] {
+  const edgeMap = new Map<string, (typeof spec.edges)[number]>();
+  for (const edge of spec.edges) {
+    edgeMap.set(`${edge.from}->${edge.to}`, edge);
+  }
+
+  return layout.edges.map((le) => {
+    const origEdge = edgeMap.get(`${le.from}->${le.to}`);
+    const isRemoved = (origEdge as { diffStatus?: string })?.diffStatus === "removed";
+    return {
+      id: le.id,
+      source: le.from,
+      target: le.to,
+      type: "blockEdge",
+      data: {
+        isBackward: le.isBackward,
+        diffStatus: (origEdge as { diffStatus?: "added" | "removed" | "edited" | "unchanged" })?.diffStatus,
+      },
+      zIndex: isRemoved ? 0 : 1,
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        width: 14,
+        height: 14,
+        color: isRemoved ? "#f43f5e" : "var(--edge-stroke)",
+      },
+    };
+  });
+}
+
+/**
+ * BlockDiagramView: High-level layered conceptual block diagram view.
+ *
+ * Implements Stage V3-4B (D-396):
+ * - Replaces dagre graph with pure deterministic computeBlockLayout.
+ * - Swimlane column headers rendered as non-interactive BlockLayerHeader nodes at y=0.
+ * - Compact 240x92px rectangular node cards arranged inside swimlane columns.
+ * - Smooth-step edges with backward edges automatically dashed.
+ * - Supports legacy/unlayered designs through DAG depth fallback ("Stage 1", "Stage 2"...).
+ * - Read-only: nodesDraggable={false}, nodesConnectable={false}, elementsSelectable={false}.
+ * - Standard Controls, Background dots using CSS token var(--flow-pattern-dots), fitView padding 0.2.
+ */
+export function BlockDiagramView({
+  spec,
+  fitViewTrigger,
+  nodesKey,
+  className,
+}: BlockDiagramViewProps): React.ReactElement {
+  // Pure deterministic swimlane column layout calculation
+  const layout = useMemo(() => computeBlockLayout(spec), [spec]);
+
+  const computedNodesKey = useMemo(
+    () => nodesKey ?? spec.nodes.map((n) => n.id).sort().join(","),
+    [nodesKey, spec.nodes],
+  );
+
+  const entryIds = useMemo(() => new Set(spec.entry_ids || []), [spec.entry_ids]);
+  const exitIds = useMemo(() => new Set(spec.exit_ids || []), [spec.exit_ids]);
+
+  // Combine swimlane column headers and node cards into React Flow node structure
+  const nodes = useMemo(
+    () => buildFlowNodes(layout, spec, entryIds, exitIds),
+    [layout, spec, entryIds, exitIds],
+  );
 
   // Transform layout edges to React Flow Edge structure without flow labels
-  const edges: Edge<BlockEdgeData>[] = useMemo(() => {
-    return layout.edges.map((pe) => {
-      const isRemoved = (pe.data as { diffStatus?: string })?.diffStatus === "removed";
-      return {
-        id: pe.id,
-        source: pe.source,
-        target: pe.target,
-        type: "blockEdge",
-        data: {
-          pathD: pe.pathD,
-        },
-        zIndex: isRemoved ? 0 : 1,
-        style: isRemoved
-          ? {
-              stroke: "#f43f5e",
-              strokeDasharray: "6 6",
-              opacity: 0.6,
-            }
-          : undefined,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 16,
-          height: 16,
-          color: isRemoved ? "#f43f5e" : undefined,
-        },
-      };
-    });
-  }, [layout.edges]);
+  const edges = useMemo(
+    () => buildFlowEdges(layout, spec),
+    [layout, spec],
+  );
 
   return (
     <div

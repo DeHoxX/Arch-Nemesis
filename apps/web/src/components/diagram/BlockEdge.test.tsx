@@ -1,7 +1,7 @@
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { Position, ReactFlowProvider } from "@xyflow/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { normalizeColorToHex } from "@/test/helpers";
 import { BlockEdge, type BlockEdgeData } from "./BlockEdge";
 
@@ -35,7 +35,15 @@ function renderBlockEdge({
   );
 }
 
-describe("BlockEdge component", () => {
+describe("BlockEdge component (Stage V3-4B)", () => {
+  beforeEach(() => {
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    document.documentElement.className = "";
+  });
+
   it("renders pathD verbatim when provided in edge data", () => {
     const customPath = "M 100 50 L 100 100 Q 100 105 105 105 L 195 105 Q 200 105 200 110 L 200 150";
     const { container } = renderBlockEdge({
@@ -59,6 +67,36 @@ describe("BlockEdge component", () => {
     expect(d.startsWith("M")).toBe(true);
   });
 
+  it("renders stroke with CSS token var(--edge-stroke) by default", () => {
+    const { container } = renderBlockEdge({
+      data: {},
+    });
+
+    const pathElement = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+    expect(pathElement).not.toBeNull();
+    expect(pathElement.style.stroke).toBe("var(--edge-stroke)");
+  });
+
+  it("renders backward edge with dashed stroke (strokeDasharray '6 6')", () => {
+    const { container } = renderBlockEdge({
+      data: { isBackward: true },
+    });
+
+    const pathElement = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+    expect(pathElement).not.toBeNull();
+    expect(pathElement.style.strokeDasharray).toBe("6 6");
+  });
+
+  it("renders forward edge without dashed stroke", () => {
+    const { container } = renderBlockEdge({
+      data: { isBackward: false },
+    });
+
+    const pathElement = container.querySelector(".react-flow__edge-path") as SVGPathElement;
+    expect(pathElement).not.toBeNull();
+    expect(pathElement.style.strokeDasharray).toBeFalsy();
+  });
+
   it("renders label-less and non-interactive with no button, text, or tooltips", () => {
     const { container } = renderBlockEdge({
       data: { pathD: "M 0 0 L 100 100" },
@@ -75,15 +113,8 @@ describe("BlockEdge component", () => {
   });
 
   it("preserves removed-edge diff styling with dashed rose stroke and 0.6 opacity", () => {
-    const removedStyle: React.CSSProperties = {
-      stroke: "#f43f5e",
-      strokeDasharray: "6 6",
-      opacity: 0.6,
-    };
-
     const { container } = renderBlockEdge({
-      data: { pathD: "M 10 10 L 50 50" },
-      style: removedStyle,
+      data: { diffStatus: "removed" },
     });
 
     const pathElement = container.querySelector(".react-flow__edge-path") as SVGPathElement;

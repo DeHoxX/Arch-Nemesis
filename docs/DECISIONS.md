@@ -4129,6 +4129,17 @@ If we removed it: The Block view would either rely on dagre's unstructured graph
 Decided by: user approved V3-4 plan (Stage V3-4A)
 Status: active
 
+### D-396 — Stage V3-4B — design — Layered Block diagram view UI components, swimlane headers, and compact cards
+What: Implement UI rendering for the layered Block diagram view: introduce `BlockLayerHeader.tsx` as swimlane column header bands with layer titles and node count pills (`bg-surface-elevated border-line`), update `BlockNode.tsx` to compact 240x92px rectangular cards with 2-line title, 1-line `formatShortRole` description, and Entry/Exit/AI badges (`border-line bg-surface dark:bg-card`), update `BlockEdge.tsx` with smooth-step paths and dashed styling for backward edges, and update `BlockDiagramView.tsx` to replace dagre layout with `computeBlockLayout`.
+Why: The conceptual Block view presents system architecture as functional swimlanes (e.g. Ingest, Processing, Storage). Rendering dedicated column headers at the top of each swimlane and compact, uniform node cards removes distracting geometric variation (hexagons, diamonds, pills) while providing clear horizontal flow narrative and backward feedback channels without visual overlap.
+Alternatives considered:
+1. Retaining dagre top-to-bottom layout with arbitrary node shapes: Rejected because it scatters nodes without functional grouping and provides no swimlane structure.
+2. Rendering column bands as HTML containers outside React Flow canvas: Rejected because HTML elements outside the canvas do not scale, pan, or zoom with node cards and cannot be computed in React Flow's `fitView` boundary box.
+If we removed it: The Block view would remain an unstructured graph identical in layout to the detailed Architecture view rather than providing a distinct high-level conceptual perspective.
+Decided by: user approved Stage V3-4B instructions
+Status: active
+
+
 
 
 

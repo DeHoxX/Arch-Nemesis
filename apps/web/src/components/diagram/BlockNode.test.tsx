@@ -2,13 +2,19 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import {
+  BLOCK_NODE_HEIGHT,
+  BLOCK_NODE_WIDTH,
+  formatShortRole,
+} from "./blockLayout";
 import { BlockNode, type BlockNodeData } from "./BlockNode";
-import { computeNodeDimensions, DIAMOND_INNER_WIDTH } from "./layout";
 
 function renderBlockNode(dataOverrides: Partial<BlockNodeData> = {}) {
   const data: BlockNodeData = {
     id: "node_1",
     name: "Customer Intent Router",
+    role: "Directs incoming requests to the correct pipeline.",
+    layer: "Ingest",
     isEntry: false,
     isExit: false,
     ...dataOverrides,
@@ -35,11 +41,37 @@ function renderBlockNode(dataOverrides: Partial<BlockNodeData> = {}) {
   );
 }
 
-describe("BlockNode component", () => {
-  it("renders node name clearly", () => {
+describe("BlockNode component (Stage V3-4B)", () => {
+  beforeEach(() => {
+    document.documentElement.className = "dark";
+  });
+
+  afterEach(() => {
+    document.documentElement.className = "";
+  });
+
+  it("renders node name clearly with text-xs and line-clamp-2", () => {
     renderBlockNode({ name: "Customer Intent Router" });
 
-    expect(screen.getByText("Customer Intent Router")).toBeDefined();
+    const nameEl = screen.getByText("Customer Intent Router");
+    expect(nameEl).toBeDefined();
+    expect(nameEl.classList.contains("line-clamp-2")).toBe(true);
+    expect(nameEl.classList.contains("text-xs")).toBe(true);
+  });
+
+  it("renders single role line via formatShortRole with text-[11px] and text-text-muted", () => {
+    const fullRole =
+      "Coordinates transactions across multiple distributed services. Second sentence.";
+    renderBlockNode({
+      role: fullRole,
+    });
+
+    const expectedShortRole = formatShortRole(fullRole);
+    const roleEl = screen.getByText(expectedShortRole);
+    expect(roleEl).toBeDefined();
+    expect(roleEl.getAttribute("title")).toBe(fullRole);
+    expect(roleEl.classList.contains("text-[11px]")).toBe(true);
+    expect(roleEl.classList.contains("text-text-muted")).toBe(true);
   });
 
   it("renders target handle at Left and source handle at Right", () => {
@@ -50,362 +82,133 @@ describe("BlockNode component", () => {
     expect(rightHandle).not.toBeNull();
   });
 
-  it("renders role='img' and aria-label announcing name and entry/exit status without tabIndex", () => {
-    renderBlockNode({ name: "Customer Ingress", isEntry: true, isExit: false });
+  it("renders role='img' and aria-label announcing name and layer", () => {
+    renderBlockNode({ name: "Customer Ingress", layer: "Ingest", isEntry: true });
 
-    const el = screen.getByRole("img", { name: "Block: Customer Ingress, entry" });
+    const el = screen.getByRole("img", { name: "Node: Customer Ingress, Layer: Ingest" });
     expect(el).toBeDefined();
     expect(el.getAttribute("tabindex")).toBeNull();
   });
 
-  it("renders [Entry] text marker when isEntry is true", () => {
+  it("falls back to 'Other parts' in aria-label when layer is empty", () => {
+    renderBlockNode({ name: "Unlayered Node", layer: "" });
+
+    const el = screen.getByRole("img", { name: "Node: Unlayered Node, Layer: Other parts" });
+    expect(el).toBeDefined();
+  });
+
+  it("renders Entry pill with emerald badge classes when isEntry is true", () => {
     renderBlockNode({ isEntry: true, isExit: false });
 
-    const entryMarker = screen.getByText("[Entry]");
-    expect(entryMarker).toBeDefined();
-    expect(screen.queryByText("[Exit]")).toBeNull();
+    const entryPill = screen.getByText("Entry");
+    expect(entryPill).toBeDefined();
+    expect(entryPill.classList.contains("text-emerald-700")).toBe(true);
+    expect(entryPill.classList.contains("dark:text-emerald-400")).toBe(true);
+    expect(screen.queryByText("Exit")).toBeNull();
   });
 
-  it("renders [Exit] text marker when isExit is true", () => {
+  it("renders Exit pill with violet badge classes when isExit is true", () => {
     renderBlockNode({ isEntry: false, isExit: true });
 
-    const exitMarker = screen.getByText("[Exit]");
-    expect(exitMarker).toBeDefined();
-    expect(screen.queryByText("[Entry]")).toBeNull();
+    const exitPill = screen.getByText("Exit");
+    expect(exitPill).toBeDefined();
+    expect(exitPill.classList.contains("text-violet-700")).toBe(true);
+    expect(exitPill.classList.contains("dark:text-violet-400")).toBe(true);
+    expect(screen.queryByText("Entry")).toBeNull();
   });
 
-  it("renders both [Entry] and [Exit] when node is both entry and exit", () => {
-    renderBlockNode({ isEntry: true, isExit: true });
+  it("renders AI model pill with amber badge classes when needs_model is true", () => {
+    renderBlockNode({ needs_model: true });
 
-    expect(screen.getByText("[Entry]")).toBeDefined();
-    expect(screen.getByText("[Exit]")).toBeDefined();
+    const aiPill = screen.getByText("AI");
+    expect(aiPill).toBeDefined();
+    expect(aiPill.classList.contains("text-amber-700")).toBe(true);
+    expect(aiPill.classList.contains("dark:text-amber-400")).toBe(true);
   });
 
-  it("renders no markers when neither entry nor exit", () => {
-    renderBlockNode({ isEntry: false, isExit: false });
+  it("renders Agent pill with amber badge classes when ai_role is 'agent'", () => {
+    renderBlockNode({ ai_role: "agent" });
 
-    expect(screen.queryByText("[Entry]")).toBeNull();
-    expect(screen.queryByText("[Exit]")).toBeNull();
+    const agentPill = screen.getByText("Agent");
+    expect(agentPill).toBeDefined();
+    expect(agentPill.classList.contains("text-amber-700")).toBe(true);
+    expect(agentPill.classList.contains("dark:text-amber-400")).toBe(true);
   });
 
-  it("omits component type text, roles, badges, and lock icons", () => {
+  it("renders all pills (Entry, Exit, AI) together when applicable", () => {
+    renderBlockNode({ isEntry: true, isExit: true, needs_model: true });
+
+    expect(screen.getByText("Entry")).toBeDefined();
+    expect(screen.getByText("Exit")).toBeDefined();
+    expect(screen.getByText("AI")).toBeDefined();
+  });
+
+  it("does not render SVG polygon shapes (hexagon, diamond, pill) in Block view", () => {
     const { container } = renderBlockNode({
-      name: "Simple Node",
-      isEntry: false,
-      isExit: false,
+      isEntry: true,
+      needs_model: true,
     });
 
-    // Does not render badges
-    expect(container.querySelector(".badge")).toBeNull();
-    // Does not render lock svg
-    expect(container.querySelector("svg.lucide-lock")).toBeNull();
-    // Neutral card container
-    const rootEl = container.firstChild as HTMLElement;
-    expect(rootEl.className).toContain("border-border/80");
-    expect(rootEl.className).toContain("bg-card");
+    expect(container.querySelector("polygon")).toBeNull();
+    expect(container.querySelector("svg")).toBeNull();
   });
 
-  describe("shape rendering and hostile string safety", () => {
-    it("renders pill shape for entry node", () => {
-      renderBlockNode({ isEntry: true, isExit: false });
-      const el = screen.getByRole("img");
-      expect(el.className).toContain("rounded-full");
-      expect(el.className).toContain("px-8");
-    });
+  it("has fixed card dimensions matching BLOCK_NODE_WIDTH and BLOCK_NODE_HEIGHT", () => {
+    const { container } = renderBlockNode();
+    const cardEl = container.firstElementChild as HTMLElement;
 
-    it("renders hexagon shape for AI model node", () => {
-      renderBlockNode({ isEntry: false, isExit: false, needs_model: true });
-      const el = screen.getByRole("img");
-      expect(el.className).toContain("px-7");
-      const polygon = document.querySelector("polygon");
-      expect(polygon).toBeDefined();
-    });
-
-    it("renders rectangle shape for standard code node", () => {
-      renderBlockNode({ isEntry: false, isExit: false, needs_model: false });
-      const el = screen.getByRole("img");
-      expect(el.className).toContain("rounded-lg");
-      expect(el.className).toContain("px-3");
-    });
-
-    it("renders diamond shape with centered inner box in block view", () => {
-      const { container } = renderBlockNode({
-        isEntry: false,
-        isExit: false,
-        name: "Claim Evaluator",
-        edges: [
-          { from: "node_1", to: "b", flows: "f1", condition: "risk > 50" },
-          { from: "node_1", to: "c", flows: "f2" },
-        ],
-      });
-      const el = screen.getByRole("img");
-      expect(el).toBeDefined();
-
-      const innerBox = container.querySelector(".diamond-inner-box");
-      expect(innerBox).not.toBeNull();
-      expect(innerBox?.getAttribute("style")).toContain(`width: ${DIAMOND_INNER_WIDTH}px`);
-      expect(innerBox?.textContent).toContain("Claim Evaluator");
-
-      const polygon = container.querySelector("polygon");
-      expect(polygon).not.toBeNull();
-      expect(polygon?.getAttribute("points")).toContain("120,1");
-    });
-
-    it("renders diamond with component dimensions matching computeNodeDimensions output", () => {
-      const nodeSpec = { name: "Policy Evaluation Gateway" };
-      const dims = computeNodeDimensions(nodeSpec, "diamond");
-
-      const { container } = renderBlockNode({
-        isEntry: false,
-        isExit: false,
-        ...nodeSpec,
-        width: dims.width,
-        height: dims.height,
-        edges: [
-          { from: "node_1", to: "b", flows: "f1", condition: "score > 90" },
-          { from: "node_1", to: "c", flows: "f2" },
-        ],
-      });
-
-      const rootEl = container.firstElementChild as HTMLElement;
-      expect(rootEl.style.width).toBe(`${dims.width}px`);
-      expect(rootEl.style.height).toBe(`${dims.height}px`);
-
-      const innerBox = container.querySelector(".diamond-inner-box") as HTMLElement;
-      expect(innerBox).not.toBeNull();
-      expect(innerBox.style.width).toBe(`${DIAMOND_INNER_WIDTH}px`);
-      expect(innerBox.style.maxHeight).toBe(`${Math.round(dims.height * 0.52)}px`);
-    });
-
-    it("renders hostile string literally without HTML execution", () => {
-      const hostileName = "<img src=x onerror=alert(1) />";
-      renderBlockNode({ name: hostileName });
-      expect(screen.getByText(hostileName)).toBeDefined();
-      expect(document.querySelector("img[src='x']")).toBeNull();
-    });
+    expect(cardEl.style.width).toBe(`${BLOCK_NODE_WIDTH}px`);
+    expect(cardEl.style.height).toBe(`${BLOCK_NODE_HEIGHT}px`);
   });
 
-  describe("BlockNode diff styling (Phase 7C3a)", () => {
-    it("renders added block node with emerald ring, New badge, and updated aria-label", () => {
-      renderBlockNode({
-        name: "New Data Pipeline",
-        isEntry: false,
-        isExit: false,
-        diffStatus: "added",
-      });
+  it("applies dual-theme token classes border-line, bg-surface, and dark:bg-card", () => {
+    const { container } = renderBlockNode();
+    const cardEl = container.firstElementChild as HTMLElement;
 
-      expect(screen.getByText("New Data Pipeline")).toBeDefined();
+    expect(cardEl.classList.contains("border-line")).toBe(true);
+    expect(cardEl.classList.contains("bg-surface")).toBe(true);
+    expect(cardEl.classList.contains("dark:bg-card")).toBe(true);
+  });
+
+  it("renders hostile string safely as literal text without HTML injection", () => {
+    const hostileName = "<script>alert('xss')</script>";
+    renderBlockNode({ name: hostileName });
+
+    expect(screen.getByText(hostileName)).toBeDefined();
+    expect(document.querySelector("script")).toBeNull();
+  });
+
+  describe("diffStatus styling", () => {
+    it("renders added node with emerald ring and New badge", () => {
+      renderBlockNode({ name: "New Worker", diffStatus: "added" });
+
+      expect(screen.getByText("New Worker")).toBeDefined();
       expect(screen.getByText("New")).toBeDefined();
-
       const el = screen.getByRole("img");
-      expect(el.className).toContain("ring-emerald-500");
-      expect(el.getAttribute("aria-label")).toBe("Block: New Data Pipeline, added");
+      expect(el.classList.contains("ring-emerald-500")).toBe(true);
+      expect(el.getAttribute("aria-label")).toBe("Node: New Worker, Layer: Ingest, added");
     });
 
-    it("renders removed block node with dashed rose ring, opacity-70, Removed badge, and updated aria-label", () => {
-      renderBlockNode({
-        name: "Legacy Queue",
-        isEntry: true,
-        isExit: false,
-        diffStatus: "removed",
-      });
+    it("renders removed node with dashed rose ring, opacity-70, and Removed badge", () => {
+      renderBlockNode({ name: "Dead Sink", diffStatus: "removed" });
 
-      expect(screen.getByText("Legacy Queue")).toBeDefined();
+      expect(screen.getByText("Dead Sink")).toBeDefined();
       expect(screen.getByText("Removed")).toBeDefined();
-
       const el = screen.getByRole("img");
-      expect(el.className).toContain("ring-rose-500");
-      expect(el.className).toContain("border-dashed");
-      expect(el.className).toContain("opacity-70");
-      expect(el.getAttribute("aria-label")).toBe("Block: Legacy Queue, entry, removed");
+      expect(el.classList.contains("ring-rose-500")).toBe(true);
+      expect(el.classList.contains("border-dashed")).toBe(true);
+      expect(el.classList.contains("opacity-70")).toBe(true);
+      expect(el.getAttribute("aria-label")).toBe("Node: Dead Sink, Layer: Ingest, removed");
     });
 
-    it("renders edited block node with sky ring, Edited badge, and updated aria-label", () => {
-      renderBlockNode({
-        name: "Updated Worker",
-        isEntry: false,
-        isExit: false,
-        diffStatus: "edited",
-      });
+    it("renders edited node with sky ring and Edited badge", () => {
+      renderBlockNode({ name: "Modified Engine", diffStatus: "edited" });
 
-      expect(screen.getByText("Updated Worker")).toBeDefined();
+      expect(screen.getByText("Modified Engine")).toBeDefined();
       expect(screen.getByText("Edited")).toBeDefined();
-
       const el = screen.getByRole("img");
-      expect(el.className).toContain("ring-sky-500");
-      expect(el.getAttribute("aria-label")).toBe("Block: Updated Worker, edited");
-    });
-
-    it("renders unchanged block node with standard styling and aria-label", () => {
-      renderBlockNode({
-        name: "Stable Worker",
-        isEntry: false,
-        isExit: false,
-        diffStatus: "unchanged",
-      });
-
-      expect(screen.getByText("Stable Worker")).toBeDefined();
-      expect(screen.queryByText("New")).toBeNull();
-      expect(screen.queryByText("Removed")).toBeNull();
-      expect(screen.queryByText("Edited")).toBeNull();
-
-      const el = screen.getByRole("img");
-      expect(el.className).not.toContain("ring-emerald-500");
-      expect(el.className).not.toContain("ring-rose-500");
-      expect(el.className).not.toContain("ring-sky-500");
-      expect(el.getAttribute("aria-label")).toBe("Block: Stable Worker");
-    });
-
-    describe("Class tests: structural indicators preserved across diffStatus x taxonomy (D-231)", () => {
-      const diffStatuses = ["added", "removed", "edited", "unchanged"] as const;
-
-      describe.each(diffStatuses)("when diffStatus is %s", (status) => {
-        it("preserves entry marker [Entry] and neutral border", () => {
-          renderBlockNode({
-            name: "Ingress Block",
-            isEntry: true,
-            isExit: false,
-            diffStatus: status,
-          });
-          expect(screen.getByText("[Entry]")).toBeDefined();
-          const el = screen.getByRole("img");
-          expect(el.className).toContain("border-border/80");
-        });
-
-        it("preserves exit marker [Exit] and neutral border", () => {
-          renderBlockNode({
-            name: "Egress Block",
-            isEntry: false,
-            isExit: true,
-            diffStatus: status,
-          });
-          expect(screen.getByText("[Exit]")).toBeDefined();
-          const el = screen.getByRole("img");
-          expect(el.className).toContain("border-border/80");
-        });
-
-        it("preserves model hexagon SVG stroke stroke-border/80", () => {
-          const { container } = renderBlockNode({
-            name: "Model Block",
-            needs_model: true,
-            diffStatus: status,
-          });
-          const polygon = container.querySelector("polygon");
-          expect(polygon).not.toBeNull();
-          expect(polygon?.getAttribute("class")).toContain("stroke-border/80");
-        });
-
-        it("preserves plain neutral border border-border/80", () => {
-          renderBlockNode({
-            name: "Plain Block",
-            isEntry: false,
-            isExit: false,
-            needs_model: false,
-            diffStatus: status,
-          });
-          const el = screen.getByRole("img");
-          expect(el.className).toContain("border-border/80");
-        });
-      });
-    });
-  });
-
-  describe("Block diagram node text centering (Stage 1B addition, D-327)", () => {
-    it("renders root container with flex-col items-center justify-center text-center", () => {
-      const { container } = renderBlockNode({ name: "Core Processor" });
-      const rootEl = container.firstElementChild as HTMLElement;
-      expect(rootEl.className).toContain("flex");
-      expect(rootEl.className).toContain("flex-col");
-      expect(rootEl.className).toContain("items-center");
-      expect(rootEl.className).toContain("justify-center");
-      expect(rootEl.className).toContain("text-center");
-    });
-
-    it("centers node name with text-center and line-clamp-2", () => {
-      renderBlockNode({ name: "Account Balances Ledger" });
-      const nameEl = screen.getByText("Account Balances Ledger");
-      expect(nameEl.className).toContain("text-center");
-      expect(nameEl.className).toContain("line-clamp-2");
-      expect(nameEl.className).toContain("break-words");
-    });
-
-    it("renders [Entry] marker in a centered group with the name", () => {
-      renderBlockNode({ name: "API Gateway", isEntry: true, isExit: false });
-      const entryMarker = screen.getByText("[Entry]");
-      expect(entryMarker).toBeDefined();
-      const markerRow = entryMarker.parentElement;
-      expect(markerRow).not.toBeNull();
-      expect(markerRow?.className).toContain("items-center");
-      expect(markerRow?.className).toContain("justify-center");
-    });
-
-    it("renders very long names (100+ chars) clamped and centered without breaking layout", () => {
-      const longName = "VeryLongMicroserviceNameWithoutSpacesThatMustWrapAndStayCenteredInsideTheBlockContainer".repeat(2);
-      renderBlockNode({ name: longName });
-      const nameEl = screen.getByText(longName);
-      expect(nameEl).toBeDefined();
-      expect(nameEl.className).toContain("text-center");
-      expect(nameEl.className).toContain("break-words");
-    });
-
-    it("renders hostile strings (<script>, **md**) safely centered as literal plain text", () => {
-      const hostileName = "<script>alert('xss')</script>";
-      const mdName = "**markdown bold**";
-
-      renderBlockNode({ name: hostileName });
-      expect(screen.getByText(hostileName)).toBeDefined();
-      expect(document.querySelector("script")).toBeNull();
-
-      renderBlockNode({ name: mdName });
-      expect(screen.getByText(mdName)).toBeDefined();
-      expect(document.querySelector("strong")).toBeNull();
-    });
-  });
-
-  describe("Stage T4 dual-theme tokens on BlockNode", () => {
-    beforeEach(() => {
-      document.documentElement.className = "dark";
-    });
-
-    afterEach(() => {
-      document.documentElement.className = "";
-    });
-
-    it("renders rectangular block node with bg-surface, border-line, and dark tokens", () => {
-      const { container } = renderBlockNode({
-        name: "Order Processing",
-        isEntry: false,
-        isExit: false,
-      });
-      const rootEl = container.firstElementChild as HTMLElement;
-      expect(rootEl.classList.contains("bg-surface")).toBe(true);
-      expect(rootEl.classList.contains("dark:bg-card")).toBe(true);
-      expect(rootEl.classList.contains("border-line")).toBe(true);
-      expect(rootEl.classList.contains("dark:border-border/80")).toBe(true);
-    });
-
-    it("renders Entry and Exit text markers with explicit light classes", () => {
-      renderBlockNode({ name: "Gateway", isEntry: true, isExit: true });
-      const entrySpan = screen.getByText("[Entry]");
-      const exitSpan = screen.getByText("[Exit]");
-
-      expect(entrySpan.classList.contains("text-emerald-600")).toBe(true);
-      expect(entrySpan.classList.contains("dark:text-emerald-400")).toBe(true);
-
-      expect(exitSpan.classList.contains("text-violet-600")).toBe(true);
-      expect(exitSpan.classList.contains("dark:text-violet-400")).toBe(true);
-    });
-
-    it("renders hexagon block node with fill-surface, stroke-line, and dark tokens", () => {
-      const { container } = renderBlockNode({
-        name: "Neural Analyzer",
-        needs_model: true,
-      });
-      const polygon = container.querySelector("polygon");
-      expect(polygon?.classList.contains("fill-surface")).toBe(true);
-      expect(polygon?.classList.contains("dark:fill-card")).toBe(true);
-      expect(polygon?.classList.contains("stroke-line")).toBe(true);
-      expect(polygon?.classList.contains("dark:stroke-border/80")).toBe(true);
+      expect(el.classList.contains("ring-sky-500")).toBe(true);
+      expect(el.getAttribute("aria-label")).toBe("Node: Modified Engine, Layer: Ingest, edited");
     });
   });
 });
