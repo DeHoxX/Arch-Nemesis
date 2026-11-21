@@ -378,16 +378,16 @@ async def test_spec_cache_prompt_override_key_alignment(
     """When ARCHITECT_PROMPT_NAME is overridden via settings, designs service uses overridden prompt for cache key and prompt_version."""
     from archnemesis.modules.designs.service import compute_spec_cache_key, create_design
 
-    monkeypatch.setenv("ARCHITECT_PROMPT_NAME", "architect_v10")
-    monkeypatch.setenv("ARCHITECT_REPAIR_PROMPT_NAME", "architect_repair_v10")
+    monkeypatch.setenv("ARCHITECT_PROMPT_NAME", "architect_v8")
+    monkeypatch.setenv("ARCHITECT_REPAIR_PROMPT_NAME", "architect_repair_v8")
     get_settings.cache_clear()
 
     fake_llm = FakeLLMClient(script=[VALID_SPEC_DICT])
     settings = get_settings()
-    assert settings.architect_prompt_name == "architect_v10"
+    assert settings.architect_prompt_name == "architect_v8"
 
     expected_cache_key = compute_spec_cache_key(
-        SAMPLE_BRIEF, "architect_v10", settings.llm_model_architect or ""
+        SAMPLE_BRIEF, "architect_v8", settings.llm_model_architect or ""
     )
 
     async with temp_db_session_factory() as db:
@@ -400,15 +400,15 @@ async def test_spec_cache_prompt_override_key_alignment(
             status="ready",
         )
 
-        # 1. Miss -> generates and stores under architect_v10 cache key
+        # 1. Miss -> generates and stores under architect_v8 cache key
         design1 = await create_design(db, CreateDesignRequest(session_id=s1.id), fake_llm)
-        assert design1.prompt_version == "architect_v10"
+        assert design1.prompt_version == "architect_v8"
 
         cached = await designs_repo.get_cached_spec(db, expected_cache_key)
         assert cached is not None
         assert cached.key == expected_cache_key
 
-        # 2. Hit -> uses cached spec under architect_v10
+        # 2. Hit -> uses cached spec under architect_v8
         s2 = await intake_repo.create_session(db, transcript=[], status="collecting")
         await intake_repo.update_session(
             db=db,
@@ -418,7 +418,7 @@ async def test_spec_cache_prompt_override_key_alignment(
             status="ready",
         )
         design2 = await create_design(db, CreateDesignRequest(session_id=s2.id), fake_llm)
-        assert design2.prompt_version == "architect_v10 (cached)"
+        assert design2.prompt_version == "architect_v8 (cached)"
         # Zero new LLM calls
         architect_calls = [c for c in fake_llm.calls if c["task"] == LLMTask.ARCHITECT]
         assert len(architect_calls) == 1

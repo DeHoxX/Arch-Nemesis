@@ -24,8 +24,8 @@ from archnemesis.shared.brief import RequirementBrief
 logger = structlog.get_logger()
 
 MAX_ARCHITECT_CALLS: int = 3
-ARCHITECT_PROMPT_NAME: str = "architect_v8"
-ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v8"
+ARCHITECT_PROMPT_NAME: str = "architect_v10"
+ARCHITECT_REPAIR_PROMPT_NAME: str = "architect_repair_v10"
 
 _PROMPT_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 

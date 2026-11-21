@@ -118,7 +118,7 @@ async def test_architect_first_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v8"
+    assert prompt_version == "architect_v10"
     assert calls_used == 1
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 1
@@ -132,7 +132,7 @@ async def test_architect_repair_attempt_success() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v8+architect_repair_v8"
+    assert prompt_version == "architect_v10+architect_repair_v10"
     assert calls_used == 2
     assert len(spec.nodes) == 3
     assert len(fake_llm.calls) == 2
@@ -152,7 +152,7 @@ async def test_architect_uncovered_brief_constraint_triggers_repair() -> None:
         SAMPLE_BRIEF, fake_llm
     )
 
-    assert prompt_version == "architect_v8+architect_repair_v8"
+    assert prompt_version == "architect_v10+architect_repair_v10"
     assert calls_used == 2
     assert len(spec.constraints) == 1
     assert "bc1" in spec.constraints[0].covers
@@ -263,7 +263,7 @@ async def test_architect_applies_code_repair_on_first_attempt() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v8+code_repair"
+    assert prompt_version == "architect_v10+code_repair"
     assert calls_used == 1
     assert len(fake_llm.calls) == 1
     assert result is not None
@@ -329,7 +329,7 @@ async def test_architect_applies_code_repair_to_dead_end_sink_on_first_attempt()
 
     assert spec is not None
     assert "audit_sink" in spec.exit_ids
-    assert prompt_version == "architect_v8+code_repair"
+    assert prompt_version == "architect_v10+code_repair"
     assert calls_used == 1
     assert len(fake_llm.calls) == 1
     assert result is not None
@@ -395,7 +395,7 @@ async def test_architect_applies_code_repair_after_call_2() -> None:
     )
 
     assert spec is not None
-    assert prompt_version == "architect_v8+architect_repair_v8+code_repair"
+    assert prompt_version == "architect_v10+architect_repair_v10+code_repair"
     assert calls_used == 2
     assert len(fake_llm.calls) == 2
     assert result is not None
@@ -706,7 +706,7 @@ async def test_code_repair_logs_node_ids_not_constraint_ids(
     assert spec is not None
     assert result is not None
     assert result.ok is True
-    assert prompt_version == "architect_v8+code_repair"
+    assert prompt_version == "architect_v10+code_repair"
     assert calls_used == 1
 
     records = []
@@ -780,7 +780,7 @@ async def test_code_repair_sanitizes_covers_assumption_text() -> None:
     assert spec is not None
     assert result is not None
     assert result.ok is True
-    assert prompt_version == "architect_v8+code_repair"
+    assert prompt_version == "architect_v10+code_repair"
     assert calls_used == 1
 
     # Non-empty guard
@@ -1479,22 +1479,22 @@ def test_architect_repair_v10_prompt_content() -> None:
 
 
 def test_resolve_architect_prompt_names_defaults() -> None:
-    """Default prompt names resolve to architect_v8 and architect_repair_v8 when settings are None or unset."""
+    """Default prompt names resolve to architect_v10 and architect_repair_v10 when settings are None or unset."""
     s = Settings(architect_prompt_name=None, architect_repair_prompt_name=None)
     arch, repair = service.resolve_architect_prompt_names(s)
-    assert arch == "architect_v8"
-    assert repair == "architect_repair_v8"
+    assert arch == "architect_v10"
+    assert repair == "architect_repair_v10"
 
 
 def test_resolve_architect_prompt_names_override() -> None:
     """Settings override cleanly resolves to configured prompt names."""
     s = Settings(
-        architect_prompt_name="architect_v10",
-        architect_repair_prompt_name="architect_repair_v10",
+        architect_prompt_name="architect_v8",
+        architect_repair_prompt_name="architect_repair_v8",
     )
     arch, repair = service.resolve_architect_prompt_names(s)
-    assert arch == "architect_v10"
-    assert repair == "architect_repair_v10"
+    assert arch == "architect_v8"
+    assert repair == "architect_repair_v8"
 
 
 def test_resolve_architect_prompt_names_validation() -> None:
@@ -1511,30 +1511,30 @@ def test_resolve_architect_prompt_names_validation() -> None:
 @pytest.mark.asyncio
 async def test_architect_prompt_override_attempt_1(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prompt override via settings causes synthesize_architecture to use overridden prompt version."""
-    monkeypatch.setenv("ARCHITECT_PROMPT_NAME", "architect_v10")
-    monkeypatch.setenv("ARCHITECT_REPAIR_PROMPT_NAME", "architect_repair_v10")
+    monkeypatch.setenv("ARCHITECT_PROMPT_NAME", "architect_v8")
+    monkeypatch.setenv("ARCHITECT_REPAIR_PROMPT_NAME", "architect_repair_v8")
     from archnemesis.settings import get_settings
 
     get_settings.cache_clear()
 
     fake_llm = FakeLLMClient([VALID_SPEC])
     _, prompt_version, calls_used, _ = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
-    assert prompt_version == "architect_v10"
+    assert prompt_version == "architect_v8"
     assert calls_used == 1
 
 
 @pytest.mark.asyncio
 async def test_architect_prompt_override_repair_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
     """Prompt override via settings causes synthesize_architecture repair to use overridden repair prompt."""
-    monkeypatch.setenv("ARCHITECT_PROMPT_NAME", "architect_v10")
-    monkeypatch.setenv("ARCHITECT_REPAIR_PROMPT_NAME", "architect_repair_v10")
+    monkeypatch.setenv("ARCHITECT_PROMPT_NAME", "architect_v8")
+    monkeypatch.setenv("ARCHITECT_REPAIR_PROMPT_NAME", "architect_repair_v8")
     from archnemesis.settings import get_settings
 
     get_settings.cache_clear()
 
     fake_llm = FakeLLMClient([INVALID_SPEC_CYCLE, VALID_SPEC])
     _, prompt_version, calls_used, _ = await service.generate_and_validate(SAMPLE_BRIEF, fake_llm)
-    assert prompt_version == "architect_v10+architect_repair_v10"
+    assert prompt_version == "architect_v8+architect_repair_v8"
     assert calls_used == 2
 
 
@@ -1608,7 +1608,7 @@ async def test_architect_service_repair_loop_handoff_on_uncovered_brief_constrai
     assert spec is not None
     assert result is not None
     assert result.ok
-    assert version == "architect_v8+architect_repair_v8"
+    assert version == "architect_v10+architect_repair_v10"
     assert calls == 2
     assert len(fake_llm.calls) == 2
     call_2_user_prompt = fake_llm.calls[1]["user"]
@@ -1735,7 +1735,7 @@ async def test_architect_service_repair_loop_handoff_when_code_repair_rejected_p
     assert spec is not None
     assert result is not None
     assert result.ok
-    assert version == "architect_v8+architect_repair_v8"
+    assert version == "architect_v10+architect_repair_v10"
     assert calls == 2
     assert len(fake_llm.calls) == 2
 

@@ -72,8 +72,8 @@ These live only in `settings.py` as environment-overridable settings, never as n
 | MAX_PATCH_OPS | 20 | Operations in one change proposal |
 | MAX_REFINEMENT_TURNS | 20 | User messages per design |
 | MAX_VERSIONS | 15 | Versions per design |
-| ARCHITECT_PROMPT_NAME | None ("architect_v8") | Optional prompt override for architect initial synthesis |
-| ARCHITECT_REPAIR_PROMPT_NAME | None ("architect_repair_v8") | Optional prompt override for architect validation repair |
+| ARCHITECT_PROMPT_NAME | None ("architect_v10") | Optional prompt override for architect initial synthesis (default: architect_v10; architect_v8 selectable) |
+| ARCHITECT_REPAIR_PROMPT_NAME | None ("architect_repair_v10") | Optional prompt override for architect validation repair (default: architect_repair_v10; architect_repair_v8 selectable) |
 
 ---
 

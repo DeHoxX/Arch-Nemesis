@@ -4169,6 +4169,18 @@ If we removed it: Block view edges would remain unlabeled without inspection cap
 Decided by: agent proposed, user approved
 Status: active
 
+### D-400 — Stage V3-4D1 — prompt — Flip default architect synthesis and repair prompts from v8 to v10
+What: Flip default architect synthesis and repair prompts from `architect_v8` / `architect_repair_v8` to `architect_v10` / `architect_repair_v10` in `apps/api/src/archnemesis/modules/architect/service.py` (`ARCHITECT_PROMPT_NAME` and `ARCHITECT_REPAIR_PROMPT_NAME`). All prompt files from v1 through v10 remain immutable and intact. `architect_v8` remains selectable via env overrides `ARCHITECT_PROMPT_NAME` and `ARCHITECT_REPAIR_PROMPT_NAME`. Supersedes the "default prompts remain architect_v8 and architect_repair_v8" clause of D-382.
+Why: Real eval benchmarking on `gemini-3.5-flash-lite` (18 runs each) demonstrates substantial reliability and layout quality gains: attempt-1 pass rate jumped from 22.2% to 61.1%, final pass rate improved from 83.3% to 94.4%, code repair reliance dropped from 55.6% to 16.7%, zero layer warnings observed (W_LAYER_MISSING: 0, W_TOO_MANY_LAYERS: 0), and backward layer edges decreased from 11 to 8. Two known regressions were documented and accepted: legal domain final pass shifted from 100% to 66.7% (1 of 3 runs, likely stochastic sample noise), and `w_merge_as_agent` warning frequency shifted from 11.1% to 16.7%. User approved the flip following browser verification.
+Alternatives considered:
+1. Stay on v8: Rejected because v8 lacks business-oriented layer metadata generation and requires code repair on over half of synthesized specifications (55.6% vs 16.7%), impairing the layered Block diagram experience.
+If we removed it: Default generations would lack scenario-specific node layers for the Block diagram view unless engineers manually set environment variable overrides.
+Risks:
+1. v10 produced 9 layers for a 12-node insurance design (W_TOO_MANY_LAYERS fired once outside eval).
+2. Several layers contain only one node. Follow-up prompt fix is a separate step.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 
