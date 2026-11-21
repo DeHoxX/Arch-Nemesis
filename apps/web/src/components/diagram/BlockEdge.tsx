@@ -4,25 +4,32 @@ import {
   type EdgeProps,
   getSmoothStepPath,
 } from "@xyflow/react";
+import { GUTTER_LANE_GAP_X } from "./blockRouting";
+
+/** Edge hit path stroke width must not exceed the gutter lane gap */
+export const EDGE_HIT_STROKE_WIDTH = GUTTER_LANE_GAP_X;
 
 export type BlockEdgeData = {
   pathD?: string;
   isBackward?: boolean;
   isHighlighted?: boolean;
+  isSelected?: boolean;
   isDimmed?: boolean;
   diffStatus?: "added" | "removed" | "edited" | "unchanged";
+  onSelect?: (edgeId: string) => void;
   [key: string]: unknown;
 };
 
 /**
- * BlockEdge: Simple, non-interactive edge for the Block Diagram view (Stage V3-4B, D-396, D-397).
+ * BlockEdge: Edge for the Block Diagram view (Stage V3-4B, V3-4B2, V3-4D1; D-396, D-397, D-399).
  *
  * Requirements:
  * - Smooth-step path with fallback to precomputed pathD if provided.
- * - Stroke: var(--edge-stroke), highlighted with bright accent on hover.
+ * - Stroke: var(--edge-stroke), highlighted/selected with var(--block-edge-highlight).
  * - Backward edges (isBackward): dashed (strokeDasharray="6 6").
- * - Label-less: zero text, zero badges, zero buttons.
- * - Non-interactive.
+ * - Removed edges (diffStatus="removed"): var(--block-edge-removed).
+ * - Invisible hit-area path with strokeWidth <= GUTTER_LANE_GAP_X (8px) for effortless clicking.
+ * - Label-less on canvas (flow details inspectable in BlockDetailPanel).
  */
 export function BlockEdge({
   id,
@@ -37,6 +44,7 @@ export function BlockEdge({
   markerEnd,
 }: EdgeProps & { data?: BlockEdgeData }): React.ReactElement {
   const isBackward = Boolean(data?.isBackward);
+  const isSelected = Boolean(data?.isSelected);
   const isHighlighted = Boolean(data?.isHighlighted);
   const isDimmed = Boolean(data?.isDimmed);
   const isRemoved = data?.diffStatus === "removed";
@@ -57,9 +65,11 @@ export function BlockEdge({
     edgePath = smoothPath;
   }
 
-  const defaultStroke = isRemoved ? "#f43f5e" : "var(--edge-stroke)";
-  const strokeColor = isHighlighted ? "var(--brand-accent, #2dd4bf)" : defaultStroke;
-  const strokeWidth = isHighlighted ? 2.5 : 1.5;
+  const defaultStroke = isRemoved ? "var(--block-edge-removed, #f43f5e)" : "var(--edge-stroke)";
+  const strokeColor = isSelected || isHighlighted
+    ? "var(--block-edge-highlight, var(--brand-accent, #2dd4bf))"
+    : defaultStroke;
+  const strokeWidth = isSelected ? 2.5 : isHighlighted ? 2 : 1.5;
   const opacity = isRemoved ? (isDimmed ? 0.3 : 0.6) : isDimmed ? 0.2 : 1;
 
   const mergedStyle: React.CSSProperties = {
@@ -71,12 +81,35 @@ export function BlockEdge({
     ...style,
   };
 
+  const handleEdgeClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    data?.onSelect?.(id);
+  };
+
   return (
-    <BaseEdge
-      id={id}
-      path={edgePath}
-      markerEnd={markerEnd}
-      style={mergedStyle}
-    />
+    <g
+      className="react-flow__edge"
+      data-selected={isSelected ? "true" : "false"}
+      data-dimmed={isDimmed ? "true" : "false"}
+      data-highlighted={isHighlighted ? "true" : "false"}
+    >
+      {/* Invisible wider hit-target path: strokeWidth = EDGE_HIT_STROKE_WIDTH <= GUTTER_LANE_GAP_X */}
+      <path
+        d={edgePath}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={EDGE_HIT_STROKE_WIDTH}
+        className="cursor-pointer"
+        style={{ pointerEvents: "stroke" }}
+        onClick={handleEdgeClick}
+        aria-hidden="true"
+      />
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={mergedStyle}
+      />
+    </g>
   );
 }

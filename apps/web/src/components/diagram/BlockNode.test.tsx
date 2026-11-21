@@ -82,19 +82,22 @@ describe("BlockNode component (Stage V3-4B)", () => {
     expect(rightHandle).not.toBeNull();
   });
 
-  it("renders role='img' and aria-label announcing name and layer", () => {
+  it("renders role='button' and aria-label announcing name and layer", () => {
     renderBlockNode({ name: "Customer Ingress", layer: "Ingest", isEntry: true });
 
-    const el = screen.getByRole("img", { name: "Node: Customer Ingress, Layer: Ingest" });
+    const el = screen.getByRole("button", { name: "Node: Customer Ingress, Layer: Ingest" });
     expect(el).toBeDefined();
-    expect(el.getAttribute("tabindex")).toBeNull();
+    expect(el.getAttribute("tabindex")).toBe("0");
+    expect(el.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("falls back to 'Other parts' in aria-label when layer is empty", () => {
     renderBlockNode({ name: "Unlayered Node", layer: "" });
 
-    const el = screen.getByRole("img", { name: "Node: Unlayered Node, Layer: Other parts" });
+    const el = screen.getByRole("button", { name: "Node: Unlayered Node, Layer: Other parts" });
     expect(el).toBeDefined();
+    expect(el.getAttribute("tabindex")).toBe("0");
+    expect(el.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("renders Entry pill with emerald badge classes when isEntry is true", () => {
@@ -184,7 +187,9 @@ describe("BlockNode component (Stage V3-4B)", () => {
 
       expect(screen.getByText("New Worker")).toBeDefined();
       expect(screen.getByText("New")).toBeDefined();
-      const el = screen.getByRole("img");
+      const el = screen.getByRole("button");
+      expect(el.getAttribute("tabindex")).toBe("0");
+      expect(el.getAttribute("aria-pressed")).toBe("false");
       expect(el.classList.contains("ring-emerald-500")).toBe(true);
       expect(el.getAttribute("aria-label")).toBe("Node: New Worker, Layer: Ingest, added");
     });
@@ -194,7 +199,9 @@ describe("BlockNode component (Stage V3-4B)", () => {
 
       expect(screen.getByText("Dead Sink")).toBeDefined();
       expect(screen.getByText("Removed")).toBeDefined();
-      const el = screen.getByRole("img");
+      const el = screen.getByRole("button");
+      expect(el.getAttribute("tabindex")).toBe("0");
+      expect(el.getAttribute("aria-pressed")).toBe("false");
       expect(el.classList.contains("ring-rose-500")).toBe(true);
       expect(el.classList.contains("border-dashed")).toBe(true);
       expect(el.classList.contains("opacity-70")).toBe(true);
@@ -206,7 +213,9 @@ describe("BlockNode component (Stage V3-4B)", () => {
 
       expect(screen.getByText("Modified Engine")).toBeDefined();
       expect(screen.getByText("Edited")).toBeDefined();
-      const el = screen.getByRole("img");
+      const el = screen.getByRole("button");
+      expect(el.getAttribute("tabindex")).toBe("0");
+      expect(el.getAttribute("aria-pressed")).toBe("false");
       expect(el.classList.contains("ring-sky-500")).toBe(true);
       expect(el.getAttribute("aria-label")).toBe("Node: Modified Engine, Layer: Ingest, edited");
     });

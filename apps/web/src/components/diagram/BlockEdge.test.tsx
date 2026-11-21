@@ -1,8 +1,9 @@
+import fs from "node:fs";
+import path from "node:path";
 import React from "react";
 import { render, screen } from "@testing-library/react";
 import { Position, ReactFlowProvider } from "@xyflow/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { normalizeColorToHex } from "@/test/helpers";
 import { BlockEdge, type BlockEdgeData } from "./BlockEdge";
 
 function renderBlockEdge({
@@ -119,8 +120,41 @@ describe("BlockEdge component (Stage V3-4B)", () => {
 
     const pathElement = container.querySelector(".react-flow__edge-path") as SVGPathElement;
     expect(pathElement).not.toBeNull();
-    expect(normalizeColorToHex(pathElement.style.stroke)).toBe("#f43f5e");
+    expect(pathElement.style.stroke).toBe("var(--block-edge-removed, #f43f5e)");
     expect(pathElement.style.strokeDasharray).toBe("6 6");
     expect(pathElement.style.opacity).toBe("0.6");
+  });
+
+  describe("globals.css CSS tokens", () => {
+    it("defines --block-edge-highlight and --block-edge-removed in :root and .dark with exact dark values and overrides only under html.light", () => {
+      const globalsCss = fs.readFileSync(
+        path.resolve(__dirname, "../../app/globals.css"),
+        "utf8",
+      );
+
+      // Verify :root tokens
+      const rootMatch = globalsCss.match(/:root\s*\{([^}]+)\}/);
+      expect(rootMatch).not.toBeNull();
+      const rootBody = rootMatch![1]!;
+      expect(rootBody).toContain("--block-edge-highlight: #2dd4bf;");
+      expect(rootBody).toContain("--block-edge-removed: #f43f5e;");
+
+      // Verify .dark tokens
+      const darkMatch = globalsCss.match(/\.dark\s*\{([^}]+)\}/);
+      expect(darkMatch).not.toBeNull();
+      const darkBody = darkMatch![1]!;
+      expect(darkBody).toContain("--block-edge-highlight: #2dd4bf;");
+      expect(darkBody).toContain("--block-edge-removed: #f43f5e;");
+
+      // Verify html.light overrides
+      const lightMatch = globalsCss.match(/html\.light\s*\{([^}]+)\}/);
+      expect(lightMatch).not.toBeNull();
+      const lightBody = lightMatch![1]!;
+      expect(lightBody).toContain("--block-edge-highlight: #0d9488;");
+      expect(lightBody).toContain("--block-edge-removed: #e11d48;");
+
+      // Enforce no bare .light selector
+      expect(globalsCss).not.toMatch(/(^|\n)\.light\s*\{/);
+    });
   });
 });

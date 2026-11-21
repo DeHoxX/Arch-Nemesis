@@ -4159,6 +4159,17 @@ If we removed it: Mobile users on the Block tab would see either a cramped, ille
 Decided by: user approved Stage V3-4C instructions
 Status: active
 
+### D-399 — Stage V3-4D1 — design — Block view interactive selection, keyboard navigation, and detail panel
+What: Introduce interactive selection and inspection for the layered Block diagram view. Clicking a node card, edge hit path, or layer header band opens a dedicated `BlockDetailPanel.tsx` in the respective mode (Node mode: full role, layer, inputs/outputs, and active rules; Layer mode: layer title, component count, and list of constituent nodes with jump buttons; Edge mode: source, target, and full flow description). Supports keyboard navigation (Tab navigation through headers then cards in left-to-right column order, Enter/Space selection) and dismissal via Escape key or pane click. Edge hit-box stroke width is restricted to `GUTTER_LANE_GAP_X` (8px) to avoid lane overlaps. Replaces hardcoded `#2dd4bf` and `#f43f5e` with new CSS tokens `--block-edge-highlight` and `--block-edge-removed`. Reuses Architecture view's selection ring classes (`ring-2 ring-[var(--brand-accent,#b7c6c2)] ring-offset-2 ring-offset-background`). Responsive panel docks to the right on desktop (>=1024px), stacks below on tablet (768-1023px), and leaves `<BlockFallbackList>` unchanged on mobile (<768px). Supersedes D-396's initial "no detail panel" note.
+Why: The conceptual Block view originally lacked interactive inspection, preventing users from seeing connection flow texts (unlabeled on canvas), full role descriptions, or layer member lists without switching to the detailed Architecture tab. Adding interactive selection and keyboard navigation elevates the Block view from a static overview to a fully inspectable, accessible architectural visualization.
+Alternatives considered:
+1. Reusing `DetailPanel.tsx` directly: Rejected because `DetailPanel` lacks layer grouping support and is coupled to Architecture view node shape and type display conventions.
+2. Enabling React Flow's native `elementsSelectable`: Rejected to maintain strict mutually exclusive selection control and prevent React Flow from applying default styling or interfering with layer header click handlers.
+If we removed it: Block view edges would remain unlabeled without inspection capability, layer headers would not be inspectable, and keyboard navigation would be impossible.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 

@@ -2,7 +2,6 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ArchitectureSpec, UnionArchitectureSpec } from "@/lib/types";
-import { normalizeColorToHex } from "@/test/helpers";
 import { BlockDiagramView } from "./BlockDiagramView";
 import { BLOCK_NODE_HEIGHT, BLOCK_NODE_WIDTH, computeBlockLayout } from "./blockLayout";
 
@@ -240,7 +239,7 @@ describe("BlockDiagramView component (Stage V3-4B)", () => {
     const { container } = render(<BlockDiagramView spec={unionSpec} />);
     const edgePath = container.querySelector(".react-flow__edge-path") as SVGPathElement;
     expect(edgePath).not.toBeNull();
-    expect(normalizeColorToHex(edgePath.style.stroke)).toBe("#f43f5e");
+    expect(edgePath.style.stroke).toBe("var(--block-edge-removed, #f43f5e)");
     expect(edgePath.style.strokeDasharray).toBe("6 6");
     expect(edgePath.style.opacity).toBe("0.6");
   });
@@ -331,8 +330,8 @@ describe("BlockDiagramView component (Stage V3-4B)", () => {
 
     const { container } = render(<BlockDiagramView spec={branchingSpec} />);
 
-    // Non-empty guard on rendered edges
-    const renderedEdges = container.querySelectorAll(".react-flow__edge");
+    // Non-empty guard on rendered edges: match one outer element per edge via data-testid
+    const renderedEdges = container.querySelectorAll('[data-testid^="rf__edge-"]');
     expect(renderedEdges.length).toBe(branchingSpec.edges.length);
     expect(renderedEdges.length).toBeGreaterThan(0);
 
@@ -343,7 +342,7 @@ describe("BlockDiagramView component (Stage V3-4B)", () => {
 
     // Node coordinates in BlockDiagramView must match computeBlockLayout dimensions
     for (const expectedNode of layout.nodes) {
-      const nodeEl = screen.getByRole("img", {
+      const nodeEl = screen.getByRole("button", {
         name: new RegExp(expectedNode.name, "i"),
       });
       expect(nodeEl).not.toBeNull();

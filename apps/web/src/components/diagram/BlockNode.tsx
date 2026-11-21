@@ -19,25 +19,34 @@ export interface BlockNodeData {
   diffStatus?: "added" | "removed" | "edited" | "unchanged";
   width?: number;
   height?: number;
+  selected?: boolean;
+  dimmed?: boolean;
+  onSelect?: (nodeId: string) => void;
   [key: string]: unknown;
 }
 
 /**
  * BlockNode: Compact rectangular card for the layered Block diagram view.
  *
- * Implements Stage V3-4B (D-396):
+ * Implements Stage V3-4B, V3-4B2, V3-4D1 (D-396, D-397, D-399):
  * - Fixed 240x92px compact rectangle card (no SVG polygon shapes).
  * - Card classes: border border-line bg-surface dark:bg-card.
+ * - Interactive: tabIndex={0}, role="button", aria-pressed, keyboard Enter/Space.
+ * - Reuses exact Architecture view selection ring: ring-2 ring-[var(--brand-accent,#b7c6c2)].
  * - Displays:
- *   1. Node name (up to 2 lines, text-xs font-semibold text-foreground)
+ *   1. Node name (up to 2 lines, 13px font-semibold text-foreground)
  *   2. Single role line via formatShortRole (11px, text-text-muted)
  *   3. Badge pills row: Entry (emerald), Exit (violet), AI model (amber)
- * - Retains accessibility: role="img", aria-label="Node: <name>, Layer: <layer>".
+ * - Retains accessibility: aria-label="Node: <name>, Layer: <layer>".
  * - Left (target) and Right (source) handles for horizontal swimlane flow.
  */
 export function BlockNode({
   data,
+  selected: flowSelected,
 }: NodeProps & { data: BlockNodeData }): React.ReactElement {
+  const isSelected = Boolean(data.selected ?? flowSelected);
+  const isDimmed = Boolean(data.dimmed);
+
   const layerName = data.layer && data.layer.trim().length > 0 ? data.layer : "Other parts";
   const baseLabel = `Node: ${data.name}, Layer: ${layerName}`;
   const accessibleLabel =
@@ -66,17 +75,32 @@ export function BlockNode({
 
   return (
     <div
-      role="img"
+      tabIndex={0}
+      role="button"
       aria-label={accessibleLabel}
+      aria-pressed={isSelected}
+      data-selected={isSelected ? "true" : "false"}
+      data-dimmed={isDimmed ? "true" : "false"}
+      onClick={() => data.onSelect?.(data.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          data.onSelect?.(data.id);
+        }
+      }}
       style={{ width, height }}
       className={cn(
-        "relative flex select-none flex-col justify-between rounded-lg border border-line bg-surface dark:bg-card px-3 py-1.5 text-card-foreground shadow-xs transition-all",
+        "relative flex select-none flex-col justify-between rounded-lg border border-line bg-surface dark:bg-card px-3 py-1.5 text-card-foreground shadow-xs transition-all outline-none",
         data.diffStatus === "added" &&
           "ring-2 ring-emerald-500 ring-offset-2 ring-offset-background",
         data.diffStatus === "removed" &&
           "border-dashed ring-2 ring-rose-500 ring-offset-2 ring-offset-background opacity-70",
         data.diffStatus === "edited" &&
           "ring-2 ring-sky-500 ring-offset-2 ring-offset-background",
+        isDimmed && "opacity-30",
+        isSelected
+          ? "ring-2 ring-[var(--brand-accent,#b7c6c2)] ring-offset-2 ring-offset-background"
+          : "hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
       )}
     >
       <Handle

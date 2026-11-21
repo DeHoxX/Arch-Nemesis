@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, ArrowLeft, Maximize2, Minimize2, RefreshCw } from "lucide-react";
 
 import { Banner } from "@/components/Banner";
+import { BlockDetailPanel } from "@/components/diagram/BlockDetailPanel";
 import { BlockDiagramView } from "@/components/diagram/BlockDiagramView";
 import { BlockFallbackList } from "@/components/diagram/BlockFallbackList";
 import { ConstraintsPanel } from "@/components/diagram/ConstraintsPanel";
@@ -78,6 +79,9 @@ function DesignContent(): React.ReactElement {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedBlockNodeId, setSelectedBlockNodeId] = useState<string | null>(null);
+  const [selectedBlockEdgeId, setSelectedBlockEdgeId] = useState<string | null>(null);
+  const [selectedBlockLayerName, setSelectedBlockLayerName] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>("block-diagram");
   const [isContactOpen, setIsContactOpen] = useState<boolean>(false);
   const [viewingVersion, setViewingVersion] = useState<number | null>(null);
@@ -188,12 +192,15 @@ function DesignContent(): React.ReactElement {
 
   const activeExplanation = activeDesign?.explanation ?? generatedExplanation;
 
-  // Keyboard accessibility: Escape clears selected node and edge
+  // Keyboard accessibility: Escape clears selected node and edge (both architecture and block views)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setSelectedNodeId(null);
         setSelectedEdgeId(null);
+        setSelectedBlockNodeId(null);
+        setSelectedBlockEdgeId(null);
+        setSelectedBlockLayerName(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -208,9 +215,19 @@ function DesignContent(): React.ReactElement {
 
   // Clear diagram selection and exit playback before PNG capture so exported image is at full opacity and unnumbered
   const handleBeforeExportPng = async () => {
-    if (selectedNodeId !== null || selectedEdgeId !== null || playbackStepIndex !== null) {
+    if (
+      selectedNodeId !== null ||
+      selectedEdgeId !== null ||
+      playbackStepIndex !== null ||
+      selectedBlockNodeId !== null ||
+      selectedBlockEdgeId !== null ||
+      selectedBlockLayerName !== null
+    ) {
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
+      setSelectedBlockNodeId(null);
+      setSelectedBlockEdgeId(null);
+      setSelectedBlockLayerName(null);
       setPlaybackStepIndex(null);
       if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
         await new Promise((resolve) => {
@@ -265,6 +282,37 @@ function DesignContent(): React.ReactElement {
     () => displaySpec.nodes.map((n) => n.id).sort().join(","),
     [displaySpec.nodes],
   );
+
+  // Derive selected block node, edge, and layer for the Block view
+  const selectedBlockNode =
+    selectedBlockNodeId && displaySpec?.nodes
+      ? displaySpec.nodes.find((n) => n.id === selectedBlockNodeId) ?? null
+      : null;
+
+  const selectedBlockEdge = useMemo(() => {
+    if (!selectedBlockEdgeId || !displaySpec?.edges) return null;
+    return (
+      displaySpec.edges.find(
+        (e, idx) =>
+          `e-${e.from}-${e.to}-${idx}` === selectedBlockEdgeId ||
+          `e-${e.from}-${e.to}` === selectedBlockEdgeId ||
+          `${e.from}->${e.to}` === selectedBlockEdgeId ||
+          `${e.from}__${e.to}` === selectedBlockEdgeId ||
+          (e as { id?: string }).id === selectedBlockEdgeId,
+      ) ?? null
+    );
+  }, [selectedBlockEdgeId, displaySpec?.edges]);
+
+  const selectedBlockLayer = useMemo(() => {
+    if (!selectedBlockLayerName || !displaySpec?.nodes) return null;
+    const nodesInLayer = displaySpec.nodes.filter(
+      (n) => (n.layer && n.layer.trim() ? n.layer.trim() : "Other parts") === selectedBlockLayerName,
+    );
+    return {
+      name: selectedBlockLayerName,
+      nodeIds: nodesInLayer.map((n) => n.id),
+    };
+  }, [selectedBlockLayerName, displaySpec?.nodes]);
 
   // Refinement Handlers
   const handleSendMessage = async (text: string) => {
@@ -684,30 +732,102 @@ function DesignContent(): React.ReactElement {
             )}
 
             <TabsContent value="block-diagram" className={cn("space-y-6 outline-none focus-visible:ring-0", isFullscreen && "flex-1 min-h-0 flex flex-col space-y-0")}>
-              {/* Simple Block Diagram area */}
-              <div className={cn("w-full", isFullscreen && "flex-1 min-h-0 h-full")}>
-                {isDesktop ? (
+              {/* Block Diagram area and BlockDetailPanel grid */}
+              {(() => {
+                const hasBlockSelection = Boolean(selectedBlockNode || selectedBlockEdge || selectedBlockLayer);
+                return (
                   <div
-                    ref={diagramContainerRef}
                     className={cn(
-                      "w-full rounded-lg border border-line bg-surface overflow-hidden relative",
-                      isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]"
+                      "grid grid-cols-1 lg:grid-cols-12 gap-6",
+                      isFullscreen ? "flex-1 min-h-0 h-full items-stretch grid-rows-1" : "items-start",
                     )}
                   >
-                    <BlockDiagramView
-                      spec={displaySpec}
-                      fitViewTrigger={fitViewTrigger}
-                      nodesKey={nodesKey}
-                      className="h-full w-full"
-                    />
+                    <div
+                      className={cn(
+                        hasBlockSelection ? "lg:col-span-8 w-full" : "lg:col-span-12 w-full",
+                        isFullscreen && "h-full min-h-0",
+                      )}
+                    >
+                      {isDesktop ? (
+                        <div
+                          ref={diagramContainerRef}
+                          className={cn(
+                            "w-full rounded-lg border border-line bg-surface overflow-hidden relative",
+                            isFullscreen ? "h-full min-h-0" : "h-[calc(100vh-260px)] min-h-[600px] max-h-[850px]",
+                          )}
+                        >
+                          <BlockDiagramView
+                            spec={displaySpec}
+                            fitViewTrigger={fitViewTrigger}
+                            nodesKey={nodesKey}
+                            selectedNodeId={selectedBlockNodeId}
+                            onSelectNode={(nodeId) => {
+                              setSelectedBlockNodeId(nodeId);
+                              if (nodeId !== null) {
+                                setSelectedBlockEdgeId(null);
+                                setSelectedBlockLayerName(null);
+                              }
+                            }}
+                            selectedEdgeId={selectedBlockEdgeId}
+                            onSelectEdge={(edgeId) => {
+                              setSelectedBlockEdgeId(edgeId);
+                              if (edgeId !== null) {
+                                setSelectedBlockNodeId(null);
+                                setSelectedBlockLayerName(null);
+                              }
+                            }}
+                            selectedLayerName={selectedBlockLayerName}
+                            onSelectLayer={(layerName) => {
+                              setSelectedBlockLayerName(layerName);
+                              if (layerName !== null) {
+                                setSelectedBlockNodeId(null);
+                                setSelectedBlockEdgeId(null);
+                              }
+                            }}
+                            className="h-full w-full"
+                          />
+                        </div>
+                      ) : (
+                        <BlockFallbackList
+                          spec={displaySpec}
+                          flowOrder={activeDesign?.flow_order ?? []}
+                        />
+                      )}
+                    </div>
+
+                    {hasBlockSelection && isDesktop && (
+                      <div
+                        className={cn(
+                          "lg:col-span-4 w-full",
+                          isFullscreen && "h-full max-h-full overflow-y-auto",
+                        )}
+                      >
+                        <BlockDetailPanel
+                          node={selectedBlockNode}
+                          edge={selectedBlockEdge}
+                          layer={selectedBlockLayer}
+                          spec={activeDesign?.spec ?? displaySpec}
+                          onClose={() => {
+                            setSelectedBlockNodeId(null);
+                            setSelectedBlockEdgeId(null);
+                            setSelectedBlockLayerName(null);
+                          }}
+                          onSelectNode={(nodeId) => {
+                            setSelectedBlockEdgeId(null);
+                            setSelectedBlockLayerName(null);
+                            setSelectedBlockNodeId(nodeId);
+                          }}
+                          onSelectLayer={(layerName) => {
+                            setSelectedBlockNodeId(null);
+                            setSelectedBlockEdgeId(null);
+                            setSelectedBlockLayerName(layerName);
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <BlockFallbackList
-                    spec={displaySpec}
-                    flowOrder={activeDesign?.flow_order ?? []}
-                  />
-                )}
-              </div>
+                );
+              })()}
 
               {/* Notes and Constraints below the block diagram */}
               {!isFullscreen && (

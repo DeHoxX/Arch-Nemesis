@@ -121,6 +121,8 @@
   --flow-canvas-bg: #151517;
   --flow-pattern-dots: rgba(255, 255, 255, 0.06);
   --edge-stroke: #a1a1aa;
+  --block-edge-highlight: #2dd4bf;
+  --block-edge-removed: #f43f5e;
 }
 
 .dark {
@@ -176,6 +178,8 @@
   --flow-canvas-bg: #151517;
   --flow-pattern-dots: rgba(255, 255, 255, 0.06);
   --edge-stroke: #a1a1aa;
+  --block-edge-highlight: #2dd4bf;
+  --block-edge-removed: #f43f5e;
 }
 
 html.light {
@@ -232,6 +236,8 @@ html.light {
   --flow-canvas-bg: #F7F6F2;
   --flow-pattern-dots: #D1CCC0;
   --edge-stroke: #8C857B;
+  --block-edge-highlight: #0d9488;
+  --block-edge-removed: #e11d48;
 }
 
 html.light .react-flow__edge-path {
