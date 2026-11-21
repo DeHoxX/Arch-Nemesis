@@ -192,4 +192,27 @@ describe("useFullscreen hook (Stage 1C+, D-333)", () => {
 
     expect(dispatchSpy).toHaveBeenCalledWith(expect.objectContaining({ type: "resize" }));
   });
+
+  it("cancels delayed resize timeout if unmounted before 200ms", () => {
+    vi.useFakeTimers();
+    try {
+      const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+      const targetEl = document.createElement("div");
+      targetEl.requestFullscreen = requestFullscreenMock;
+      const targetRef = { current: targetEl };
+
+      const { unmount } = renderHook(() => useFullscreen(targetRef));
+      dispatchSpy.mockClear();
+
+      unmount();
+
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+
+      expect(dispatchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

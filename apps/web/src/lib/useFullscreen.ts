@@ -42,6 +42,9 @@ export function useFullscreen(
     );
     setIsFullscreenSupported(isSupported);
 
+    let resizeTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    let rafId: number | null = null;
+
     const handleFullscreenChange = () => {
       const activeElement = document.fullscreenElement;
       setIsFullscreen(Boolean(activeElement && activeElement === targetRef.current));
@@ -50,11 +53,20 @@ export function useFullscreen(
         // Dispatch resize events immediately, on next rAF, and after transition settles
         // to prompt layout consumers (e.g. React Flow useResizeHandler) to re-measure.
         window.dispatchEvent(new Event("resize"));
-        requestAnimationFrame(() => {
-          window.dispatchEvent(new Event("resize"));
-        });
-        setTimeout(() => {
-          window.dispatchEvent(new Event("resize"));
+        if (typeof requestAnimationFrame === "function") {
+          rafId = requestAnimationFrame(() => {
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new Event("resize"));
+            }
+          });
+        }
+        if (resizeTimeoutId !== null) {
+          clearTimeout(resizeTimeoutId);
+        }
+        resizeTimeoutId = setTimeout(() => {
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("resize"));
+          }
         }, 200);
       }
     };
@@ -65,6 +77,12 @@ export function useFullscreen(
 
     return () => {
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      if (resizeTimeoutId !== null) {
+        clearTimeout(resizeTimeoutId);
+      }
+      if (rafId !== null && typeof cancelAnimationFrame === "function") {
+        cancelAnimationFrame(rafId);
+      }
     };
   }, [targetRef]);
 

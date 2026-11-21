@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ArchitectureSpec, ConstraintSpec, EdgeSpec, NodeSpec } from "@/lib/types";
 import { BlockDetailPanel } from "./BlockDetailPanel";
@@ -88,9 +88,11 @@ describe("BlockDetailPanel component (Stage V3-4D1)", () => {
       expect(screen.getByText("Raw HTTP Request")).toBeDefined();
       expect(screen.getByText("Validated Payload")).toBeDefined();
 
-      // Sends to connection
-      expect(screen.getByText("Processing Worker")).toBeDefined();
-      const jumpToReceiverBtn = screen.getByRole("button", { name: "Select" });
+      // Sends to connection (scoped with within to Sends to section, using View button)
+      const sendsToHeading = screen.getByText("Sends to");
+      const sendsToSection = sendsToHeading.parentElement as HTMLElement;
+      expect(within(sendsToSection).getByText("Processing Worker")).toBeDefined();
+      const jumpToReceiverBtn = within(sendsToSection).getByRole("button", { name: "View" });
       fireEvent.click(jumpToReceiverBtn);
       expect(handleSelectNode).toHaveBeenCalledWith("node_b");
 
@@ -101,6 +103,25 @@ describe("BlockDetailPanel component (Stage V3-4D1)", () => {
       const closeBtn = screen.getByRole("button", { name: "Close details" });
       fireEvent.click(closeBtn);
       expect(handleClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("renders Connected from connection row with accessible View button", () => {
+      const handleSelectNode = vi.fn();
+
+      render(
+        <BlockDetailPanel
+          node={mockSpec.nodes[1]}
+          spec={mockSpec}
+          onSelectNode={handleSelectNode}
+        />,
+      );
+
+      const connectedFromHeading = screen.getByText("Connected from");
+      const connectedFromSection = connectedFromHeading.parentElement as HTMLElement;
+      expect(within(connectedFromSection).getByText("API Gateway")).toBeDefined();
+      const jumpToSenderBtn = within(connectedFromSection).getByRole("button", { name: "View" });
+      fireEvent.click(jumpToSenderBtn);
+      expect(handleSelectNode).toHaveBeenCalledWith("node_a");
     });
   });
 
