@@ -12,7 +12,10 @@ from archnemesis.errors import NodeNotAIError, NotFoundError
 from archnemesis.llm.base import LLMUnavailable
 from archnemesis.llm.fake import FakeLLMClient
 from archnemesis.modules.models.client import ModelFitClient
-from archnemesis.modules.models.service import get_or_generate_model_suggestions
+from archnemesis.modules.models.service import (
+    MODELS_TAG_PROMPT_NAME,
+    get_or_generate_model_suggestions,
+)
 from archnemesis.settings import Settings
 from tests.modules.models.conftest_models import AI_NODE_ID, NON_AI_NODE_ID, seed_design_chain
 
@@ -295,10 +298,22 @@ async def test_hostile_node_text_literal_and_quarantined(
 
         assert len(fake_llm.calls) == 1
         user_prompt = fake_llm.calls[0]["user"]
+        system_prompt = fake_llm.calls[0]["system"]
         # Fake closing tag was escaped
         assert "</untrusted_user_text>" in user_prompt  # outer genuine closing tag
         assert "&lt;/untrusted_user_text&gt;" in user_prompt  # escaped inner hostile tag
         assert "<script>alert('pwn')</script>" in user_prompt
+        # Hostile text is quarantined inside the untrusted text block
+        untrusted_block = user_prompt.split("<untrusted_user_text>")[1].split(
+            "</untrusted_user_text>"
+        )[0]
+        assert "<script>alert('pwn')</script>" in untrusted_block
+        # Prompt contains ai_role and tools
+        assert "ai_role: agent" in untrusted_block
+        assert "tools: none" in untrusted_block
+        # System prompt uses versioned prompt
+        assert "models_tag_v1" in MODELS_TAG_PROMPT_NAME
+        assert "Closed Set" in system_prompt
 
 
 @pytest.mark.asyncio
@@ -406,3 +421,72 @@ def test_models_tag_schema_has_no_additional_properties_and_full_tag_set() -> No
     expected_tags = {tag.value for tag in PipelineTag}
     assert len(expected_tags) == 10
     assert enum_values == expected_tags
+
+
+@pytest.mark.asyncio
+async def test_prompt_includes_ai_role_and_tools_and_version_constant(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    """Class test (Stage 6B3, D-407): Verify prompt wording, tools, ai_role inclusion,
+
+    and that invalid tag falls back to deterministic tags.
+    """
+    async with temp_db_session_factory() as db:
+        nodes = [
+            {
+                "id": "node_fraud",
+                "name": "Fraud Risk Scoring Model",
+                "type": "scorer",
+                "role": "Score transaction risk and detect fraudulent behavior",
+                "inputs": ["txn"],
+                "outputs": ["risk_score"],
+                "tech_options": [],
+                "needs_model": True,
+                "ai_role": "model",
+                "tools": ["blacklist_lookup", "velocity_check"],
+            }
+        ]
+        await seed_design_chain(db, "d-prompt-test", 1, nodes=nodes)
+
+        fake_llm = FakeLLMClient(script=[{"task_tag": "invalid_tag_value"}])
+        transport = make_fake_modelfit_transport()
+        client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
+        settings = Settings(modelfit_base_url="http://127.0.0.1:8100")
+
+        res = await get_or_generate_model_suggestions(
+            db=db,
+            llm=fake_llm,
+            design_id="d-prompt-test",
+            version_no=1,
+            node_id="node_fraud",
+            settings=settings,
+            client=client,
+        )
+
+        assert res.status == "ok"
+        # Invalid tag fell back deterministically
+        assert res.task_tag == "text-generation"
+
+        assert len(fake_llm.calls) == 1
+        call = fake_llm.calls[0]
+        user_prompt = call["user"]
+        system_prompt = call["system"]
+
+        # 1. Non-empty guard
+        assert len(system_prompt) > 200, "System prompt must not be empty"
+        assert len(user_prompt) > 50, "User prompt must not be empty"
+
+        # 2. Version constant
+        assert MODELS_TAG_PROMPT_NAME == "models_tag_v1"
+
+        # 3. User prompt contains ai_role and tools inside untrusted block
+        untrusted_section = user_prompt.split("<untrusted_user_text>")[1].split(
+            "</untrusted_user_text>"
+        )[0]
+        assert "ai_role: model" in untrusted_section
+        assert "tools: blacklist_lookup, velocity_check" in untrusted_section
+
+        # 4. System prompt contains guidance for 10 tags and decision rules
+        assert "text-generation" in system_prompt
+        assert "feature-extraction" in system_prompt
+        assert "scoring" in system_prompt or "decision" in system_prompt

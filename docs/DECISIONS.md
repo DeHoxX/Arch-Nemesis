@@ -4239,6 +4239,17 @@ If we removed it: All suggested models would be marked with UNKNOWN size bands b
 Decided by: agent proposed, user approved
 Status: active
 
+### D-407 — Stage 6B3 — Versioned model tag classification prompt (models_tag_v1)
+What: Externalize the model task-tag classification prompt to `src/archnemesis/prompts/models_tag_v1.md`, pass `ai_role` and `tools` in the `<untrusted_user_text>` input, and define explicit one-line definitions for all 10 tags with instructions that agents and decision/scoring models map to `text-generation`.
+Why: Live Gemini runs revealed that nodes like "Fraud Risk Scoring Model" and "Claim Feature Extraction Agent" were misclassified as `feature-extraction` because the prompt lacked task-tag descriptions, `tools` metadata, and clear guidelines distinguishing semantic embedding generation from decision/scoring or agentic tool use. Providing concise definitions for all 10 closed tags and instructing the model that reasoning, scoring, classification, and tool-calling map to `text-generation` aligns LLM tag selection with model capabilities while preserving the closed 10-tag schema.
+Alternatives considered:
+1. Adding code-level keyword overrides (e.g. if 'score' in name -> text-generation): Rejected because GEMINI.md Rule 1 and Rule 3 mandate that the LLM designs structure and writes prose while code validates, prohibiting brittle keyword overrides.
+2. Editing prompt in-line in `service.py`: Rejected because project convention requires versioned prompt files under `src/archnemesis/prompts/`.
+If we removed it: Agents and risk-scoring models would frequently be mapped to embedding models (`feature-extraction`), resulting in irrelevant model recommendations.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 

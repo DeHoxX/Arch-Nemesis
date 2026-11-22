@@ -22,9 +22,12 @@ from archnemesis.modules.models.tags import (
     fallback_pipeline_tag,
 )
 from archnemesis.modules.validation.models import ArchitectureSpec
+from archnemesis.prompts import load_prompt
 from archnemesis.settings import Settings, get_settings
 
 logger = structlog.get_logger(__name__)
+
+MODELS_TAG_PROMPT_NAME: str = "models_tag_v1"
 
 
 def _escape_untrusted_text(text: str) -> str:
@@ -146,15 +149,14 @@ async def get_or_generate_model_suggestions(
         )
 
     # 7. LLM Task-Tag Classification
-    system_prompt = (
-        "You are an AI system architect. Classify the given architecture component "
-        "into exactly one of the closed Hugging Face pipeline tags."
-    )
+    system_prompt = load_prompt(f"{MODELS_TAG_PROMPT_NAME}.md")
+    tools_str = ", ".join(target_node.tools) if target_node.tools else "none"
     user_prompt = (
         "<untrusted_user_text>\n"
         f"node_name: {_escape_untrusted_text(target_node.name)}\n"
         f"role: {_escape_untrusted_text(target_node.role)}\n"
         f"ai_role: {target_node.ai_role or 'none'}\n"
+        f"tools: {_escape_untrusted_text(tools_str)}\n"
         "</untrusted_user_text>\n"
         "Select the most appropriate pipeline_tag."
     )

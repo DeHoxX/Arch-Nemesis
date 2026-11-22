@@ -1,0 +1,38 @@
+warning: in the working copy of 'apps/api/src/archnemesis/modules/models/service.py', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/apps/api/src/archnemesis/modules/models/service.py b/apps/api/src/archnemesis/modules/models/service.py[m
+[1mindex 9a6816e..f2956a6 100644[m
+[1m--- a/apps/api/src/archnemesis/modules/models/service.py[m
+[1m+++ b/apps/api/src/archnemesis/modules/models/service.py[m
+[36m@@ -22,10 +22,13 @@[m [mfrom archnemesis.modules.models.tags import ([m
+     fallback_pipeline_tag,[m
+ )[m
+ from archnemesis.modules.validation.models import ArchitectureSpec[m
+[32m+[m[32mfrom archnemesis.prompts import load_prompt[m
+ from archnemesis.settings import Settings, get_settings[m
+ [m
+ logger = structlog.get_logger(__name__)[m
+ [m
+[32m+[m[32mMODELS_TAG_PROMPT_NAME: str = "models_tag_v1"[m
+[32m+[m
+ [m
+ def _escape_untrusted_text(text: str) -> str:[m
+     """Escape fake closing tags to prevent prompt injection."""[m
+[36m@@ -146,15 +149,14 @@[m [masync def get_or_generate_model_suggestions([m
+         )[m
+ [m
+     # 7. LLM Task-Tag Classification[m
+[31m-    system_prompt = ([m
+[31m-        "You are an AI system architect. Classify the given architecture component "[m
+[31m-        "into exactly one of the closed Hugging Face pipeline tags."[m
+[31m-    )[m
+[32m+[m[32m    system_prompt = load_prompt(f"{MODELS_TAG_PROMPT_NAME}.md")[m
+[32m+[m[32m    tools_str = ", ".join(target_node.tools) if target_node.tools else "none"[m
+     user_prompt = ([m
+         "<untrusted_user_text>\n"[m
+         f"node_name: {_escape_untrusted_text(target_node.name)}\n"[m
+         f"role: {_escape_untrusted_text(target_node.role)}\n"[m
+         f"ai_role: {target_node.ai_role or 'none'}\n"[m
+[32m+[m[32m        f"tools: {_escape_untrusted_text(tools_str)}\n"[m
+         "</untrusted_user_text>\n"[m
+         "Select the most appropriate pipeline_tag."[m
+     )[m

@@ -247,7 +247,7 @@ async def test_select_model_suggestions_respects_probe_cap() -> None:
     probes_called = 0
     probed_repo_ids: list[str] = []
 
-    # First 2 are OPEN, rest are also OPEN, but cap is 4 and target_count is 2
+    # Probes up to max_probes (4) to gather open models before band selection
     async def fake_probe(repo_id: str) -> ModelProbeDetail:
         nonlocal probes_called
         probes_called += 1
@@ -263,9 +263,9 @@ async def test_select_model_suggestions_respects_probe_cap() -> None:
     # Non-empty guard on returned items
     assert len(selected) > 0, "Selected items must not be empty"
     assert len(selected) == 2
-    # Verify exact probe call count
-    assert probes_called == 2
-    assert len(probed_repo_ids) == 2
+    # Verify exact probe call count and probed candidates
+    assert probes_called == max_probes
+    assert probed_repo_ids == ["m/0", "m/1", "m/2", "m/3"]
 
     # Now test hitting max_probes when all probed are GATED
     probes_called_cap = 0
