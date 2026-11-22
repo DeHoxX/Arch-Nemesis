@@ -4229,6 +4229,17 @@ If we removed it: Live Gemini calls in `POST .../models` and `scripts/schema_pro
 Decided by: agent proposed, user approved
 Status: active
 
+### D-406 — Stage 6B2 — Size bands from ModelFit detail probe
+What: Update `ModelFitClient.probe_model_open` to return a `ModelProbeDetail(status, total_params)` reading `normalized_model.total_params`, and update candidate selection to probe candidates in download order up to `max_gate_probes_per_node`, pick one per band (small/medium/large) from verified open models, and fill remaining slots by downloads, superseding the list-based size band assumption of D-401.
+Why: Live verification confirmed that ModelFit's list catalogue endpoint (`GET /api/v1/models`) returns `total_params: null` for all models; numeric parameter counts are only available via the detail endpoint (`GET /api/v1/models/{repo_id}`) in `normalized_model.total_params`. Discovering parameter counts during gate status probing adheres to Rule 1 (code validates and produces numbers) without relying on fragile model name parsing. Picking one model per size band from verified open models and falling back to remaining open models ensures diverse size recommendations without fabricating bands for unparameterized models.
+Alternatives considered:
+1. Parsing model names with regular expressions (e.g. searching for "7B", "14B"): Rejected because model names are unstandardized and non-authoritative; verified metadata must come directly from normalized model records.
+2. Probing every catalogue model upfront: Rejected because probing is an HTTP call per model; capping probes at `max_gate_probes_per_node` (default 6) preserves fast response times and prevents upstream rate limiting.
+If we removed it: All suggested models would be marked with UNKNOWN size bands because list responses lack parameter data.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 

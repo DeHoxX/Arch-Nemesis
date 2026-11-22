@@ -23,6 +23,19 @@ class ProbeResult(StrEnum):
     UNKNOWN = "unknown"
 
 
+class ModelProbeDetail(BaseModel):
+    """Result of probing a repository on ModelFit detail endpoint.
+
+    Contains access status and total parameters extracted strictly from
+    normalized_model.total_params.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: ProbeResult
+    total_params: int | None = None
+
+
 class ModelSuggestionItem(BaseModel):
     """Normalized suggestion item stored in database.
 

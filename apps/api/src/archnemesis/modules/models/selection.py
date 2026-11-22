@@ -5,7 +5,12 @@ from typing import Any
 
 import structlog
 
-from archnemesis.modules.models.schemas import ModelSuggestionItem, ProbeResult, SizeBand
+from archnemesis.modules.models.schemas import (
+    ModelProbeDetail,
+    ModelSuggestionItem,
+    ProbeResult,
+    SizeBand,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -17,22 +22,35 @@ def _sanitize_string(val: Any) -> str:
     return str(val).strip()
 
 
+def classify_size_band(
+    total_params: int | None,
+    small_max_params: int = 3_000_000_000,
+    medium_max_params: int = 10_000_000_000,
+) -> SizeBand:
+    """Classify total_params into SizeBand strictly based on numeric value."""
+    if total_params is None:
+        return SizeBand.UNKNOWN
+    if total_params < small_max_params:
+        return SizeBand.SMALL
+    if total_params <= medium_max_params:
+        return SizeBand.MEDIUM
+    return SizeBand.LARGE
+
+
 def partition_candidates(
     raw_models: list[dict[str, Any]],
     tag: str,
-    small_max_params: int = 3_000_000_000,
-    medium_max_params: int = 10_000_000_000,
 ) -> list[ModelSuggestionItem]:
-    """Filter raw ModelFit catalogue items and build prioritized candidate sequence.
+    """Filter raw ModelFit catalogue items and order by downloads desc.
+
+    Note: The list endpoint returns total_params: null for all models.
+    Candidates here start with total_params=None and size_band=SizeBand.UNKNOWN.
+    Size bands and parameter counts are discovered strictly upon probing the detail endpoint.
 
     Rules:
-    - Drop items where gated != False (strict: True, "manual", etc. are dropped).
+    - Drop items where gated != False (strict boolean check).
     - Drop items with missing/empty author, model_name, or id.
-    - Classify total_params into small (< small_max), medium (small_max..medium_max), large (> medium_max).
-    - Unknown total_params is labelled UNKNOWN and used strictly as fill.
-    - Each band sorted by downloads desc, likes desc, id asc (deterministic).
-    - Prioritized sequence: 1 top small, 1 top medium, 1 top large; followed by remaining candidates
-      ordered by downloads desc.
+    - Deterministic order: downloads desc, likes desc, id asc.
     """
     valid_items: list[ModelSuggestionItem] = []
 
@@ -40,7 +58,6 @@ def partition_candidates(
         if not isinstance(raw, dict):
             continue
 
-        # Strict gated check: must be strictly boolean False
         if raw.get("gated") is not False:
             continue
 
@@ -50,22 +67,6 @@ def partition_candidates(
 
         if not repo_id or not author or not model_name:
             continue
-
-        raw_params = raw.get("total_params")
-        total_params: int | None = None
-        if isinstance(raw_params, int) and raw_params > 0:
-            total_params = raw_params
-
-        # Classify size band
-        size_band: SizeBand
-        if total_params is None:
-            size_band = SizeBand.UNKNOWN
-        elif total_params < small_max_params:
-            size_band = SizeBand.SMALL
-        elif total_params <= medium_max_params:
-            size_band = SizeBand.MEDIUM
-        else:
-            size_band = SizeBand.LARGE
 
         downloads = raw.get("downloads", 0)
         likes = raw.get("likes", 0)
@@ -78,95 +79,117 @@ def partition_candidates(
                 author=author,
                 model_name=model_name,
                 task_tag=tag,
-                total_params=total_params,
-                size_band=size_band,
+                total_params=None,
+                size_band=SizeBand.UNKNOWN,
                 downloads=downloads_val,
                 likes=likes_val,
             )
         )
 
     # Sort key: downloads desc, likes desc, id asc for determinism
-    def sort_key(item: ModelSuggestionItem) -> tuple[int, int, str]:
-        return (-item.downloads, -item.likes, item.id)
-
-    small_band = sorted([i for i in valid_items if i.size_band == SizeBand.SMALL], key=sort_key)
-    medium_band = sorted([i for i in valid_items if i.size_band == SizeBand.MEDIUM], key=sort_key)
-    large_band = sorted([i for i in valid_items if i.size_band == SizeBand.LARGE], key=sort_key)
-    unknown_band = sorted([i for i in valid_items if i.size_band == SizeBand.UNKNOWN], key=sort_key)
-
-    chosen_lead_ids: set[str] = set()
-    leads: list[ModelSuggestionItem] = []
-
-    if small_band:
-        leads.append(small_band[0])
-        chosen_lead_ids.add(small_band[0].id)
-    if medium_band:
-        leads.append(medium_band[0])
-        chosen_lead_ids.add(medium_band[0].id)
-    if large_band:
-        leads.append(large_band[0])
-        chosen_lead_ids.add(large_band[0].id)
-
-    # Remaining candidate pool (all remaining known band items + all unknown items)
-    remaining_pool: list[ModelSuggestionItem] = []
-    for item in small_band[1:] + medium_band[1:] + large_band[1:] + unknown_band:
-        if item.id not in chosen_lead_ids:
-            remaining_pool.append(item)
-
-    remaining_pool.sort(key=sort_key)
-
-    # Combined prioritized candidate order
-    prioritized_candidates = leads + remaining_pool
-    return prioritized_candidates
+    valid_items.sort(key=lambda item: (-item.downloads, -item.likes, item.id))
+    return valid_items
 
 
 async def select_model_suggestions(
     candidates: list[ModelSuggestionItem],
-    probe_fn: Callable[[str], Awaitable[ProbeResult]],
+    probe_fn: Callable[[str], Awaitable[ModelProbeDetail]],
     max_probes: int = 6,
     target_count: int = 3,
+    small_max_params: int = 3_000_000_000,
+    medium_max_params: int = 10_000_000_000,
 ) -> list[ModelSuggestionItem]:
-    """Walk prioritized candidate sequence, probe accessibility, and select up to target_count open models.
+    """Probe candidates in downloads order up to max_probes, and select up to target_count.
 
-    Rules:
-    - Asks probe_fn(candidate.id).
-    - If ProbeResult.OPEN: accepted.
-    - If ProbeResult.GATED: rejected, advances to next candidate.
-    - If ProbeResult.UNKNOWN: never counted as open, advances to next candidate.
-    - Stops when target_count models are collected or max_probes is reached.
-    - Returns whatever open models were found (fewer than target_count if catalogue is exhausted;
-      never invents fake model names).
+    Rules (Stage 6B2, D-406):
+    1. Probes candidates in download order up to max_probes (default 6).
+    2. Drops gated and unknown results (only ProbeResult.OPEN is retained).
+    3. For open models, assigns total_params and size_band strictly from detail probe's
+       normalized_model.total_params.
+    4. From the probed open models, attempts to pick one small, one medium, and one large.
+    5. Fills any remaining slots up to target_count from the remaining open models in download order.
+    6. Never shows a band without real params (no params -> SizeBand.UNKNOWN).
+    7. Returns whatever open models were found (never invents fake model names or params).
     """
-    accepted: list[ModelSuggestionItem] = []
+    open_models: list[ModelSuggestionItem] = []
     probes_executed = 0
 
     for candidate in candidates:
-        if len(accepted) >= target_count:
-            break
         if probes_executed >= max_probes:
             break
 
         probes_executed += 1
-        probe_result = await probe_fn(candidate.id)
+        probe_detail = await probe_fn(candidate.id)
 
-        if probe_result == ProbeResult.OPEN:
-            accepted.append(candidate)
+        if probe_detail.status == ProbeResult.OPEN:
+            total_params = probe_detail.total_params
+            size_band = classify_size_band(
+                total_params=total_params,
+                small_max_params=small_max_params,
+                medium_max_params=medium_max_params,
+            )
+            item = ModelSuggestionItem(
+                id=candidate.id,
+                author=candidate.author,
+                model_name=candidate.model_name,
+                task_tag=candidate.task_tag,
+                total_params=total_params,
+                size_band=size_band,
+                downloads=candidate.downloads,
+                likes=candidate.likes,
+            )
+            open_models.append(item)
             logger.info(
                 "model_candidate_accepted",
-                repo_id=candidate.id,
-                size_band=candidate.size_band.value,
+                repo_id=item.id,
+                size_band=item.size_band.value,
+                total_params=total_params,
             )
-        elif probe_result == ProbeResult.GATED:
+        elif probe_detail.status == ProbeResult.GATED:
             logger.info("model_candidate_rejected_gated", repo_id=candidate.id)
         else:
             logger.info(
-                "model_candidate_rejected_unknown", repo_id=candidate.id, result=probe_result.value
+                "model_candidate_rejected_unknown",
+                repo_id=candidate.id,
+                status=probe_detail.status.value,
             )
+
+    # Pick one small, one medium, one large from open models if available
+    selected: list[ModelSuggestionItem] = []
+    chosen_ids: set[str] = set()
+
+    small_cand = next((m for m in open_models if m.size_band == SizeBand.SMALL), None)
+    if small_cand and len(selected) < target_count:
+        selected.append(small_cand)
+        chosen_ids.add(small_cand.id)
+
+    med_cand = next(
+        (m for m in open_models if m.size_band == SizeBand.MEDIUM and m.id not in chosen_ids), None
+    )
+    if med_cand and len(selected) < target_count:
+        selected.append(med_cand)
+        chosen_ids.add(med_cand.id)
+
+    large_cand = next(
+        (m for m in open_models if m.size_band == SizeBand.LARGE and m.id not in chosen_ids), None
+    )
+    if large_cand and len(selected) < target_count:
+        selected.append(large_cand)
+        chosen_ids.add(large_cand.id)
+
+    # Fill remaining slots up to target_count from remaining open models in download order
+    for m in open_models:
+        if len(selected) >= target_count:
+            break
+        if m.id not in chosen_ids:
+            selected.append(m)
+            chosen_ids.add(m.id)
 
     logger.info(
         "model_selection_complete",
         candidates_count=len(candidates),
         probes_executed=probes_executed,
-        accepted_count=len(accepted),
+        open_models_count=len(open_models),
+        selected_count=len(selected),
     )
-    return accepted
+    return selected

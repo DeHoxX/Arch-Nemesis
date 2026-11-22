@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 import structlog
 
-from archnemesis.modules.models.schemas import ProbeResult
+from archnemesis.modules.models.schemas import ModelProbeDetail, ProbeResult
 
 logger = structlog.get_logger(__name__)
 
@@ -112,16 +112,18 @@ class ModelFitClient:
         logger.info("modelfit_list_success", tag=tag, count=len(items))
         return items
 
-    async def probe_model_open(self, repo_id: str) -> ProbeResult:
-        """Probe detail endpoint to check whether a repository is accessible and non-gated.
+    async def probe_model_open(self, repo_id: str) -> ModelProbeDetail:
+        """Probe detail endpoint to check whether a repository is accessible and non-gated,
 
-        - 200 with gated: False -> ProbeResult.OPEN
-        - 200 with gated: True -> ProbeResult.GATED
-        - 403 (GATED_REPO) -> ProbeResult.GATED
-        - Network error, 429, 5xx, timeout -> ProbeResult.UNKNOWN (never OPEN)
+        and extract normalized total parameters.
+
+        - 200 with gated: False -> ProbeResult.OPEN + normalized_model.total_params (int or None)
+        - 200 with gated: True -> ProbeResult.GATED + None
+        - 403 (GATED_REPO) -> ProbeResult.GATED + None
+        - Network error, 429, 5xx, timeout -> ProbeResult.UNKNOWN + None (never OPEN)
         """
         if not self._base_url.strip():
-            return ProbeResult.UNKNOWN
+            return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)
 
         url = f"{self._base_url}/api/v1/models/{repo_id}"
 
@@ -130,11 +132,11 @@ class ModelFitClient:
                 res = await client.get(url)
         except (httpx.TimeoutException, httpx.RequestError):
             logger.warning("modelfit_probe_network_error", repo_id=repo_id)
-            return ProbeResult.UNKNOWN
+            return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)
 
         if res.status_code == 403:
             logger.info("modelfit_probe_gated", repo_id=repo_id, status_code=403)
-            return ProbeResult.GATED
+            return ModelProbeDetail(status=ProbeResult.GATED, total_params=None)
 
         if res.status_code == 200:
             try:
@@ -142,15 +144,26 @@ class ModelFitClient:
                 if isinstance(data, dict):
                     gated_val = data.get("gated")
                     if gated_val is False:
-                        logger.info("modelfit_probe_open", repo_id=repo_id)
-                        return ProbeResult.OPEN
+                        # Extract total_params strictly from normalized_model.total_params
+                        total_params: int | None = None
+                        norm = data.get("normalized_model")
+                        if isinstance(norm, dict):
+                            raw_p = norm.get("total_params")
+                            if isinstance(raw_p, int) and raw_p > 0:
+                                total_params = raw_p
+
+                        logger.info(
+                            "modelfit_probe_open", repo_id=repo_id, total_params=total_params
+                        )
+                        return ModelProbeDetail(status=ProbeResult.OPEN, total_params=total_params)
+
                     logger.info("modelfit_probe_gated_flag", repo_id=repo_id, gated=gated_val)
-                    return ProbeResult.GATED
+                    return ModelProbeDetail(status=ProbeResult.GATED, total_params=None)
             except (ValueError, KeyError, TypeError):
                 logger.warning("modelfit_probe_malformed_json", repo_id=repo_id)
-                return ProbeResult.UNKNOWN
+                return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)
 
         logger.warning(
             "modelfit_probe_unknown_status", repo_id=repo_id, status_code=res.status_code
         )
-        return ProbeResult.UNKNOWN
+        return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)

@@ -5,8 +5,24 @@ from typing import Any
 
 import pytest
 
-from archnemesis.modules.models.schemas import ProbeResult, SizeBand
-from archnemesis.modules.models.selection import partition_candidates, select_model_suggestions
+from archnemesis.modules.models.schemas import ModelProbeDetail, ProbeResult, SizeBand
+from archnemesis.modules.models.selection import (
+    classify_size_band,
+    partition_candidates,
+    select_model_suggestions,
+)
+
+
+def test_classify_size_band_threshold_edges() -> None:
+    # Small (< 3B)
+    assert classify_size_band(2_999_999_999) == SizeBand.SMALL
+    # Medium boundary (3B..10B)
+    assert classify_size_band(3_000_000_000) == SizeBand.MEDIUM
+    assert classify_size_band(10_000_000_000) == SizeBand.MEDIUM
+    # Large (> 10B)
+    assert classify_size_band(10_000_000_001) == SizeBand.LARGE
+    # Missing / None -> UNKNOWN
+    assert classify_size_band(None) == SizeBand.UNKNOWN
 
 
 def test_partition_candidates_filters_gated_and_incomplete_models() -> None:
@@ -58,140 +74,21 @@ def test_partition_candidates_filters_gated_and_incomplete_models() -> None:
     candidates = partition_candidates(raw_models, tag="text-generation")
     assert len(candidates) == 1
     assert candidates[0].id == "open/model-1"
-    assert candidates[0].gated is False if hasattr(candidates[0], "gated") else True
-
-
-def test_partition_candidates_threshold_edges() -> None:
-    raw_models: list[dict[str, Any]] = [
-        # Exactly below small_max (3B - 1)
-        {
-            "id": "edge/small",
-            "author": "edge",
-            "model_name": "small",
-            "total_params": 2_999_999_999,
-            "gated": False,
-            "downloads": 10,
-        },
-        # Exactly at small_max (3B) -> medium
-        {
-            "id": "edge/medium-low",
-            "author": "edge",
-            "model_name": "medium-low",
-            "total_params": 3_000_000_000,
-            "gated": False,
-            "downloads": 20,
-        },
-        # Exactly at medium_max (10B) -> medium
-        {
-            "id": "edge/medium-high",
-            "author": "edge",
-            "model_name": "medium-high",
-            "total_params": 10_000_000_000,
-            "gated": False,
-            "downloads": 30,
-        },
-        # Exactly above medium_max (10B + 1) -> large
-        {
-            "id": "edge/large",
-            "author": "edge",
-            "model_name": "large",
-            "total_params": 10_000_000_001,
-            "gated": False,
-            "downloads": 40,
-        },
-        # None params -> unknown
-        {
-            "id": "edge/none",
-            "author": "edge",
-            "model_name": "none",
-            "total_params": None,
-            "gated": False,
-            "downloads": 50,
-        },
-    ]
-
-    candidates = partition_candidates(raw_models, tag="text-generation")
-    by_id = {c.id: c for c in candidates}
-
-    assert by_id["edge/small"].size_band == SizeBand.SMALL
-    assert by_id["edge/medium-low"].size_band == SizeBand.MEDIUM
-    assert by_id["edge/medium-high"].size_band == SizeBand.MEDIUM
-    assert by_id["edge/large"].size_band == SizeBand.LARGE
-    assert by_id["edge/none"].size_band == SizeBand.UNKNOWN
-
-
-def test_partition_candidates_empty_band_filled_from_remaining_by_downloads() -> None:
-    # Only 3 models available, ALL are SMALL (no medium, no large)
-    raw_models: list[dict[str, Any]] = [
-        {
-            "id": "m/small-1",
-            "author": "m",
-            "model_name": "small-1",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 300,
-        },
-        {
-            "id": "m/small-2",
-            "author": "m",
-            "model_name": "small-2",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 200,
-        },
-        {
-            "id": "m/small-3",
-            "author": "m",
-            "model_name": "small-3",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 100,
-        },
-    ]
-
-    candidates = partition_candidates(raw_models, tag="text-generation")
-    assert len(candidates) == 3
-    # Top small is lead, then the remaining smalls fill the list in download order
-    assert [c.id for c in candidates] == ["m/small-1", "m/small-2", "m/small-3"]
+    # total_params is None and size_band is UNKNOWN until probed
+    assert candidates[0].total_params is None
+    assert candidates[0].size_band == SizeBand.UNKNOWN
 
 
 def test_partition_candidates_deterministic_on_shuffled_input() -> None:
     raw_models: list[dict[str, Any]] = [
-        {
-            "id": "a/small",
-            "author": "a",
-            "model_name": "small",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 100,
-        },
-        {
-            "id": "b/medium",
-            "author": "b",
-            "model_name": "medium",
-            "total_params": 7_000_000_000,
-            "gated": False,
-            "downloads": 200,
-        },
-        {
-            "id": "c/large",
-            "author": "c",
-            "model_name": "large",
-            "total_params": 14_000_000_000,
-            "gated": False,
-            "downloads": 300,
-        },
-        {
-            "id": "d/fill",
-            "author": "d",
-            "model_name": "fill",
-            "total_params": 500_000_000,
-            "gated": False,
-            "downloads": 50,
-        },
+        {"id": "a/m1", "author": "a", "model_name": "m1", "gated": False, "downloads": 100},
+        {"id": "b/m2", "author": "b", "model_name": "m2", "gated": False, "downloads": 200},
+        {"id": "c/m3", "author": "c", "model_name": "m3", "gated": False, "downloads": 300},
+        {"id": "d/m4", "author": "d", "model_name": "m4", "gated": False, "downloads": 50},
     ]
 
     expected = partition_candidates(raw_models, tag="text-generation")
+    assert [c.id for c in expected] == ["c/m3", "b/m2", "a/m1", "d/m4"]
 
     for seed in (42, 123, 999):
         shuffled: list[dict[str, Any]] = list(raw_models)
@@ -220,84 +117,113 @@ def test_partition_candidates_hostile_strings_rendered_as_plain_strings() -> Non
 
 
 @pytest.mark.asyncio
-async def test_select_model_suggestions_probes_and_skips_gated() -> None:
+async def test_select_model_suggestions_picks_one_per_band_from_detail_probe() -> None:
     raw_models: list[dict[str, Any]] = [
-        {
-            "id": "m/s1",
-            "author": "m",
-            "model_name": "s1",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 500,
-        },
-        {
-            "id": "m/s2",
-            "author": "m",
-            "model_name": "s2",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 400,
-        },
-        {
-            "id": "m/m1",
-            "author": "m",
-            "model_name": "m1",
-            "total_params": 7_000_000_000,
-            "gated": False,
-            "downloads": 300,
-        },
-        {
-            "id": "m/l1",
-            "author": "m",
-            "model_name": "l1",
-            "total_params": 14_000_000_000,
-            "gated": False,
-            "downloads": 200,
-        },
+        {"id": "m/s1", "author": "m", "model_name": "s1", "gated": False, "downloads": 500},
+        {"id": "m/s2", "author": "m", "model_name": "s2", "gated": False, "downloads": 400},
+        {"id": "m/m1", "author": "m", "model_name": "m1", "gated": False, "downloads": 300},
+        {"id": "m/l1", "author": "m", "model_name": "l1", "gated": False, "downloads": 200},
     ]
     candidates = partition_candidates(raw_models, tag="text-generation")
 
-    # s1 is GATED at probe time (e.g. 403), others are OPEN
-    async def fake_probe(repo_id: str) -> ProbeResult:
-        if repo_id == "m/s1":
-            return ProbeResult.GATED
-        return ProbeResult.OPEN
+    # Probe returns params from normalized_model
+    params_map = {
+        "m/s1": 1_000_000_000,
+        "m/s2": 1_500_000_000,
+        "m/m1": 7_000_000_000,
+        "m/l1": 14_000_000_000,
+    }
+
+    async def fake_probe(repo_id: str) -> ModelProbeDetail:
+        return ModelProbeDetail(status=ProbeResult.OPEN, total_params=params_map[repo_id])
 
     selected = await select_model_suggestions(
         candidates, probe_fn=fake_probe, max_probes=6, target_count=3
     )
     assert len(selected) == 3
-    # m/s1 was dropped because it probed GATED; m/m1, m/l1, and then fill m/s2 were accepted
+    # Picked 1 small, 1 med, 1 large
+    selected_bands = {s.size_band for s in selected}
+    assert selected_bands == {SizeBand.SMALL, SizeBand.MEDIUM, SizeBand.LARGE}
+    assert {s.id for s in selected} == {"m/s1", "m/m1", "m/l1"}
+
+
+@pytest.mark.asyncio
+async def test_select_model_suggestions_no_params_yields_unknown_and_fills() -> None:
+    # Model name like "14B" but normalized_model.total_params is null
+    raw_models: list[dict[str, Any]] = [
+        {
+            "id": "m/fake-14B",
+            "author": "m",
+            "model_name": "model-14B",
+            "gated": False,
+            "downloads": 1000,
+        },
+        {
+            "id": "m/real-small",
+            "author": "m",
+            "model_name": "small",
+            "gated": False,
+            "downloads": 500,
+        },
+        {"id": "m/real-med", "author": "m", "model_name": "med", "gated": False, "downloads": 300},
+    ]
+    candidates = partition_candidates(raw_models, tag="text-generation")
+
+    params_map = {
+        "m/fake-14B": None,  # no params in detail
+        "m/real-small": 1_000_000_000,
+        "m/real-med": 7_000_000_000,
+    }
+
+    async def fake_probe(repo_id: str) -> ModelProbeDetail:
+        return ModelProbeDetail(status=ProbeResult.OPEN, total_params=params_map[repo_id])
+
+    selected = await select_model_suggestions(
+        candidates, probe_fn=fake_probe, max_probes=6, target_count=3
+    )
+    assert len(selected) == 3
+    by_id = {s.id: s for s in selected}
+    # Name "14B" without params stays UNKNOWN, never LARGE
+    assert by_id["m/fake-14B"].size_band == SizeBand.UNKNOWN
+    assert by_id["m/fake-14B"].total_params is None
+    assert by_id["m/real-small"].size_band == SizeBand.SMALL
+    assert by_id["m/real-med"].size_band == SizeBand.MEDIUM
+
+
+@pytest.mark.asyncio
+async def test_select_model_suggestions_probes_and_skips_gated() -> None:
+    raw_models: list[dict[str, Any]] = [
+        {"id": "m/s1", "author": "m", "model_name": "s1", "gated": False, "downloads": 500},
+        {"id": "m/s2", "author": "m", "model_name": "s2", "gated": False, "downloads": 400},
+        {"id": "m/m1", "author": "m", "model_name": "m1", "gated": False, "downloads": 300},
+        {"id": "m/l1", "author": "m", "model_name": "l1", "gated": False, "downloads": 200},
+    ]
+    candidates = partition_candidates(raw_models, tag="text-generation")
+
+    async def fake_probe(repo_id: str) -> ModelProbeDetail:
+        if repo_id == "m/s1":
+            return ModelProbeDetail(status=ProbeResult.GATED, total_params=None)
+        return ModelProbeDetail(status=ProbeResult.OPEN, total_params=1_000_000_000)
+
+    selected = await select_model_suggestions(
+        candidates, probe_fn=fake_probe, max_probes=6, target_count=3
+    )
+    assert len(selected) == 3
     selected_ids = [s.id for s in selected]
     assert "m/s1" not in selected_ids
-    assert set(selected_ids) == {"m/m1", "m/l1", "m/s2"}
+    assert set(selected_ids) == {"m/s2", "m/m1", "m/l1"}
 
 
 @pytest.mark.asyncio
 async def test_select_model_suggestions_probe_unknown_never_counted_as_open() -> None:
     raw_models: list[dict[str, Any]] = [
-        {
-            "id": "m/1",
-            "author": "m",
-            "model_name": "1",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 100,
-        },
-        {
-            "id": "m/2",
-            "author": "m",
-            "model_name": "2",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 90,
-        },
+        {"id": "m/1", "author": "m", "model_name": "1", "gated": False, "downloads": 100},
+        {"id": "m/2", "author": "m", "model_name": "2", "gated": False, "downloads": 90},
     ]
     candidates = partition_candidates(raw_models, tag="text-generation")
 
-    # Both probe as UNKNOWN (e.g. 500 server error)
-    async def fake_probe(repo_id: str) -> ProbeResult:
-        return ProbeResult.UNKNOWN
+    async def fake_probe(repo_id: str) -> ModelProbeDetail:
+        return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)
 
     selected = await select_model_suggestions(
         candidates, probe_fn=fake_probe, max_probes=6, target_count=3
@@ -307,54 +233,74 @@ async def test_select_model_suggestions_probe_unknown_never_counted_as_open() ->
 
 @pytest.mark.asyncio
 async def test_select_model_suggestions_respects_probe_cap() -> None:
-    # 10 candidates, all probe as GATED except the 10th
     raw_models: list[dict[str, Any]] = [
         {
             "id": f"m/{i}",
             "author": "m",
             "model_name": f"{i}",
-            "total_params": 1_000_000_000,
             "gated": False,
             "downloads": 100 - i,
         }
         for i in range(10)
     ]
     candidates = partition_candidates(raw_models, tag="text-generation")
-
     probes_called = 0
+    probed_repo_ids: list[str] = []
 
-    async def fake_probe(repo_id: str) -> ProbeResult:
+    # First 2 are OPEN, rest are also OPEN, but cap is 4 and target_count is 2
+    async def fake_probe(repo_id: str) -> ModelProbeDetail:
         nonlocal probes_called
         probes_called += 1
-        return ProbeResult.GATED
+        probed_repo_ids.append(repo_id)
+        if repo_id in ("m/0", "m/1"):
+            return ModelProbeDetail(status=ProbeResult.OPEN, total_params=1_000_000_000)
+        return ModelProbeDetail(status=ProbeResult.GATED, total_params=None)
 
-    # Cap at 4 probes
+    max_probes = 4
     selected = await select_model_suggestions(
-        candidates, probe_fn=fake_probe, max_probes=4, target_count=3
+        candidates, probe_fn=fake_probe, max_probes=max_probes, target_count=2
     )
-    assert probes_called == 4
-    assert len(selected) == 0
+    # Non-empty guard on returned items
+    assert len(selected) > 0, "Selected items must not be empty"
+    assert len(selected) == 2
+    # Verify exact probe call count
+    assert probes_called == 2
+    assert len(probed_repo_ids) == 2
+
+    # Now test hitting max_probes when all probed are GATED
+    probes_called_cap = 0
+
+    async def fake_probe_all_gated(repo_id: str) -> ModelProbeDetail:
+        nonlocal probes_called_cap
+        probes_called_cap += 1
+        return ModelProbeDetail(status=ProbeResult.GATED, total_params=None)
+
+    selected_gated = await select_model_suggestions(
+        candidates, probe_fn=fake_probe_all_gated, max_probes=max_probes, target_count=3
+    )
+    assert len(selected_gated) == 0
+    assert probes_called_cap == max_probes, (
+        f"Expected exactly {max_probes} probe calls, got {probes_called_cap}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_select_model_suggestions_fewer_than_3_returns_fewer_never_invents() -> None:
+async def test_select_model_suggestions_fill_rule_when_missing_bands() -> None:
+    # All 3 available models are SMALL (no medium, no large)
     raw_models: list[dict[str, Any]] = [
-        {
-            "id": "m/only-one",
-            "author": "m",
-            "model_name": "only-one",
-            "total_params": 1_000_000_000,
-            "gated": False,
-            "downloads": 100,
-        }
+        {"id": "m/s1", "author": "m", "model_name": "s1", "gated": False, "downloads": 300},
+        {"id": "m/s2", "author": "m", "model_name": "s2", "gated": False, "downloads": 200},
+        {"id": "m/s3", "author": "m", "model_name": "s3", "gated": False, "downloads": 100},
     ]
     candidates = partition_candidates(raw_models, tag="text-generation")
 
-    async def fake_probe(repo_id: str) -> ProbeResult:
-        return ProbeResult.OPEN
+    async def fake_probe(repo_id: str) -> ModelProbeDetail:
+        return ModelProbeDetail(status=ProbeResult.OPEN, total_params=500_000_000)
 
     selected = await select_model_suggestions(
         candidates, probe_fn=fake_probe, max_probes=6, target_count=3
     )
-    assert len(selected) == 1
-    assert selected[0].id == "m/only-one"
+    assert len(selected) == 3
+    # 1 small lead + 2 small fills in download order
+    assert [s.id for s in selected] == ["m/s1", "m/s2", "m/s3"]
+    assert all(s.size_band == SizeBand.SMALL for s in selected)

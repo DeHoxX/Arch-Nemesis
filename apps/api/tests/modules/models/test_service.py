@@ -17,14 +17,17 @@ from archnemesis.settings import Settings
 from tests.modules.models.conftest_models import AI_NODE_ID, NON_AI_NODE_ID, seed_design_chain
 
 
-def make_fake_modelfit_transport(models: list[dict[str, Any]] | None = None) -> httpx.MockTransport:
+def make_fake_modelfit_transport(
+    models: list[dict[str, Any]] | None = None,
+    detail_params: dict[str, int | None] | None = None,
+) -> httpx.MockTransport:
     if models is None:
         models = [
             {
                 "id": "meta/model-small",
                 "author": "meta",
                 "model_name": "model-small",
-                "total_params": 1_000_000_000,
+                "total_params": None,
                 "downloads": 50000,
                 "likes": 200,
                 "gated": False,
@@ -33,7 +36,7 @@ def make_fake_modelfit_transport(models: list[dict[str, Any]] | None = None) -> 
                 "id": "meta/model-medium",
                 "author": "meta",
                 "model_name": "model-medium",
-                "total_params": 7_000_000_000,
+                "total_params": None,
                 "downloads": 40000,
                 "likes": 150,
                 "gated": False,
@@ -42,19 +45,36 @@ def make_fake_modelfit_transport(models: list[dict[str, Any]] | None = None) -> 
                 "id": "meta/model-large",
                 "author": "meta",
                 "model_name": "model-large",
-                "total_params": 14_000_000_000,
+                "total_params": None,
                 "downloads": 30000,
                 "likes": 100,
                 "gated": False,
             },
         ]
 
+    default_detail_params = {
+        "meta/model-small": 1_000_000_000,
+        "meta/model-medium": 7_000_000_000,
+        "meta/model-large": 14_000_000_000,
+    }
+    params_map = detail_params if detail_params is not None else default_detail_params
+
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
         if path == "/api/v1/models":
             return httpx.Response(200, json={"items": models})
         if path.startswith("/api/v1/models/"):
-            return httpx.Response(200, json={"gated": False})
+            repo_id = path[len("/api/v1/models/") :]
+            p = params_map.get(repo_id)
+            return httpx.Response(
+                200,
+                json={
+                    "gated": False,
+                    "normalized_model": {
+                        "total_params": p,
+                    },
+                },
+            )
         return httpx.Response(404)
 
     return httpx.MockTransport(handler)

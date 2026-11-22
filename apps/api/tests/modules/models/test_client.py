@@ -130,18 +130,40 @@ async def test_list_models_ttl_cache_hit_and_expiry() -> None:
 
 @pytest.mark.asyncio
 async def test_probe_model_open_success() -> None:
-    transport = httpx.MockTransport(lambda req: httpx.Response(200, json={"gated": False}))
+    transport = httpx.MockTransport(
+        lambda req: httpx.Response(
+            200,
+            json={
+                "gated": False,
+                "normalized_model": {
+                    "total_params": 751632384,
+                },
+            },
+        )
+    )
     client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
     result = await client.probe_model_open("author/model")
-    assert result == ProbeResult.OPEN
+    assert result.status == ProbeResult.OPEN
+    assert result.total_params == 751632384
 
 
 @pytest.mark.asyncio
 async def test_probe_model_open_gated_flag_true() -> None:
-    transport = httpx.MockTransport(lambda req: httpx.Response(200, json={"gated": True}))
+    transport = httpx.MockTransport(
+        lambda req: httpx.Response(
+            200,
+            json={
+                "gated": True,
+                "normalized_model": {
+                    "total_params": 751632384,
+                },
+            },
+        )
+    )
     client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
     result = await client.probe_model_open("author/model")
-    assert result == ProbeResult.GATED
+    assert result.status == ProbeResult.GATED
+    assert result.total_params is None
 
 
 @pytest.mark.asyncio
@@ -151,7 +173,8 @@ async def test_probe_model_open_403_returns_gated() -> None:
     )
     client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
     result = await client.probe_model_open("author/model")
-    assert result == ProbeResult.GATED
+    assert result.status == ProbeResult.GATED
+    assert result.total_params is None
 
 
 @pytest.mark.asyncio
@@ -160,7 +183,9 @@ async def test_probe_model_open_500_or_timeout_returns_unknown_never_open() -> N
         lambda req: httpx.Response(500, json={"error": "server error"})
     )
     client_500 = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport_500)
-    assert await client_500.probe_model_open("author/model") == ProbeResult.UNKNOWN
+    res_500 = await client_500.probe_model_open("author/model")
+    assert res_500.status == ProbeResult.UNKNOWN
+    assert res_500.total_params is None
 
     def timeout_handler(req: httpx.Request) -> httpx.Response:
         raise httpx.ReadTimeout("Timeout")
@@ -168,10 +193,41 @@ async def test_probe_model_open_500_or_timeout_returns_unknown_never_open() -> N
     client_timeout = ModelFitClient(
         base_url="http://127.0.0.1:8100", transport=httpx.MockTransport(timeout_handler)
     )
-    assert await client_timeout.probe_model_open("author/model") == ProbeResult.UNKNOWN
+    res_timeout = await client_timeout.probe_model_open("author/model")
+    assert res_timeout.status == ProbeResult.UNKNOWN
+    assert res_timeout.total_params is None
 
 
 @pytest.mark.asyncio
 async def test_probe_empty_base_url_returns_unknown() -> None:
     client = ModelFitClient(base_url="")
-    assert await client.probe_model_open("author/model") == ProbeResult.UNKNOWN
+    res_empty = await client.probe_model_open("author/model")
+    assert res_empty.status == ProbeResult.UNKNOWN
+    assert res_empty.total_params is None
+
+
+@pytest.mark.asyncio
+async def test_probe_non_int_or_missing_params_yields_none() -> None:
+    # 1. Missing normalized_model entirely
+    transport_no_norm = httpx.MockTransport(lambda req: httpx.Response(200, json={"gated": False}))
+    c1 = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport_no_norm)
+    r1 = await c1.probe_model_open("author/model")
+    assert r1.status == ProbeResult.OPEN
+    assert r1.total_params is None
+
+    # 2. String/null total_params (e.g. "14B" or null)
+    transport_str = httpx.MockTransport(
+        lambda req: httpx.Response(
+            200,
+            json={
+                "gated": False,
+                "normalized_model": {
+                    "total_params": "14B",
+                },
+            },
+        )
+    )
+    c2 = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport_str)
+    r2 = await c2.probe_model_open("author/model")
+    assert r2.status == ProbeResult.OPEN
+    assert r2.total_params is None

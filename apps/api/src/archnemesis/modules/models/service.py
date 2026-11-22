@@ -195,14 +195,14 @@ async def get_or_generate_model_suggestions(
         candidates = partition_candidates(
             raw_models,
             tag=tag_val,
-            small_max_params=settings.model_size_small_max_params,
-            medium_max_params=settings.model_size_medium_max_params,
         )
         selected = await select_model_suggestions(
             candidates,
             probe_fn=modelfit_client.probe_model_open,
             max_probes=settings.max_gate_probes_per_node,
             target_count=3,
+            small_max_params=settings.model_size_small_max_params,
+            medium_max_params=settings.model_size_medium_max_params,
         )
     except ModelFitUnavailable as exc:
         logger.warning(
