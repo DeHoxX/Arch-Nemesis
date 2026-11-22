@@ -73,7 +73,7 @@ class ModelSuggestionsResponse(BaseModel):
 class ModelTagOutput(BaseModel):
     """Structured JSON output schema for LLM task-tag classification."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     task_tag: Literal[
         "text-generation",

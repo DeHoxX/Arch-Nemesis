@@ -344,3 +344,45 @@ async def test_no_url_in_db_row_and_empty_web_url_gives_no_urls(
         for item in res_web.items:
             assert item.details_url == f"http://localhost:3100/models/{item.id}"
             assert item.browse_url == "http://localhost:3100/models"
+
+
+def test_models_tag_schema_has_no_additional_properties_and_full_tag_set() -> None:
+    """Class test (Stage 6B fix, D-405): ModelTagOutput schema must contain no
+
+    additionalProperties / additional_properties keys anywhere, and its enum set
+    must exactly match the 10 PipelineTag values.
+    """
+    from archnemesis.modules.models.schemas import ModelTagOutput
+    from archnemesis.modules.models.tags import PipelineTag
+
+    schema_dict = ModelTagOutput.model_json_schema()
+
+    # 1. Non-empty guard
+    assert schema_dict, "Schema dict must not be empty"
+    assert "properties" in schema_dict
+    assert "task_tag" in schema_dict["properties"]
+
+    # 2. Recursive check for absence of additional_properties / additionalProperties
+    visited_keys: list[str] = []
+
+    def verify_no_additional_properties(obj: Any) -> None:
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                visited_keys.append(str(k))
+                lower_k = str(k).lower()
+                assert "additional_properties" not in lower_k, f"Forbidden key {k} found in schema"
+                assert "additionalproperties" not in lower_k, f"Forbidden key {k} found in schema"
+                verify_no_additional_properties(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                verify_no_additional_properties(item)
+
+    verify_no_additional_properties(schema_dict)
+    assert len(visited_keys) >= 4, "Non-empty guard: expected to traverse multiple schema keys"
+
+    # 3. Enum matches the 10 PipelineTag values
+    task_tag_prop = schema_dict["properties"]["task_tag"]
+    enum_values = set(task_tag_prop.get("enum", []))
+    expected_tags = {tag.value for tag in PipelineTag}
+    assert len(expected_tags) == 10
+    assert enum_values == expected_tags
