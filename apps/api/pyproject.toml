@@ -113,4 +113,44 @@ modules = [
     "archnemesis.modules.leads",
     "archnemesis.modules.refinement",
     "archnemesis.modules.models",
+    "archnemesis.modules.modelfit",
 ]
+ignore_imports = [
+    "archnemesis.modules.models.service -> archnemesis.modules.modelfit.catalog.service",
+]
+
+[[tool.importlinter.contracts]]
+name = "Estimator is pure"
+type = "forbidden"
+source_modules = ["archnemesis.modules.modelfit.estimator"]
+forbidden_modules = [
+    "archnemesis.settings",
+    "archnemesis.logging",
+    "archnemesis.errors",
+    "archnemesis.db",
+    "archnemesis.health",
+    "archnemesis.main",
+    "archnemesis.llm",
+    "fastapi",
+    "sqlalchemy",
+    "httpx",
+    "google",
+]
+
+[[tool.importlinter.contracts]]
+name = "ModelFit catalog and hardware do not import recommend or advisor"
+type = "forbidden"
+source_modules = [
+    "archnemesis.modules.modelfit.catalog",
+    "archnemesis.modules.modelfit.hardware",
+]
+forbidden_modules = [
+    "archnemesis.modules.modelfit.recommend",
+    "archnemesis.modules.modelfit.advisor",
+]
+
+[[tool.importlinter.contracts]]
+name = "ModelFit does not import models"
+type = "forbidden"
+source_modules = ["archnemesis.modules.modelfit"]
+forbidden_modules = ["archnemesis.modules.models"]

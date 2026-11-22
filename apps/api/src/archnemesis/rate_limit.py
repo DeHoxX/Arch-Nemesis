@@ -40,6 +40,7 @@ class SlidingWindowRateLimiter:
         settings = get_settings()
 
         limit: int
+        window_seconds = self.window_seconds
         if bucket == "intake":
             limit = settings.rate_limit_intake_per_hour
         elif bucket == "designs":
@@ -48,13 +49,19 @@ class SlidingWindowRateLimiter:
             limit = settings.rate_limit_refinement_per_hour
         elif bucket == "leads":
             limit = settings.rate_limit_leads_per_hour
+        elif bucket == "models":
+            limit = settings.hf_proxy_rate_limit_requests
+            window_seconds = settings.hf_proxy_rate_limit_window_seconds
+        elif bucket == "advisor":
+            limit = settings.advisor_rate_limit_requests
+            window_seconds = settings.advisor_rate_limit_window_seconds
         else:
             raise ValueError(f"Unknown rate limit bucket: '{bucket}'")
 
         client_ip = self.get_client_ip(request, settings)
         key = (bucket, client_ip)
         now = time.time()
-        cutoff = now - self.window_seconds
+        cutoff = now - window_seconds
 
         timestamps = self._buckets[key]
 
@@ -64,8 +71,8 @@ class SlidingWindowRateLimiter:
 
         if len(timestamps) >= limit:
             oldest = timestamps[0]
-            remaining = int(self.window_seconds - (now - oldest)) + 1
-            retry_after = max(1, min(int(self.window_seconds), remaining))
+            remaining = int(window_seconds - (now - oldest)) + 1
+            retry_after = max(1, min(int(window_seconds), remaining))
             raise RateLimitedError(retry_after=retry_after)
 
         timestamps.append(now)

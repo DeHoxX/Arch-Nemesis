@@ -27,6 +27,7 @@ def get_llm_client() -> LLMClient:
         LLMTask.ARCHITECT: settings.llm_model_architect,
         LLMTask.WRITER: settings.llm_model_writer,
         LLMTask.MODELS: settings.llm_model_models,
+        LLMTask.ADVISOR: settings.llm_model_advisor,
     }
     return GeminiClient(
         api_key=api_key,

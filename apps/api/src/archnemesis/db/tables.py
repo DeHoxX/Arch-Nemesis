@@ -1,6 +1,15 @@
 """Database table models for SQLAlchemy ORM."""
 
-from sqlalchemy import ForeignKey, ForeignKeyConstraint, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -150,3 +159,52 @@ class ModelSuggestionTable(Base):
         ),
         UniqueConstraint("design_id", "version_no", "node_id", name="uq_model_suggestions_node"),
     )
+
+
+class ModelCacheTable(Base):
+    """Database record for cached Hugging Face model metadata (Phase M, D-409)."""
+
+    __tablename__ = "model_cache"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    hf_model_id: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
+    author: Mapped[str] = mapped_column(String(100), index=True, nullable=False)
+    model_name: Mapped[str] = mapped_column(String(150), index=True, nullable=False)
+    pipeline_tag: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    likes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    downloads: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    etag: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_modified: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    fetched_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    expires_at: Mapped[str] = mapped_column(String(30), index=True, nullable=False)
+
+    raw_config: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_payload: Mapped[str] = mapped_column(Text, nullable=False)
+    architecture_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    is_supported: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    support_status: Mapped[str] = mapped_column(String(50), nullable=False, default="supported_llm")
+    support_reason_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    support_reason_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    license: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    param_provenance: Mapped[str] = mapped_column(String(50), nullable=False, default="derived")
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class HardwareProfileTable(Base):
+    """Database record for hardware profiles and presets (Phase M, D-409)."""
+
+    __tablename__ = "hardware_profiles"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), unique=True, index=True, nullable=False)
+    kind: Mapped[str] = mapped_column(String(30), nullable=False, default="gpu")
+    memory_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reserved_memory_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    source_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    updated_at: Mapped[str] = mapped_column(String(30), nullable=False)

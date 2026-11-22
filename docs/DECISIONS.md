@@ -4249,6 +4249,138 @@ If we removed it: Agents and risk-scoring models would frequently be mapped to e
 Decided by: agent proposed, user approved
 Status: active
 
+### D-408 — Phase M — ModelFit native integration (supersedes D-013 and link-out in D-401)
+What: Merge the ModelFit local model hardware sizing, catalog browsing, recommendation, and streaming conversational advisor capabilities natively into Arch-Nemesis under `archnemesis.modules.modelfit`, superseding the initial exclusion in D-013 and the external link-out approach of D-401.
+Why: Arch-Nemesis architecture designs feature AI models and agents whose hardware sizing and memory requirements are central to enterprise viability. Rather than directing users to a separate external web application via outbound links, native integration provides a seamless user experience with unified dark/light theming, direct in-process catalog lookups, and context-aware chat assistance without cross-site navigation or external service dependencies.
+Alternatives considered: Continuing with outbound link navigation to an external ModelFit deployment. Rejected because external links fragment the user workflow and introduce availability dependencies on a separate web host.
+If we removed it: Users inspecting AI nodes would have to navigate to external services or lack hardware memory sizing and catalog discovery.
+Decided by: user approved
+Status: active
+
+### D-409 — Phase M — database — ModelFit database tables (model_cache, hardware_profiles) and Alembic migration 0008
+What: Add `ModelCacheTable` and `HardwareProfileTable` to `archnemesis.db.tables` using 36-character UUID primary keys and ISO UTC timestamp strings, and create Alembic migration `0008_modelfit_tables.py` which also seeds 25 standard GPU/CPU hardware presets from JSON.
+Why: ModelFit requires local SQLite persistence for cached Hugging Face model metadata (with 7-day TTL) and custom hardware profiles. Adopting Arch-Nemesis conventions (36-char UUID primary keys and ISO UTC strings rather than integer IDs or datetime objects) ensures full consistency across all tables in `archnemesis.db.tables`. Seeding the 25 verified hardware presets inside migration 0008 ensures out-of-the-box hardware selection without manual database administration.
+Alternatives considered: Keeping integer primary keys and datetime types as in ModelFit's standalone SQLite schema. Rejected because Arch-Nemesis standardizes strictly on String(36) UUIDs and ISO 8601 UTC strings across all tables.
+If we removed it: ModelFit catalog searches would lack local caching, causing high-latency Hugging Face API queries, and hardware profiles could not be stored or customized.
+Decided by: user approved
+Status: active
+
+### D-410 — Phase M — llm — LLMClient.generate_stream protocol extension, LLMTask.ADVISOR, and retry-before-first-chunk policy
+What: Extend `LLMClient` with `generate_stream(...)` supporting tool definitions and yielding typed `StreamChunk` events, introduce `LLMTask.ADVISOR` with environment variable `LLM_MODEL_ADVISOR`, enforce retry policies only prior to the first chunk via `retry_async`, and support the new protocol in `GeminiClient` and `FakeLLMClient`.
+Why: The ModelFit Advisor chatbot requires token-by-token streaming and function calling (model search, detail lookup, memory estimation, and recommendation) for responsive conversational assistance. The existing `generate_text` and `generate_json` methods are left unchanged to protect existing pipeline steps. Restricting retries strictly before the first yielded chunk prevents duplicate partial token streams to the frontend, and storing raw parts without logging preserves required model thought signatures across multi-turn interactions without violating prompt logging rules.
+Alternatives considered:
+1. Using WebSocket instead of Server-Sent Events (SSE) with streaming LLM: Rejected because HTTP SSE is simpler, stateless, fits FastAPI natively, and avoids bidirectional socket connection lifecycle management.
+2. Retrying mid-stream upon failure: Rejected because partial tokens already emitted to the client cannot be rolled back cleanly without client-side state corruption.
+If we removed it: The ModelFit Advisor could not stream conversational responses or invoke tool functions, degrading interactive responsiveness.
+Decided by: user approved
+Status: active
+
+### D-411 — Phase M — estimator — Pure memory estimation engine and hardware presets
+What: Implement `archnemesis.modules.modelfit.estimator` as a pure domain calculation module computing weights, KV cache, activation memory, overhead, and fit status across quantizations without database, HTTP, or LLM dependencies.
+Why: Memory estimation calculations are deterministic mathematical formulas based on parameter counts, context length, batch size, and quantization bitwidth. Isolating the calculator into a pure module with zero dependencies adheres to Rule 1 (code validates structure and produces numbers) and allows thorough unit testing with deterministic edge cases.
+Alternatives considered: Allowing the LLM advisor to compute or estimate memory requirements. Rejected because Rule 1 strictly forbids LLMs from producing numbers, which leads to hallucinated memory footprints.
+If we removed it: Arch-Nemesis would be unable to calculate model memory requirements or verify hardware compatibility.
+Decided by: user approved
+Status: active
+
+### D-412 — Phase M — catalog — Pure httpx Hugging Face REST client with sliding-window rate limiter
+What: Implement the ModelFit Hugging Face catalog adapter using pure `httpx` and an in-memory sliding-window rate limiter in `archnemesis.modules.modelfit.catalog.hf_client`, omitting the third-party `huggingface-hub` SDK.
+Why: The Hugging Face Hub API can be accessed entirely via standard HTTPS REST endpoints using `httpx`, which is already an installed dependency in `apps/api`. Avoiding `huggingface-hub` eliminates an unnecessary 50+ MB third-party dependency with heavy transitive dependencies (such as fsspec, tqdm, packaging). An in-memory sliding-window rate limiter protects upstream Hugging Face API limits (30 requests/min default) and gracefully handles 429 status codes.
+Alternatives considered: Installing `huggingface-hub`. Rejected by user approval conditions to minimize third-party attack surface and maintain zero new backend dependencies.
+If we removed it: Arch-Nemesis would require an extra heavy dependency or fail to access model metadata from Hugging Face.
+Decided by: user approved
+Status: active
+
+### D-413 — Phase M — models — V3-6 model suggestion internalization
+What: Refactor `POST /api/designs/{id}/versions/{n}/nodes/{node_id}/models` in `archnemesis.modules.models` to call `CatalogService` directly in-process, removing `ModelFitClient`, `modelfit_base_url`, and `modelfit_web_url`.
+Why: Because ModelFit is now merged natively into Arch-Nemesis, external HTTP calls between Arch-Nemesis and ModelFit are obsolete. Calling `CatalogService` directly in-process eliminates network latency, serialization overhead, and configuration complexity while preserving the existing client-facing API contract and database caching in `model_suggestions`.
+Alternatives considered: Keeping `ModelFitClient` making local HTTP requests to `localhost:8000/api/models`. Rejected because in-process function invocation is faster, eliminates local loopback network failures, and simplifies operational deployment.
+If we removed it: Arch-Nemesis would continue attempting HTTP calls to an external ModelFit service URL that is no longer needed.
+Decided by: user approved
+Status: active
+
+### D-414 — Phase M — architecture — Import-linter architecture contracts for modules/modelfit
+What: Define import-linter contracts in `apps/api/pyproject.toml` establishing `modelfit` as a cohesive module where `estimator` is pure, `catalog` depends only on `estimator`, `recommend`, `hardware`, and `advisor` depend on `estimator` and `catalog`, and `modules.models` may import `modules.modelfit` one-way.
+Why: Architectural layering must be enforced by automated tooling (`lint-imports`) to prevent spaghetti dependencies. Ensuring that `estimator` remains pure and that dependency flows are strictly unidirectional prevents circular imports and maintains modular testability.
+Alternatives considered: Allowing arbitrary imports between all submodules in `modelfit`. Rejected because uncontrolled imports lead to tight coupling, circular dependencies, and fragile refactoring.
+If we removed it: Submodules could inadvertently introduce circular references or couple pure calculation modules to database sessions.
+Decided by: user approved
+Status: active
+
+### D-415 — Phase M — frontend — ModelFit pages, Zod validation, dual-theme tokens, and plain-text chat
+What: Implement Next.js pages `/models`, `/models/[...repoId]`, `/models/advisor`, `/estimator` using existing dual-theme CSS tokens (`globals.css`), hand-written Zod schemas, plain-text chat rendering with `<pre>` code formatting, sessionStorage for node prefill prompts, and updated sidebar navigation ("Models" and "Estimator").
+Why: All user-facing frontend interfaces must match Arch-Nemesis styling conventions (dual-theme CSS tokens without bare `.light` overrides). Hand-written Zod validation on API responses and localStorage reads guarantees client robustness against malformed payloads. Using plain text and `<pre>` blocks for chat adheres to Rule 5 (no dangerouslySetInnerHTML and no unverified markdown rendering dependencies like `react-markdown`). Passing prefill prompts via sessionStorage rather than URL parameters prevents query string bloat and keeps model navigation clean.
+Alternatives considered:
+1. Installing `react-markdown`: Rejected by user approval conditions to avoid new dependencies and preserve strict Rule 5 rendering safety.
+2. Passing prefill prompt in URL query parameters (`?prompt=...`): Rejected because long architectural prompts would exceed browser URL length limits and expose untrusted text in browser history.
+If we removed it: Arch-Nemesis users would have no frontend interface to explore models, calculate hardware fit, or consult the advisor.
+Decided by: user approved
+Status: active
+
+### D-416 — Phase M — fix-round — Deviations reconciliation, rate limiter reuse, link-out removal, and import-linter contract restoration
+What:
+1. Record deviations:
+   - LLMClient streaming extension (`generate_stream`, `StreamChunk`, `FunctionCallInfo`, `LLMTask.ADVISOR`) was implemented without the intermediate STOP required by protocol.
+   - Initial rate limiter port introduced a redundant `catalog/rate_limiter.py` with 10 req / 60s defaults instead of reusing Phase 8's existing `archnemesis.rate_limit.SlidingWindowRateLimiter`.
+   - Estimator HTTP router was placed in `hardware/router.py` (`estimator_router` mounted at `/api/estimator`) to keep `archnemesis.modules.modelfit.estimator` strictly pure per import-linter contracts.
+2. Rate limiter reuse:
+   - Deleted `catalog/rate_limiter.py`.
+   - Extended Phase 8 `archnemesis.rate_limit.SlidingWindowRateLimiter` to support `"models"` and `"advisor"` buckets using settings (`hf_proxy_rate_limit_requests`, `hf_proxy_rate_limit_window_seconds`, `advisor_rate_limit_requests`, `advisor_rate_limit_window_seconds`).
+   - Attached route-level dependencies `Depends(rate_limit("models"))` and `Depends(rate_limit("advisor"))`.
+3. Complete link-out removal:
+   - Removed `modelfit_base_url` and `modelfit_web_url` from `settings.py`, `service.py`, `schemas.py`, and test suites.
+   - Replaced all external link generation with internal routes: `details_url = f"/models/{item.id}"` and `browse_url = "/models"`.
+4. Import-linter contract restoration:
+   - Restored `archnemesis.modules.models` into `Sibling modules are independent` modules list in `pyproject.toml` while keeping `modelfit` in it.
+   - Added explicit ignored import `archnemesis.modules.models.service -> archnemesis.modules.modelfit.catalog.service` to permit one-way consumption.
+5. Dual-theme token compliance:
+   - Replaced all hardcoded colors across `apps/web/src/components/modelfit/`, `apps/web/src/app/models/`, `apps/web/src/app/estimator/`, `DetailPanel.tsx`, and `BlockDetailPanel.tsx` with existing tokens (`border-line`, `border-line-strong`, `bg-surface`, `bg-surface-elevated`, `text-foreground`, `text-brand-accent`, `text-text-muted`, `border-destructive`).
+Why: Fixes all architectural and protocol deviations identified during the ModelFit merge review. Centralizes all rate limiting within Phase 8 infrastructure, completely severs external HTTP references to obsolete ModelFit endpoints, restores sibling module boundary enforcement, and guarantees clean dual-theme styling.
+Alternatives considered:
+1. Retaining `catalog/rate_limiter.py`: Rejected because having two distinct sliding-window limiter implementations increases maintenance burden and diverges from centralized Phase 8 architecture.
+2. Keeping `modelfit_web_url` as an optional fallback: Rejected because ModelFit is now entirely native; external links violate the self-contained native feature goal.
+If we removed it: Arch-Nemesis would retain duplicate rate limiting logic, broken import-linter definitions, lingering references to external ModelFit URLs, and hardcoded theme styling.
+Decided by: user instructed
+Status: active
+
+### D-417 — Phase M — fix-round — Fix hardware preset assertions, advisor multi-round tool loop testing, and in-process models router tests
+What: Correct test assertions and test scenarios across three failing test suites to match in-process production contracts:
+1. In `test_hardware.py`, assert preset count equals the count of items in `hardware_presets.json` dynamically loaded via `json.load` (verified 6 presets in both Arch-Nemesis and original ModelFit, correcting the prior erroneous claim of 25), and assert `seed_default_presets` idempotency on duplicate run.
+2. In `test_advisor.py`, provide two scripted LLM streams in `test_advisor_service_process_chat` (round 1: `list_hardware` tool call; round 2: final answer message), assert the tool result is passed back in round 2's contents, assert event ordering (`tool_call` -> `tool_result` -> `message` -> `done`), assert rounds <= `MAX_TOOL_ROUNDS`, and add `test_advisor_service_tool_call_loop_caps_at_max_rounds` verifying the while loop caps at `MAX_TOOL_ROUNDS` (5) calls without infinite looping.
+3. In `test_router.py`, replace the obsolete `MODELFIT_BASE_URL` test with two in-process tests: (a) `test_post_models_unavailable_when_upstream_catalog_fails` asserting that upstream `AppError` returns HTTP 200 with status `"unavailable"` and saves nothing in `model_suggestions`; (b) `test_post_models_success_stores_ok_status` asserting that successful execution returns HTTP 200 with status `"ok"` and persists only status `"ok"` recommendations to `model_suggestions`.
+Why: Tests must assert genuine production invariants. The hardware preset file has exactly 6 presets; guessing or hardcoding numbers leads to assertion mismatches. The advisor service implements multi-turn tool calling where each tool call triggers an immediate subsequent LLM turn passing the tool execution result back into the prompt contents until completion or `MAX_TOOL_ROUNDS = 5`. With ModelFit now fully internal and in-process, upstream catalog errors are handled by catching `(AppError, ValueError, KeyError)` in `modules/models/service.py` to yield status `"unavailable"` without database persistence.
+Alternatives considered:
+1. Hardcoding `assert count == 6` in `test_hardware.py`: Rejected because loading the JSON file dynamically tests against the single source of truth without magic numbers.
+2. Removing multi-round testing in `test_advisor.py`: Rejected because tool execution feedback loop is a core feature of the advisor LLM workflow and must be verified end-to-end.
+If we removed it: Pytest would fail on arbitrary hardware counts, `FakeScriptExhausted` would occur during multi-turn advisor execution, and model suggestion error handling would lack test coverage for in-process catalog behavior.
+Decided by: user instructed
+Status: active
+
+### D-418 — Phase M — fix-round — Fix advisor tool response nesting, models router response fields, and cold-cache UPSTREAM_UNAVAILABLE propagation
+What:
+1. In `test_advisor.py`, fix `fn_resp.response` assertion to match real shape `fn_resp.response["result"]["profiles"]` (wrapped under `"result"` in `AdvisorService.process_chat`), seed real hardware presets using `HardwareService.seed_default_presets(session)`, and assert the profiles list equals the count in `hardware_presets.json`.
+2. In `test_router.py`, fix `test_post_models_success_stores_ok_status` to assert response field `id == "org/model-1"`, `total_params == 1_000_000_000`, `size_band == "small"`, `details_url == "/models/org/model-1"`, and `browse_url == "/models"`, and assert persistent storage contains no URL fields.
+3. In `catalog/service.py`, re-raise `AppError(code="UPSTREAM_UNAVAILABLE")` when local cache is empty (`if not cached_items: raise`), preventing cold-cache hub network outages from silently returning empty lists (`status="empty"`) instead of `status="unavailable"`.
+4. In `catalog/hf_client.py`, include `httpx.RequestError` in the caught network error tuple so all httpx request exceptions convert to `AppError(code="UPSTREAM_UNAVAILABLE", status_code=503)`.
+5. Add unit and integration tests for `httpx.TimeoutException` and `httpx.NetworkError` verifying proper conversion in `HubClient` and status `"unavailable"` without DB writes in `test_router.py`.
+Why: Production error propagation and test assertions must strictly match data schemas and network failure semantics. `AdvisorService` intentionally wraps tool results in `{"result": tool_res}` for Gemini function responses. The models endpoint response contract defines `id` rather than `repo_id`. When Hugging Face is unreachable on a cold cache, returning an empty list misleads users into believing no models match the tag; re-raising `UPSTREAM_UNAVAILABLE` allows the system to inform the user that model suggestions are temporarily unavailable.
+Alternatives considered:
+1. Adding `repo_id` alias to API response: Rejected because `id` is the established data contract in `ModelSuggestionItemResponse`.
+2. Returning empty models list on cold cache hub failures: Rejected because network outages must not be masked as successful empty search results.
+If we removed it: The advisor test would fail on response shape, the router test would fail on `KeyError: 'repo_id'`, and Hugging Face network timeouts would falsely report "no models found" on empty caches.
+Decided by: user instructed
+Status: active
+
+### D-419 — Phase M — frontend — Suspense boundaries for Client Components with URL dynamic hooks
+What: Wrap dynamic Client Component pages calling `useParams` and `useSearchParams` (`/models/[...repoId]`, `/models/advisor`, `/estimator`) in `<Suspense>` boundaries with skeleton/pulse loading fallbacks matching existing patterns in `/design/[id]`, `/admin/designs/[id]/[n]`, and `/`.
+Why: Next.js Cache Components requires Client Components accessing runtime URL data via `useParams()` or `useSearchParams()` to be wrapped in `<Suspense>` boundaries. Without Suspense boundaries, build-time static generation aborts with `CLIENT_HOOK_DYNAMIC` error.
+Alternatives considered:
+1. Exporting `export const dynamic = 'force-dynamic'`: Rejected because existing pages use `<Suspense>` wrappers with graceful fallbacks rather than opting out of Next.js static prerendering.
+If we removed it: `npm run build` fails during prerendering of dynamic routes.
+Decided by: user instructed
+Status: active
+
+
 
 
 

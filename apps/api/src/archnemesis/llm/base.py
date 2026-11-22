@@ -1,5 +1,7 @@
 """Base definitions, protocol, and exceptions for LLM clients."""
 
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Protocol
 
@@ -13,6 +15,7 @@ class LLMTask(StrEnum):
     ARCHITECT = "architect"
     WRITER = "writer"
     MODELS = "models"
+    ADVISOR = "advisor"
 
 
 class LLMError(Exception):
@@ -43,6 +46,23 @@ class LLMNotConfigured(LLMError):
     """Raised when required API key or task model is missing."""
 
 
+@dataclass(frozen=True)
+class FunctionCallInfo:
+    """Function call representation emitted by an LLM."""
+
+    name: str
+    args: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class StreamChunk:
+    """Single token or tool call chunk from an LLM stream."""
+
+    text: str | None = None
+    function_call: FunctionCallInfo | None = None
+    raw_part: Any = None
+
+
 class LLMClient(Protocol):
     """Provider-neutral protocol for LLM interactions."""
 
@@ -54,4 +74,14 @@ class LLMClient(Protocol):
         self, task: LLMTask, system: str, user: str, schema: type[BaseModel]
     ) -> dict[str, Any]:
         """Generate structured JSON adhering to the given Pydantic schema."""
+        ...
+
+    def generate_stream(
+        self,
+        task: LLMTask,
+        system: str,
+        contents: list[Any],
+        tools: list[Any] | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """Generate streaming response with optional tool calling."""
         ...

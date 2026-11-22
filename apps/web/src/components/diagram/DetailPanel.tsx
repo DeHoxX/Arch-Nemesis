@@ -1,5 +1,6 @@
 import React from "react";
-import { Lock, MessageSquare, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { Bot, Lock, MessageSquare, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import type { ArchitectureSpec, EdgeSpec, NodeSpec } from "@/lib/types";
@@ -347,8 +348,27 @@ export function DetailPanel({
         {node.needs_model && (
           <>
             <Separator />
-            <div className="rounded-md border border-amber-600/30 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400 p-2.5 text-xs">
-              This part uses an AI model.
+            <div className="space-y-2 rounded-md border border-line bg-surface-elevated text-foreground p-2.5 text-xs">
+              <div>This part uses an AI model.</div>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="w-full h-7 text-xs font-mono border-line text-foreground hover:bg-hover"
+              >
+                <Link
+                  href="/models/advisor"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      const prompt = `What are the best open-source models for '${node.name}' (role: ${node.role}) on consumer/cloud hardware?`;
+                      window.sessionStorage.setItem("advisor_prefill_prompt", prompt);
+                    }
+                  }}
+                >
+                  <Bot className="size-3 mr-1.5" />
+                  Ask Advisor about models
+                </Link>
+              </Button>
             </div>
           </>
         )}

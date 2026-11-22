@@ -35,6 +35,15 @@ from archnemesis.modules.designs.router import router as designs_router
 from archnemesis.modules.explainer.router import router as explainer_router
 from archnemesis.modules.intake.router import router as intake_router
 from archnemesis.modules.leads.router import router as leads_router
+from archnemesis.modules.modelfit.advisor.router import router as modelfit_advisor_router
+from archnemesis.modules.modelfit.catalog.router import router as modelfit_catalog_router
+from archnemesis.modules.modelfit.hardware.router import (
+    estimator_router as modelfit_estimator_router,
+)
+from archnemesis.modules.modelfit.hardware.router import (
+    router as modelfit_hardware_router,
+)
+from archnemesis.modules.modelfit.recommend.router import router as modelfit_recommend_router
 from archnemesis.modules.models.router import router as models_router
 from archnemesis.modules.refinement.router import router as refinement_router
 from archnemesis.settings import get_settings
@@ -130,6 +139,13 @@ def create_app() -> FastAPI:
     app.include_router(leads_router)
     app.include_router(refinement_router)
     app.include_router(models_router)
+
+    # ModelFit native feature routers (Phase M, D-408-D-415)
+    app.include_router(modelfit_catalog_router, prefix="/api/models")
+    app.include_router(modelfit_hardware_router, prefix="/api/hardware")
+    app.include_router(modelfit_estimator_router, prefix="/api/estimator")
+    app.include_router(modelfit_recommend_router, prefix="/api/recommend")
+    app.include_router(modelfit_advisor_router, prefix="/api/advisor")
 
     return app
 

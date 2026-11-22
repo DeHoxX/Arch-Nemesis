@@ -40,7 +40,7 @@ class ModelSuggestionItem(BaseModel):
     """Normalized suggestion item stored in database.
 
     URL fields are explicitly omitted from persistent storage and generated
-    dynamically at response time using modelfit_web_url.
+    dynamically at response time as internal routes (/models/{id} and /models).
     """
 
     model_config = ConfigDict(extra="forbid")

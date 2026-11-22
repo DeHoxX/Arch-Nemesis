@@ -1,5 +1,7 @@
 """Custom error classes and unified error handling."""
 
+from typing import Any
+
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
@@ -7,11 +9,20 @@ from fastapi.responses import JSONResponse
 class AppError(Exception):
     """Base application exception."""
 
-    def __init__(self, code: str, message: str, status_code: int = 400) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int = 400,
+        details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message
         self.status_code = status_code
+        self.details = details or {}
+        self.headers = headers
 
 
 # Phase 1 Specific AppError Subclasses
@@ -234,6 +245,8 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
     data: dict[str, object] = {"code": exc.code, "message": exc.message}
     if hasattr(exc, "issues") and exc.issues:
         data["issues"] = exc.issues
+    if hasattr(exc, "details") and exc.details:
+        data["details"] = exc.details
     headers = getattr(exc, "headers", None)
     return JSONResponse(
         status_code=exc.status_code,

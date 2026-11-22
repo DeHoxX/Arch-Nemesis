@@ -1,6 +1,9 @@
 """Google Gemini implementation of LLMClient protocol."""
 
+import asyncio
 import json
+import random
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -9,6 +12,7 @@ from google.genai import errors, types
 from pydantic import BaseModel
 
 from archnemesis.llm.base import (
+    FunctionCallInfo,
     LLMBadOutput,
     LLMClient,
     LLMError,
@@ -17,7 +21,9 @@ from archnemesis.llm.base import (
     LLMTask,
     LLMTimeout,
     LLMUnavailable,
+    StreamChunk,
 )
+from archnemesis.llm.retry import RETRYABLE_EXCEPTIONS
 
 
 class GeminiClient(LLMClient):
@@ -28,10 +34,12 @@ class GeminiClient(LLMClient):
         api_key: str | None,
         model_names: dict[LLMTask, str | None],
         timeout_seconds: int = 60,
+        max_attempts: int = 3,
     ) -> None:
         self.api_key = api_key
         self.model_names = model_names
         self.timeout_seconds = timeout_seconds
+        self.max_attempts = max_attempts
         # Google GenAI HttpOptions timeout is in milliseconds
         self.timeout_ms = timeout_seconds * 1000
 
@@ -119,6 +127,114 @@ class GeminiClient(LLMClient):
             if not isinstance(parsed, dict):
                 raise LLMBadOutput("Gemini response is not a JSON object.")
             return parsed
+        except Exception as e:
+            mapped = self._map_exception(e)
+            if mapped is not e:
+                raise mapped from e
+            raise
+
+    def _process_stream_chunk(self, chunk: Any) -> list[StreamChunk]:
+        """Convert a GenAI GenerateContentResponse chunk to StreamChunk objects."""
+        items: list[StreamChunk] = []
+
+        # Function calls
+        if hasattr(chunk, "function_calls") and chunk.function_calls:
+            parts: list[Any] = []
+            if hasattr(chunk, "candidates") and chunk.candidates:
+                cand = chunk.candidates[0]
+                if hasattr(cand, "content") and cand.content and hasattr(cand.content, "parts"):
+                    parts = list(cand.content.parts)
+            for idx, fc in enumerate(chunk.function_calls):
+                args = fc.args if isinstance(fc.args, dict) else (dict(fc.args) if fc.args else {})
+                raw_part = parts[idx] if idx < len(parts) else fc
+                items.append(
+                    StreamChunk(
+                        function_call=FunctionCallInfo(name=fc.name, args=args),
+                        raw_part=raw_part,
+                    )
+                )
+
+        # Text chunk
+        text: str | None = None
+        try:
+            text = chunk.text
+        except (AttributeError, ValueError):
+            text = None
+        if text:
+            items.append(StreamChunk(text=text))
+
+        # Raw parts fallback if no items produced yet
+        if not items and hasattr(chunk, "candidates") and chunk.candidates:
+            cand = chunk.candidates[0]
+            if hasattr(cand, "content") and cand.content and hasattr(cand.content, "parts"):
+                for part in cand.content.parts:
+                    items.append(StreamChunk(raw_part=part))
+
+        return items
+
+    async def generate_stream(
+        self,
+        task: LLMTask,
+        system: str,
+        contents: list[Any],
+        tools: list[Any] | None = None,
+    ) -> AsyncIterator[StreamChunk]:
+        """Generate streaming response with optional tool calling, retrying only before first chunk."""
+        model = self._get_model(task)
+        assert self._client is not None
+
+        tool_objects: list[Any] | None = (
+            [types.Tool(function_declarations=tools)] if tools else None
+        )
+        config = types.GenerateContentConfig(
+            system_instruction=system,
+            tools=tool_objects,
+            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        )
+
+        attempt = 1
+        current_delay = 1.0
+        backoff_factor = 2.0
+        max_jitter = 0.20
+
+        stream_iter = None
+        first_chunk = None
+
+        while True:
+            try:
+                stream = await self._client.aio.models.generate_content_stream(
+                    model=model,
+                    contents=contents,
+                    config=config,
+                )
+                stream_iter = stream.__aiter__()
+                try:
+                    first_chunk = await stream_iter.__anext__()
+                except StopAsyncIteration:
+                    return
+                break
+            except Exception as e:
+                mapped = self._map_exception(e)
+                if attempt < self.max_attempts and isinstance(mapped, RETRYABLE_EXCEPTIONS):
+                    jitter = random.uniform(0, max_jitter)
+                    sleep_duration = current_delay * (1 + jitter)
+                    await asyncio.sleep(sleep_duration)
+                    current_delay *= backoff_factor
+                    attempt += 1
+                    continue
+                if mapped is not e:
+                    raise mapped from e
+                raise
+
+        # Emit first chunk items
+        for item in self._process_stream_chunk(first_chunk):
+            yield item
+
+        # Stream subsequent chunks without retry
+        try:
+            async for chunk in stream_iter:
+                for item in self._process_stream_chunk(chunk):
+                    yield item
         except Exception as e:
             mapped = self._map_exception(e)
             if mapped is not e:

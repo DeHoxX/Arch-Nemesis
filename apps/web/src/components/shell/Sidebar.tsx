@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { FileText, PanelLeftClose, Pin, Plus, Search, Trash2, X } from "lucide-react";
+import { Box, Cpu, FileText, PanelLeftClose, Pin, Plus, Search, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { Separator } from "@/components/ui/separator";
@@ -407,7 +407,7 @@ export function Sidebar({
       </div>
 
       {/* New Architecture Action Link */}
-      <div className="mb-3">
+      <div className="mb-3 space-y-1.5">
         <Button
           asChild
           variant="outline"
@@ -419,6 +419,30 @@ export function Sidebar({
             <span>New architecture</span>
           </Link>
         </Button>
+        <div className="grid grid-cols-2 gap-1.5">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-1.5 border-border/60 bg-card/40 text-xs font-mono text-foreground hover:bg-card/80 h-8 px-2"
+          >
+            <Link href="/models" onClick={handleNavigate}>
+              <Box className="size-3.5 shrink-0 text-muted-foreground" />
+              <span>Models</span>
+            </Link>
+          </Button>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="w-full justify-start gap-1.5 border-border/60 bg-card/40 text-xs font-mono text-foreground hover:bg-card/80 h-8 px-2"
+          >
+            <Link href="/estimator" onClick={handleNavigate}>
+              <Cpu className="size-3.5 shrink-0 text-muted-foreground" />
+              <span>Estimator</span>
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Workspace Section with Live Search */}

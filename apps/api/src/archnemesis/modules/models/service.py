@@ -6,7 +6,7 @@ from typing import Literal
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from archnemesis.errors import NodeNotAIError, NotFoundError
+from archnemesis.errors import AppError, NodeNotAIError, NotFoundError
 from archnemesis.llm.base import LLMClient, LLMTask
 from archnemesis.modules.models import repo
 from archnemesis.modules.models.client import ModelFitClient, ModelFitUnavailable
@@ -39,16 +39,14 @@ def _format_response(
     status: Literal["ok", "unavailable", "empty"],
     task_tag: str | None,
     items: list[ModelSuggestionItem],
-    web_url: str,
     message: str | None = None,
 ) -> ModelSuggestionsResponse:
-    """Build response envelope with dynamically generated ModelFit web URLs."""
-    clean_web = web_url.strip().rstrip("/")
+    """Build response envelope with internal /models routes."""
     response_items: list[ModelSuggestionItemResponse] = []
 
     for item in items:
-        details_url = f"{clean_web}/models/{item.id}" if clean_web else None
-        browse_url = f"{clean_web}/models" if clean_web else None
+        details_url = f"/models/{item.id}"
+        browse_url = "/models"
 
         response_items.append(
             ModelSuggestionItemResponse(
@@ -130,25 +128,9 @@ async def get_or_generate_model_suggestions(
             status="ok",
             task_tag=cached.task_tag,
             items=cached_items,
-            web_url=settings.modelfit_web_url,
         )
 
-    # 6. Verify ModelFit base URL configuration
-    if not settings.modelfit_base_url.strip():
-        logger.info(
-            "models_unavailable_not_configured",
-            design_id=design_id,
-            version_no=version_no,
-            node_id=node_id,
-        )
-        return ModelSuggestionsResponse(
-            status="unavailable",
-            task_tag=None,
-            items=[],
-            message="Model suggestions are not available right now.",
-        )
-
-    # 7. LLM Task-Tag Classification
+    # 6. LLM Task-Tag Classification
     system_prompt = load_prompt(f"{MODELS_TAG_PROMPT_NAME}.md")
     tools_str = ", ".join(target_node.tools) if target_node.tools else "none"
     user_prompt = (
@@ -189,36 +171,79 @@ async def get_or_generate_model_suggestions(
             tag=tag_val,
         )
 
-    # 8. Query ModelFit Catalogue and Probe Gate Status
-    modelfit_client = client or ModelFitClient(base_url=settings.modelfit_base_url)
+    # 7. Query ModelFit Catalogue and Probe Gate Status
+    if client is not None:
+        try:
+            raw_models = await client.list_models(tag=tag_val)
+            candidates = partition_candidates(
+                raw_models,
+                tag=tag_val,
+            )
+            selected = await select_model_suggestions(
+                candidates,
+                probe_fn=client.probe_model_open,
+                max_probes=settings.max_gate_probes_per_node,
+                target_count=3,
+                small_max_params=settings.model_size_small_max_params,
+                medium_max_params=settings.model_size_medium_max_params,
+            )
+        except ModelFitUnavailable as exc:
+            logger.warning(
+                "models_fetch_unavailable",
+                design_id=design_id,
+                node_id=node_id,
+                reason=str(exc),
+            )
+            return ModelSuggestionsResponse(
+                status="unavailable",
+                task_tag=tag_val,
+                items=[],
+                message="Model suggestions are not available right now.",
+            )
+    else:
+        from archnemesis.modules.modelfit.catalog.service import CatalogService
+        from archnemesis.modules.models.schemas import ModelProbeDetail, ProbeResult
 
-    try:
-        raw_models = await modelfit_client.list_models(tag=tag_val)
-        candidates = partition_candidates(
-            raw_models,
-            tag=tag_val,
-        )
-        selected = await select_model_suggestions(
-            candidates,
-            probe_fn=modelfit_client.probe_model_open,
-            max_probes=settings.max_gate_probes_per_node,
-            target_count=3,
-            small_max_params=settings.model_size_small_max_params,
-            medium_max_params=settings.model_size_medium_max_params,
-        )
-    except ModelFitUnavailable as exc:
-        logger.warning(
-            "models_fetch_unavailable",
-            design_id=design_id,
-            node_id=node_id,
-            reason=str(exc),
-        )
-        return ModelSuggestionsResponse(
-            status="unavailable",
-            task_tag=tag_val,
-            items=[],
-            message="Model suggestions are not available right now.",
-        )
+        cat_service = CatalogService()
+        try:
+            catalog_res = await cat_service.list_models(
+                session=db,
+                pipeline_tag=tag_val,
+                limit=50,
+            )
+            raw_models = [m.model_dump() for m in catalog_res.items]
+            candidates = partition_candidates(raw_models, tag=tag_val)
+
+            async def in_proc_probe(r_id: str) -> ModelProbeDetail:
+                try:
+                    d = await cat_service.get_model_detail(db, r_id)
+                    s = ProbeResult.OPEN if not d.gated else ProbeResult.GATED
+                    tp = d.normalized_model.total_params if d.normalized_model else None
+                    return ModelProbeDetail(status=s, total_params=tp)
+                except (AppError, ValueError, KeyError):
+                    return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)
+
+            selected = await select_model_suggestions(
+                candidates,
+                probe_fn=in_proc_probe,
+                max_probes=settings.max_gate_probes_per_node,
+                target_count=3,
+                small_max_params=settings.model_size_small_max_params,
+                medium_max_params=settings.model_size_medium_max_params,
+            )
+        except (AppError, ValueError, KeyError) as exc:
+            logger.warning(
+                "models_fetch_unavailable",
+                design_id=design_id,
+                node_id=node_id,
+                reason=str(exc),
+            )
+            return ModelSuggestionsResponse(
+                status="unavailable",
+                task_tag=tag_val,
+                items=[],
+                message="Model suggestions are not available right now.",
+            )
 
     # 9. Handle Empty Results (do not persist empty responses)
     if not selected:
@@ -232,11 +257,10 @@ async def get_or_generate_model_suggestions(
             status="empty",
             task_tag=tag_val,
             items=[],
-            web_url=settings.modelfit_web_url,
             message="No suitable models found.",
         )
 
-    # 10. Persist Successful Recommendations (status 'ok' only)
+    # 9. Persist Successful Recommendations (status 'ok' only)
     await repo.save_model_suggestions(
         db=db,
         design_id=design_id,
@@ -258,5 +282,4 @@ async def get_or_generate_model_suggestions(
         status="ok",
         task_tag=tag_val,
         items=selected,
-        web_url=settings.modelfit_web_url,
     )

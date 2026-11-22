@@ -53,12 +53,18 @@ class Settings(BaseSettings):
     rate_limit_leads_per_hour: int = 5
     rate_limit_trusted_proxies: list[str] = ["127.0.0.1", "::1"]
 
-    # ModelFit integration (Stage 6A, D-402)
-    modelfit_base_url: str = ""
-    modelfit_web_url: str = ""
+    # ModelFit integration (Stage 6A, D-402, Phase M, D-408-D-412)
     model_size_small_max_params: int = 3_000_000_000
     model_size_medium_max_params: int = 10_000_000_000
     max_gate_probes_per_node: int = 6
+
+    # ModelFit native settings (Phase M, D-408-D-412)
+    llm_model_advisor: str | None = None
+    hf_token: SecretStr | None = None
+    hf_proxy_rate_limit_requests: int = 30
+    hf_proxy_rate_limit_window_seconds: float = 60.0
+    advisor_rate_limit_requests: int = 4
+    advisor_rate_limit_window_seconds: float = 60.0
 
 
 @lru_cache

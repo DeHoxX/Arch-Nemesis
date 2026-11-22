@@ -93,10 +93,7 @@ async def test_cached_repeat_zero_llm_and_zero_modelfit_calls(
         fake_llm = FakeLLMClient(script=[{"task_tag": "image-to-text"}])
         transport = make_fake_modelfit_transport()
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
-        settings = Settings(
-            modelfit_base_url="http://127.0.0.1:8100",
-            modelfit_web_url="http://localhost:3100",
-        )
+        settings = Settings()
 
         # 1. First invocation: calls LLM and ModelFit, writes to DB
         res1 = await get_or_generate_model_suggestions(
@@ -143,7 +140,7 @@ async def test_unavailable_not_stored_in_db(
         fake_llm = FakeLLMClient(script=[{"task_tag": "text-generation"}])
         failing_transport = httpx.MockTransport(lambda req: httpx.Response(503))
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=failing_transport)
-        settings = Settings(modelfit_base_url="http://127.0.0.1:8100")
+        settings = Settings()
 
         res = await get_or_generate_model_suggestions(
             db=db,
@@ -177,7 +174,7 @@ async def test_invalid_llm_tag_falls_back(
         fake_llm = FakeLLMClient(script=[{"task_tag": "hallucinated-tag-name"}])
         transport = make_fake_modelfit_transport()
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
-        settings = Settings(modelfit_base_url="http://127.0.0.1:8100")
+        settings = Settings()
 
         res = await get_or_generate_model_suggestions(
             db=db,
@@ -204,7 +201,7 @@ async def test_llm_failure_falls_back(
         fake_llm = FakeLLMClient(script=[LLMUnavailable("Gemini 503")])
         transport = make_fake_modelfit_transport()
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
-        settings = Settings(modelfit_base_url="http://127.0.0.1:8100")
+        settings = Settings()
 
         res = await get_or_generate_model_suggestions(
             db=db,
@@ -284,7 +281,7 @@ async def test_hostile_node_text_literal_and_quarantined(
         fake_llm = FakeLLMClient(script=[{"task_tag": "text-generation"}])
         transport = make_fake_modelfit_transport()
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
-        settings = Settings(modelfit_base_url="http://127.0.0.1:8100")
+        settings = Settings()
 
         await get_or_generate_model_suggestions(
             db=db,
@@ -317,7 +314,7 @@ async def test_hostile_node_text_literal_and_quarantined(
 
 
 @pytest.mark.asyncio
-async def test_no_url_in_db_row_and_empty_web_url_gives_no_urls(
+async def test_no_url_in_db_row_and_response_returns_internal_routes(
     temp_db_session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     async with temp_db_session_factory() as db:
@@ -326,25 +323,22 @@ async def test_no_url_in_db_row_and_empty_web_url_gives_no_urls(
         fake_llm = FakeLLMClient(script=[{"task_tag": "image-to-text"}])
         transport = make_fake_modelfit_transport()
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
+        settings = Settings()
 
-        # 1. Empty modelfit_web_url
-        settings_empty_web = Settings(
-            modelfit_base_url="http://127.0.0.1:8100",
-            modelfit_web_url="",
-        )
+        # 1. Suggestions returns internal routes
         res = await get_or_generate_model_suggestions(
             db=db,
             llm=fake_llm,
             design_id="d-no-url",
             version_no=1,
             node_id=AI_NODE_ID,
-            settings=settings_empty_web,
+            settings=settings,
             client=client,
         )
         assert res.status == "ok"
         for item in res.items:
-            assert item.details_url is None
-            assert item.browse_url is None
+            assert item.details_url == f"/models/{item.id}"
+            assert item.browse_url == "/models"
 
         # 2. Inspect DB row: ensure no URLs stored
         stmt = select(ModelSuggestionTable).where(
@@ -360,25 +354,6 @@ async def test_no_url_in_db_row_and_empty_web_url_gives_no_urls(
         assert "browse_url" not in raw_json
         assert "http" not in raw_json.lower()
         assert '"url"' not in raw_json.lower()
-
-        # 3. Repeat call with configured web_url builds URLs at response time
-        settings_with_web = Settings(
-            modelfit_base_url="http://127.0.0.1:8100",
-            modelfit_web_url="http://localhost:3100",
-        )
-        res_web = await get_or_generate_model_suggestions(
-            db=db,
-            llm=fake_llm,
-            design_id="d-no-url",
-            version_no=1,
-            node_id=AI_NODE_ID,
-            settings=settings_with_web,
-            client=client,
-        )
-        assert res_web.status == "ok"
-        for item in res_web.items:
-            assert item.details_url == f"http://localhost:3100/models/{item.id}"
-            assert item.browse_url == "http://localhost:3100/models"
 
 
 def test_models_tag_schema_has_no_additional_properties_and_full_tag_set() -> None:
@@ -451,7 +426,7 @@ async def test_prompt_includes_ai_role_and_tools_and_version_constant(
         fake_llm = FakeLLMClient(script=[{"task_tag": "invalid_tag_value"}])
         transport = make_fake_modelfit_transport()
         client = ModelFitClient(base_url="http://127.0.0.1:8100", transport=transport)
-        settings = Settings(modelfit_base_url="http://127.0.0.1:8100")
+        settings = Settings()
 
         res = await get_or_generate_model_suggestions(
             db=db,
