@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     llm_model_intake: str | None = None
     llm_model_architect: str | None = None
     llm_model_writer: str | None = None
+    llm_model_models: str | None = None
 
     # Database and administration
     database_url: str = "sqlite+aiosqlite:///./arch_nemesis.db"

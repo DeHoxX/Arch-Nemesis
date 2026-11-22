@@ -26,6 +26,7 @@ def isolate_settings_from_env_file(
     monkeypatch.setenv("LLM_MODEL_INTAKE", "test-model")
     monkeypatch.setenv("LLM_MODEL_ARCHITECT", "test-model")
     monkeypatch.setenv("LLM_MODEL_WRITER", "test-model")
+    monkeypatch.setenv("LLM_MODEL_MODELS", "test-model")
 
     # 3. Ensure secrets and credentials remain unset by default
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)

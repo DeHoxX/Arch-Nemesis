@@ -4209,6 +4209,16 @@ If we removed it: Architecture nodes containing compound words like "invoice" wo
 Decided by: agent proposed, user approved
 Status: active
 
+### D-404 — Stage 6B — Lazy model suggestions endpoint, database caching, and task-tag selection
+What: Implement lazy model suggestions via `POST /api/designs/{id}/versions/{n}/nodes/{node_id}/models`, backed by `model_suggestions` table (migration 0007), `LLMTask.MODELS` task classification, ModelFit catalogue retrieval, and dynamic response-time URL resolution.
+Why: AI nodes in architecture designs require model suggestions from ModelFit. Caching successful recommendations in `model_suggestions` ensures that repeat node inspection triggers zero LLM and zero ModelFit API calls. Enforcing that only status "ok" results are persisted ensures transient ModelFit downtimes or unconfigured states are never permanently cached. Restricting LLM role to task-tag classification over the closed enum guarantees adherence to Rule 1 and Rule 4 (code produces IDs and numbers, LLM designs structure only).
+Alternatives considered:
+1. Persisting full external ModelFit URLs in the database: Rejected because web base URLs are environment-dependent and must be dynamically constructed at response time.
+2. Caching unavailable or empty responses: Rejected because transient outages or temporary ModelFit unreachability would permanently disable suggestions for a node until version bump.
+If we removed it: Arch-Nemesis users would not have model recommendations for AI nodes or would trigger redundant external network and LLM calls on every card inspection.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 

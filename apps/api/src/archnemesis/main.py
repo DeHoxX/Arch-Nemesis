@@ -35,6 +35,7 @@ from archnemesis.modules.designs.router import router as designs_router
 from archnemesis.modules.explainer.router import router as explainer_router
 from archnemesis.modules.intake.router import router as intake_router
 from archnemesis.modules.leads.router import router as leads_router
+from archnemesis.modules.models.router import router as models_router
 from archnemesis.modules.refinement.router import router as refinement_router
 from archnemesis.settings import get_settings
 
@@ -128,6 +129,7 @@ def create_app() -> FastAPI:
     app.include_router(explainer_router)
     app.include_router(leads_router)
     app.include_router(refinement_router)
+    app.include_router(models_router)
 
     return app
 

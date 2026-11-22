@@ -127,3 +127,26 @@ class SpecCacheTable(Base):
     key: Mapped[str] = mapped_column(String(64), primary_key=True)
     spec_json: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class ModelSuggestionTable(Base):
+    """Database record caching model suggestions per AI node in a design version (Stage 6B, D-404)."""
+
+    __tablename__ = "model_suggestions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    design_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    version_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    node_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    task_tag: Mapped[str] = mapped_column(String(50), nullable=False)
+    suggestions_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["design_id", "version_no"],
+            ["design_versions.design_id", "design_versions.version_no"],
+            name="fk_model_suggestions_design_versions",
+        ),
+        UniqueConstraint("design_id", "version_no", "node_id", name="uq_model_suggestions_node"),
+    )

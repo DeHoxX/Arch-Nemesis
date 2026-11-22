@@ -137,6 +137,15 @@ class DesignFailedError(AppError):
         self.issues = issues[:5] if issues else []
 
 
+class NodeNotAIError(AppError):
+    def __init__(self, message: str = "This node does not use an AI model.") -> None:
+        super().__init__(
+            code="NODE_NOT_AI",
+            message=message,
+            status_code=400,
+        )
+
+
 class InternalError(AppError):
     def __init__(self, message: str = "Something went wrong on our side.") -> None:
         super().__init__(

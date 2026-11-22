@@ -47,6 +47,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from archnemesis.llm.base import LLMClient, LLMTask
 from archnemesis.llm.gemini import GeminiClient
 from archnemesis.modules.intake.schemas import IntakeLLMOutput
+from archnemesis.modules.models.schemas import ModelTagOutput
 from archnemesis.modules.validation.models import (
     ArchitectureSpec,
     ConstraintSpec,
@@ -756,6 +757,7 @@ async def main() -> int:
         "refine_H",
         "refine_I",
         "suggest_F",
+        "models_tag",
     ]
 
     selected_probes = [p for p in probe_names if requested_probes is None or p in requested_probes]
@@ -783,6 +785,7 @@ async def main() -> int:
         LLMTask.INTAKE: model_intake,
         LLMTask.ARCHITECT: model_architect,
         LLMTask.WRITER: settings.llm_model_writer or model_architect,
+        LLMTask.MODELS: settings.llm_model_models or model_architect,
     }
 
     client: LLMClient = GeminiClient(
@@ -902,6 +905,12 @@ async def main() -> int:
             system="You are an expert software architect suggesting architectural improvements. Output a SuggestionsLLMOutput JSON object.",
             user="Suggest up to 2 concrete improvements for a web service architecture.",
             schema=SuggestionsLLMOutputF,
+        ),
+        "models_tag": lambda: client.generate_json(
+            task=LLMTask.MODELS,
+            system="You are an AI system architect. Output a ModelTagOutput JSON object.",
+            user="Classify the following component: OCR invoice processor.",
+            schema=ModelTagOutput,
         ),
     }
 

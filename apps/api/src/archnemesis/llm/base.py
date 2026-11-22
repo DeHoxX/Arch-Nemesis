@@ -12,6 +12,7 @@ class LLMTask(StrEnum):
     INTAKE = "intake"
     ARCHITECT = "architect"
     WRITER = "writer"
+    MODELS = "models"
 
 
 class LLMError(Exception):

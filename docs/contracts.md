@@ -52,6 +52,10 @@ Versions are immutable. A lead points to an exact version.
 `LLM_UNAVAILABLE` (503), `LLM_RATE_LIMITED` (429), `LLM_TIMEOUT`, `LLM_BAD_OUTPUT`.
 Each maps to a friendly user message. Retry only on 503, 429 and timeout: up to 3 attempts with backoff. Schema failures are handled only by the repair loop.
 
+### Application error codes
+`NOT_FOUND` (404), `NODE_NOT_AI` (400), `VALIDATION_ERROR` (422), `DESIGN_FAILED` (422), `RATE_LIMITED` (429).
+`NODE_NOT_AI` is returned by the models endpoint when requested for a node with `needs_model: false` and `ai_role` none.
+
 ---
 
 ## System Limits and Defaults
