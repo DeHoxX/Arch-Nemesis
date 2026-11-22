@@ -4181,6 +4181,34 @@ Risks:
 Decided by: agent proposed, user approved
 Status: active
 
+### D-401 — Stage 6A — client + tags + selection — ModelFit HTTP client, closed task tags, and candidate selection
+What: Introduce `archnemesis.modules.models` with `client.py`, `tags.py`, `schemas.py`, and `selection.py` implementing the ModelFit catalogue client, closed pipeline tag mapping with keyword fallback, and deterministic multi-band candidate selection with gate probing.
+Why: Arch-Nemesis provides model suggestions for AI nodes by querying ModelFit server-to-server. The LLM only determines task category, while code performs candidate filtering, size-band partitioning (small, medium, large), gated model rejection via detail probing, and fill rules. Separating pure selection logic, tag mapping, schemas, and HTTP communication into dedicated modules ensures testability and layer cleanliness without external framework coupling.
+Alternatives considered:
+1. Combining candidate selection and HTTP probing into a single monolithic service: Rejected because pure selection logic cannot be deterministically tested with simulated probe outcomes without mocking HTTP client internals.
+2. Allowing LLM to suggest model repository IDs directly: Rejected to maintain Rule 1 and Rule 4 compliance (code validates and produces IDs and numbers; LLM designs structure only).
+If we removed it: Arch-Nemesis would have no mechanism to retrieve Hugging Face models from ModelFit or filter out gated/inaccessible models for AI architecture nodes.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-402 — Stage 6A — settings — ModelFit configuration, size-band thresholds, and probe limits
+What: Add `modelfit_base_url`, `modelfit_web_url`, `model_size_small_max_params`, `model_size_medium_max_params`, and `max_gate_probes_per_node` configuration fields to `archnemesis.settings.Settings`.
+Why: Limits and external URLs must live in centralized settings rather than being hardcoded in module logic. `modelfit_base_url` enables graceful degradation (unavailable state) when unconfigured, while thresholds (3B, 10B) and probe caps (6) allow tuning without touching pure candidate selection or client logic.
+Alternatives considered:
+1. Hardcoding the 3B/10B thresholds and probe limits as constants in `selection.py`: Rejected because project conventions mandate that configurable thresholds and operational limits reside in `settings.py`.
+If we removed it: ModelFit endpoint URLs and sizing thresholds would be hardcoded or inaccessible to environment configuration.
+Decided by: agent proposed, user approved
+Status: active
+
+### D-403 — Stage 6A — fix — Regex word-boundary matching and rule precedence in fallback_pipeline_tag
+What: Replace raw substring membership checks in `fallback_pipeline_tag` with precompiled regular expressions using word boundaries (`\b`) and prioritize specific vision/speech multi-word patterns over generic keywords.
+Why: In `tags.py`, raw substring matching caused `"OCR invoice scanner and vision model"` to erroneously trigger `PipelineTag.TEXT_TO_SPEECH` because `"voice"` was matched as a substring of `"invoice"`. Enforcing word boundary semantics (`\b...\b`) prevents substrings inside unrelated words (such as `"voice"` in `"invoice"`, `"tts"` in `"attributes"`, `"qa"` in `"squad"`) from false-positive matches, and reordering checks ensures specific domain tasks take precedence over broader conversational terms.
+Alternatives considered:
+1. Retaining raw substring matching and removing `"voice"`: Rejected because it does not fix the root failure class for other keywords embedded in longer words.
+If we removed it: Architecture nodes containing compound words like "invoice" would be misclassified into audio or speech categories instead of vision or OCR.
+Decided by: agent proposed, user approved
+Status: active
+
 
 
 
