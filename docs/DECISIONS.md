@@ -4219,6 +4219,17 @@ If we removed it: Arch-Nemesis users would not have model recommendations for AI
 Decided by: agent proposed, user approved
 Status: active
 
+### D-405 — Stage 6B — fix — Gemini Developer API response_schema compatibility for ModelTagOutput
+What: Change `ModelTagOutput.model_config` in `apps/api/src/archnemesis/modules/models/schemas.py` from `extra="forbid"` to `extra="ignore"`.
+Why: When `ConfigDict(extra="forbid")` is configured on a Pydantic model, `model_json_schema()` generates `"additionalProperties": false`. The Google GenAI SDK (`google.genai._transformers._raise_for_unsupported_mldev_properties`) explicitly checks for `additionalProperties` / `additional_properties` in non-Vertex developer mode and throws `ValueError('additionalProperties is only supported in Gemini Enterprise Agent Platform mode, , not in Gemini Developer API mode.')`, causing Gemini 400 INVALID_ARGUMENT errors. Aligning with working baseline schemas (`ArchitectureSpec`, `IntakeLLMOutput`, and refinement probe schemas) by using `extra="ignore"` ensures that `additionalProperties` is omitted while maintaining the strict 10-value `Literal` enum for `task_tag`.
+Alternatives considered:
+1. Retaining `extra="forbid"` and writing a custom schema transformer in `GeminiClient`: Rejected because all working schemas in the project already use `extra="ignore"` and standard Pydantic generation is the established convention.
+2. Relaxing `task_tag` from `Literal` to plain `str`: Rejected because the closed 10-tag enum must remain strictly enforced in the schema.
+If we removed it: Live Gemini calls in `POST .../models` and `scripts/schema_probe.py models_tag` would fail with HTTP 400 INVALID_ARGUMENT from Google GenAI.
+Decided by: agent proposed, user approved
+Status: active
+
+
 
 
 
