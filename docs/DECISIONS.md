@@ -4501,3 +4501,16 @@ Alternatives considered:
 If we removed it: The hardware selector and estimator presets would remain limited to the initial 6 GPUs seeded in migration `0008`.
 Decided by: agent proposed, user approved
 Status: active
+
+### D-429 — Phase M-UI Fix — Align Estimator result/list Zod schemas, add searchable model picker, and cursor Load More
+What:
+1. Update `apps/web/src/lib/modelfit/schemas.ts` (`EstimationResultSchema`, `ResolvedHardwareSchema`, `ModelSummarySchema`, `ModelListResponseSchema`) and `apps/web/src/components/modelfit/EstimationResultCard.tsx` to match the real FastAPI response contracts (`verdict`, `runtime_overhead_bytes`, `per_device_bytes`, `warnings`, `unsupported_reasons`, `confidence`, `resolved_hardware`, and `{ items, next_cursor, has_more }`) without inventing unreturned fields.
+2. Replace the free-text `Repo ID` / unsupported `Param Count` toggle in `apps/web/src/components/modelfit/EstimatorForm.tsx` with a 300ms-debounced, keyboard-accessible searchable model picker (`GET /api/models?search=...`) with explicit `Clear` button and plain-text rendering of loading, empty, and error states.
+3. Update `apps/web/src/lib/modelfit/api.ts` (`fetchModels`) and `apps/web/src/app/models/page.tsx` to use cursor-based pagination (`cursor`, `sort`, `limit`) via `useInfiniteQuery` with deduplication by `id` and a manual `Load more` button shown only when `next_cursor` is non-null.
+Why: Browser verification uncovered three integration mismatches: `EstimationResultSchema` failed on missing `fits`/`total_params`/`effective_context`/`quantization`, `EstimatorForm` lacked model discovery and exposed an unsupported param-count mode, and `/models` expected `{ total, offset }` instead of `{ next_cursor, has_more }`, hiding pagination completely.
+Alternatives considered:
+1. Changing backend schemas to return legacy fields: Rejected to keep backend contracts unchanged and strictly deterministic.
+2. Auto-triggering infinite scroll loops against Hugging Face: Rejected to respect the upstream `30 req/60s` rate limit.
+If we removed it: `/estimator` would crash with Zod errors after submitting, users would have to guess HF repo IDs by hand, and `/models` could never load page 2.
+Decided by: agent proposed, user approved
+Status: active

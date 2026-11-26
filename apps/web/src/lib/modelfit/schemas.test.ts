@@ -23,13 +23,13 @@ describe("ModelFit frontend Zod schemas", () => {
           param_provenance: "safetensors",
         },
       ],
-      total: 1,
-      limit: 20,
-      offset: 0,
+      next_cursor: "cursor-next-1",
+      has_more: true,
     };
 
     const parsed = ModelListResponseSchema.parse(raw);
-    expect(parsed.total).toBe(1);
+    expect(parsed.next_cursor).toBe("cursor-next-1");
+    expect(parsed.has_more).toBe(true);
     expect(parsed.items[0]?.author).toBe("Qwen");
   });
 
@@ -83,24 +83,32 @@ describe("ModelFit frontend Zod schemas", () => {
     expect(parsed.kind).toBe("gpu");
   });
 
-  it("validates EstimationResultSchema correctly", () => {
+  it("validates EstimationResultSchema correctly with real backend shape", () => {
     const raw = {
-      fits: true,
-      total_bytes: 5368709120,
       weights_bytes: 4294967296,
       kv_cache_bytes: 536870912,
       activation_bytes: 536870912,
+      runtime_overhead_bytes: 268435456,
+      total_bytes: 5637144576,
+      per_device_bytes: 5637144576,
+      verdict: "fits",
       headroom_bytes: 20401094656,
-      total_params: 7615616512,
-      effective_context: 4096,
-      quantization: "Q4_K_M",
       assumptions: ["Batch size = 1", "KV cache uncompressed"],
-      errors: [],
+      warnings: [],
+      unsupported_reasons: [],
+      confidence: "high",
+      resolved_hardware: {
+        name: "NVIDIA GeForce RTX 4090",
+        usable_memory_bytes: 24696061952,
+        profile_type: "preset",
+      },
     };
 
     const parsed = EstimationResultSchema.parse(raw);
-    expect(parsed.fits).toBe(true);
-    expect(parsed.quantization).toBe("Q4_K_M");
+    expect(parsed.verdict).toBe("fits");
+    expect(parsed.confidence).toBe("high");
+    expect(parsed.resolved_hardware?.name).toBe("NVIDIA GeForce RTX 4090");
+    expect(parsed.assumptions).toHaveLength(2);
   });
 
   it("validates RecommendationResponseSchema correctly", () => {
@@ -125,17 +133,19 @@ describe("ModelFit frontend Zod schemas", () => {
           rank_score: 95.0,
           rank_reasons: ["fits_comfortably", "popular_and_proven"],
           estimated_memory: {
-            fits: true,
-            total_bytes: 5368709120,
             weights_bytes: 4294967296,
             kv_cache_bytes: 536870912,
             activation_bytes: 536870912,
+            runtime_overhead_bytes: 268435456,
+            total_bytes: 5637144576,
+            per_device_bytes: null,
+            verdict: "fits",
             headroom_bytes: 19864223744,
-            total_params: 7615616512,
-            effective_context: 4096,
-            quantization: "Q4_K_M",
             assumptions: [],
-            errors: [],
+            warnings: [],
+            unsupported_reasons: [],
+            confidence: "high",
+            resolved_hardware: null,
           },
           quantization: "Q4_K_M",
           context_length: 4096,
@@ -149,5 +159,6 @@ describe("ModelFit frontend Zod schemas", () => {
     const parsed = RecommendationResponseSchema.parse(raw);
     expect(parsed.count).toBe(1);
     expect(parsed.recommendations[0]?.headroom_status).toBe("fits");
+    expect(parsed.recommendations[0]?.estimated_memory.verdict).toBe("fits");
   });
 });

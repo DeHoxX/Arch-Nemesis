@@ -18,24 +18,21 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 export interface FetchModelsParams {
   search?: string;
   pipeline_tag?: string;
-  author?: string;
+  sort?: "downloads" | "likes" | "recent";
   limit?: number;
-  offset?: number;
-  sort_by?: string;
-  sort_order?: "asc" | "desc";
+  cursor?: string;
 }
 
 export async function fetchModels(params: FetchModelsParams = {}): Promise<ModelListResponse> {
   const q = new URLSearchParams();
   if (params.search) q.set("search", params.search);
   if (params.pipeline_tag) q.set("pipeline_tag", params.pipeline_tag);
-  if (params.author) q.set("author", params.author);
+  if (params.sort) q.set("sort", params.sort);
   if (params.limit !== undefined) q.set("limit", String(params.limit));
-  if (params.offset !== undefined) q.set("offset", String(params.offset));
-  if (params.sort_by) q.set("sort_by", params.sort_by);
-  if (params.sort_order) q.set("sort_order", params.sort_order);
+  if (params.cursor) q.set("cursor", params.cursor);
 
-  const res = await fetch(`${API_BASE}/api/models?${q.toString()}`, {
+  const qs = q.toString();
+  const res = await fetch(`${API_BASE}/api/models${qs ? `?${qs}` : ""}`, {
     method: "GET",
     headers: { Accept: "application/json" },
   });

@@ -6,18 +6,23 @@ import type { EstimationResult } from "@/lib/modelfit/schemas";
 
 describe("EstimationResultCard component", () => {
   const sampleResult: EstimationResult = {
-    fits: true,
-    total_bytes: 5368709120, // 5 GiB
-    weights_bytes: 4294967296, // 4 GiB
-    kv_cache_bytes: 536870912, // 0.5 GiB
-    activation_bytes: 536870912, // 0.5 GiB
-    headroom_bytes: 19864223744, // 18.5 GiB
-    total_params: 7615616512,
-    is_context_truncated: false,
-    effective_context: 4096,
-    quantization: "Q4_K_M",
+    weights_bytes: 4294967296,
+    kv_cache_bytes: 536870912,
+    activation_bytes: 536870912,
+    runtime_overhead_bytes: 268435456,
+    total_bytes: 5637144576,
+    per_device_bytes: 5637144576,
+    verdict: "fits",
+    headroom_bytes: 19864223744,
     assumptions: ["Batch size = 1", "Weights fit within VRAM"],
-    errors: [],
+    warnings: [],
+    unsupported_reasons: [],
+    confidence: "high",
+    resolved_hardware: {
+      name: "RTX 4090 (24 GB)",
+      usable_memory_bytes: 24696061952,
+      profile_type: "preset",
+    },
   };
 
   it("renders fits badge and hardware name", () => {
@@ -30,13 +35,13 @@ describe("EstimationResultCard component", () => {
 
     expect(screen.getByText("Fits Comfortably")).toBeDefined();
     expect(screen.getByText(/RTX 4090/)).toBeDefined();
-    expect(screen.getByText("Q4_K_M")).toBeDefined();
+    expect(screen.getByText("high")).toBeDefined();
   });
 
-  it("renders overflow badge when fits is false", () => {
+  it("renders overflow badge when verdict is does_not_fit", () => {
     const overflowResult: EstimationResult = {
       ...sampleResult,
-      fits: false,
+      verdict: "does_not_fit",
       headroom_bytes: -5368709120,
     };
 

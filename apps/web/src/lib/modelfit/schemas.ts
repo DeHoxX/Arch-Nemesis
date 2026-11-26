@@ -13,7 +13,13 @@ export const ModelSummarySchema = z.object({
   downloads: z.number().int().default(0),
   likes: z.number().int().default(0),
   is_supported: z.boolean().default(true),
+  architecture_name: z.string().nullable().optional(),
+  total_params: z.number().int().nullable().optional(),
+  gated: z.boolean().default(false),
   license: z.string().nullable().optional(),
+  support_status: z.string().default("not_checked"),
+  support_reason_code: z.string().nullable().optional(),
+  support_reason_message: z.string().nullable().optional(),
   param_provenance: z.string().default("derived"),
   created_at: z.string().optional(),
   updated_at: z.string().optional(),
@@ -23,9 +29,8 @@ export type ModelSummary = z.infer<typeof ModelSummarySchema>;
 
 export const ModelListResponseSchema = z.object({
   items: z.array(ModelSummarySchema),
-  total: z.number().int().default(0),
-  limit: z.number().int().default(20),
-  offset: z.number().int().default(0),
+  next_cursor: z.string().nullable().optional(),
+  has_more: z.boolean().default(false),
 });
 
 export type ModelListResponse = z.infer<typeof ModelListResponseSchema>;
@@ -94,19 +99,28 @@ export const HardwareProfileSchema = z.object({
 
 export type HardwareProfile = z.infer<typeof HardwareProfileSchema>;
 
+export const ResolvedHardwareSchema = z.object({
+  name: z.string(),
+  usable_memory_bytes: z.number().int(),
+  profile_type: z.string(),
+});
+
+export type ResolvedHardware = z.infer<typeof ResolvedHardwareSchema>;
+
 export const EstimationResultSchema = z.object({
-  fits: z.boolean(),
-  total_bytes: z.number().int(),
   weights_bytes: z.number().int(),
   kv_cache_bytes: z.number().int(),
   activation_bytes: z.number().int(),
+  runtime_overhead_bytes: z.number().int(),
+  total_bytes: z.number().int(),
+  per_device_bytes: z.number().int().nullable().optional(),
+  verdict: z.enum(["fits", "fits_tight", "does_not_fit", "cannot_estimate"]),
   headroom_bytes: z.number().int(),
-  total_params: z.number().int(),
-  is_context_truncated: z.boolean().default(false),
-  effective_context: z.number().int(),
-  quantization: z.string(),
   assumptions: z.array(z.string()).default([]),
-  errors: z.array(z.string()).default([]),
+  warnings: z.array(z.string()).default([]),
+  unsupported_reasons: z.array(z.string()).default([]),
+  confidence: z.enum(["high", "medium", "low"]),
+  resolved_hardware: ResolvedHardwareSchema.nullable().optional(),
 });
 
 export type EstimationResult = z.infer<typeof EstimationResultSchema>;

@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Search, Download, ThumbsUp, Box, Cpu, Bot, ArrowRight, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { fetchModels } from "@/lib/modelfit/api";
+import type { ModelSummary } from "@/lib/modelfit/schemas";
 
 const COMMON_TAGS = [
   "all",
@@ -22,7 +23,6 @@ export default function ModelsCatalogPage() {
   const [searchInput, setSearchInput] = useState<string>("");
   const [activeSearch, setActiveSearch] = useState<string>("");
   const [selectedTag, setSelectedTag] = useState<string>("all");
-  const [page, setPage] = useState<number>(0);
   const limit = 24;
 
   const {
@@ -30,29 +30,43 @@ export default function ModelsCatalogPage() {
     isLoading: loading,
     isError,
     error,
-  } = useQuery({
-    queryKey: ["models", activeSearch, selectedTag, page],
-    queryFn: () =>
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["models", activeSearch, selectedTag],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
       fetchModels({
         search: activeSearch.trim() || undefined,
         pipeline_tag: selectedTag !== "all" ? selectedTag : undefined,
         limit,
-        offset: page * limit,
-        sort_by: "downloads",
-        sort_order: "desc",
+        cursor: pageParam,
+        sort: "downloads",
       }),
+    getNextPageParam: (lastPage) =>
+      lastPage.next_cursor ? lastPage.next_cursor : undefined,
   });
 
-  const models = data?.items ?? [];
-  const total = data?.total ?? 0;
+  const models = useMemo<ModelSummary[]>(() => {
+    if (!data?.pages) return [];
+    const seen = new Set<string>();
+    const deduped: ModelSummary[] = [];
+    for (const p of data.pages) {
+      for (const item of p.items) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          deduped.push(item);
+        }
+      }
+    }
+    return deduped;
+  }, [data]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(0);
     setActiveSearch(searchInput);
   };
-
-  const totalPages = Math.ceil(total / limit);
 
   return (
     <div className="min-h-screen bg-page-bg text-foreground p-6 sm:p-10 space-y-8 max-w-7xl mx-auto">
@@ -109,10 +123,7 @@ export default function ModelsCatalogPage() {
             <button
               key={tag}
               type="button"
-              onClick={() => {
-                setSelectedTag(tag);
-                setPage(0);
-              }}
+              onClick={() => setSelectedTag(tag)}
               className={`px-2.5 py-1 rounded-full text-xs font-mono transition-colors ${
                 selectedTag === tag
                   ? "bg-primary text-primary-foreground font-semibold"
@@ -201,32 +212,20 @@ export default function ModelsCatalogPage() {
         </div>
       )}
 
-      {/* Pagination controls */}
-      {totalPages > 1 && (
+      {/* Cursor Load More pagination (respects HF 30 req/60s limit) */}
+      {hasNextPage && (
         <div className="flex items-center justify-between border-t border-border/60 pt-4 text-xs font-mono text-muted-foreground">
-          <span>
-            Page {page + 1} of {totalPages} ({total} models total)
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page === 0}
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              className="h-8 text-xs font-mono"
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
-              className="h-8 text-xs font-mono"
-            >
-              Next
-            </Button>
-          </div>
+          <span>Showing {models.length} models</span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={isFetchingNextPage}
+            onClick={() => fetchNextPage()}
+            className="h-8 text-xs font-mono"
+          >
+            {isFetchingNextPage ? "Loading more..." : "Load more"}
+          </Button>
         </div>
       )}
     </div>

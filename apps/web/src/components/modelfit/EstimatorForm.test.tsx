@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { EstimatorForm } from "./EstimatorForm";
-import { buildEstimateRequestPayload } from "@/lib/modelfit/api";
+import { buildEstimateRequestPayload, estimateMemory } from "@/lib/modelfit/api";
 import type { HardwareProfile } from "@/lib/modelfit/schemas";
 
 const PRESET_GPU: HardwareProfile = {
@@ -13,32 +13,96 @@ const PRESET_GPU: HardwareProfile = {
   is_preset: true,
 };
 
-const VALID_ESTIMATE_RESPONSE = {
-  fits: true,
-  total_bytes: 6_000_000_000,
+const REAL_BACKEND_ESTIMATE_RESPONSE = {
   weights_bytes: 4_500_000_000,
   kv_cache_bytes: 1_000_000_000,
   activation_bytes: 300_000_000,
-  headroom_bytes: 2_000_000_000,
-  total_params: 7_000_000_000,
-  is_context_truncated: false,
-  effective_context: 4096,
-  quantization: "q4_k_m",
-  assumptions: [],
-  errors: [],
+  runtime_overhead_bytes: 200_000_000,
+  total_bytes: 6_000_000_000,
+  per_device_bytes: 6_000_000_000,
+  verdict: "fits" as const,
+  headroom_bytes: 18_696_061_952,
+  assumptions: ["Using Q4_K_M quantization"],
+  warnings: [],
+  unsupported_reasons: [],
+  confidence: "high" as const,
+  resolved_hardware: {
+    name: "NVIDIA GeForce RTX 4090",
+    usable_memory_bytes: 24_696_061_952,
+    profile_type: "preset",
+  },
 };
 
-describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () => {
+const SEARCH_MODELS_RESPONSE = {
+  items: [
+    {
+      id: "Qwen/Qwen2.5-7B-Instruct",
+      author: "Qwen",
+      model_name: "Qwen2.5-7B-Instruct",
+      pipeline_tag: "text-generation",
+      downloads: 120000,
+      likes: 4500,
+      is_supported: true,
+      total_params: 7_600_000_000,
+      gated: false,
+      support_status: "supported_llm",
+    },
+    {
+      id: "evil/<script>alert(1)</script>",
+      author: "<img src=x onerror=alert(1)>",
+      model_name: "<script>alert(1)</script>",
+      pipeline_tag: "text-generation",
+      downloads: 10,
+      likes: 1,
+      is_supported: true,
+      total_params: 1_500_000_000,
+      gated: false,
+      support_status: "supported_llm",
+    },
+  ],
+  next_cursor: null,
+  has_more: false,
+};
+
+describe("buildEstimateRequestPayload, estimateMemory & EstimatorForm picker", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it("builds exact nested body for repo_id + hardware profile with default config values", () => {
+  it("parses realistic unwrapped backend EstimationResult in estimateMemory", async () => {
+    const fetchMock = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async () => {
+      return new Response(JSON.stringify(REAL_BACKEND_ESTIMATE_RESPONSE), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
     const payload = buildEstimateRequestPayload({
+      repoId: "Qwen/Qwen2.5-7B-Instruct",
+      quantization: "q4_k_m",
+      contextLength: 4096,
+      selectedHardware: PRESET_GPU,
+      customMemoryGb: null,
+    });
+    const parsed = await estimateMemory(payload);
+
+    expect(parsed.verdict).toBe("fits");
+    expect(parsed.total_bytes).toBe(6_000_000_000);
+    expect(parsed.runtime_overhead_bytes).toBe(200_000_000);
+    expect(parsed.confidence).toBe("high");
+    expect(parsed.resolved_hardware?.name).toBe("NVIDIA GeForce RTX 4090");
+  });
+
+  it("builds exact nested body for repo_id + hardware profile and custom memory GB", () => {
+    const presetPayload = buildEstimateRequestPayload({
       repoId: "  Qwen/Qwen2.5-7B-Instruct  ",
       quantization: "Q4_K_M",
       contextLength: 4096,
@@ -46,7 +110,7 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
       customMemoryGb: null,
     });
 
-    expect(payload).toEqual({
+    expect(presetPayload).toEqual({
       repo_id: "Qwen/Qwen2.5-7B-Instruct",
       config: {
         quantization: "q4_k_m",
@@ -65,11 +129,8 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
         is_preset: true,
       },
     });
-    expect(Object.keys(payload)).toEqual(["repo_id", "config", "hardware"]);
-  });
 
-  it("builds exact nested body for repo_id + custom memory GB with default config values", () => {
-    const payload = buildEstimateRequestPayload({
+    const customPayload = buildEstimateRequestPayload({
       repoId: "meta-llama/Llama-3.1-8B",
       quantization: "fp16",
       contextLength: 8192,
@@ -77,7 +138,7 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
       customMemoryGb: 24,
     });
 
-    expect(payload).toEqual({
+    expect(customPayload).toEqual({
       repo_id: "meta-llama/Llama-3.1-8B",
       config: {
         quantization: "fp16",
@@ -98,8 +159,10 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
     });
   });
 
-  it("submits exact nested JSON body on EstimatorForm submit for preset and custom memory", async () => {
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+  it("hides Param Count toggle, debounces search, renders hostile strings as text, selects repo_id, and submits nested payload", async () => {
+    const fetchMock = vi.fn<
+      (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+    >(async (input, init) => {
       const url = String(input);
       if (url.endsWith("/api/hardware") && (!init?.method || init.method === "GET")) {
         return new Response(JSON.stringify([PRESET_GPU]), {
@@ -107,8 +170,14 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
           headers: { "Content-Type": "application/json" },
         });
       }
+      if (url.includes("/api/models") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify(SEARCH_MODELS_RESPONSE), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
       if (url.endsWith("/api/estimator") && init?.method === "POST") {
-        return new Response(JSON.stringify(VALID_ESTIMATE_RESPONSE), {
+        return new Response(JSON.stringify(REAL_BACKEND_ESTIMATE_RESPONSE), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
@@ -117,21 +186,59 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
     });
     vi.stubGlobal("fetch", fetchMock);
 
-    render(<EstimatorForm initialModelId="Qwen/Qwen2.5-7B-Instruct" />);
+    const { container } = render(<EstimatorForm />);
+
+    // Param Count button must be hidden
+    expect(screen.queryByRole("button", { name: /Param Count/i })).toBeNull();
 
     await waitFor(() => {
       expect(screen.getByText(/NVIDIA GeForce RTX 4090/)).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Calculate Memory Footprint/i }));
+    vi.useFakeTimers();
+    const searchInput = screen.getByRole("combobox", { name: /Model search/i });
+    fireEvent.change(searchInput, { target: { value: "Qwen" } });
+
+    expect(screen.getByText("Searching models...")).toBeDefined();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(310);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByText("Qwen2.5-7B-Instruct")).toBeDefined();
+      expect(screen.getByText("7.6B params")).toBeDefined();
+      expect(screen.getByText("<script>alert(1)</script>")).toBeDefined();
+      expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeDefined();
+    });
+
+    // Hostile strings must never inject script tags
+    expect(container.querySelectorAll("script").length).toBe(0);
+
+    const modelCalls = fetchMock.mock.calls.filter(([u]) =>
+      String(u).includes("/api/models")
+    );
+    expect(modelCalls.length).toBe(1);
+    expect(String(modelCalls[0]?.[0])).toContain("search=Qwen");
+
+    // Keyboard select first item via Enter
+    fireEvent.keyDown(searchInput, { key: "Enter" });
+    expect(screen.getByText(/Selected:/)).toBeDefined();
+    expect(screen.getByText("Qwen/Qwen2.5-7B-Instruct")).toBeDefined();
+
+    // Submit form
+    fireEvent.click(
+      screen.getByRole("button", { name: /Calculate Memory Footprint/i })
+    );
 
     await waitFor(() => {
       const postCall = fetchMock.mock.calls.find(
         ([u, init]) => String(u).endsWith("/api/estimator") && init?.method === "POST"
       );
       expect(postCall).toBeDefined();
-      const sentBody = JSON.parse(String(postCall?.[1]?.body));
-      expect(sentBody).toEqual({
+      const body = JSON.parse(String(postCall?.[1]?.body));
+      expect(body).toEqual({
         repo_id: "Qwen/Qwen2.5-7B-Instruct",
         config: {
           quantization: "q4_k_m",
@@ -152,46 +259,29 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
       });
     });
 
-    // Switch to Custom Budget and re-submit
-    fireEvent.click(screen.getByRole("button", { name: /Custom Budget/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Calculate Memory Footprint/i }));
-
-    await waitFor(() => {
-      const postCalls = fetchMock.mock.calls.filter(
-        ([u, init]) => String(u).endsWith("/api/estimator") && init?.method === "POST"
-      );
-      expect(postCalls.length).toBe(2);
-      const customBody = JSON.parse(String(postCalls[1]?.[1]?.body));
-      expect(customBody).toEqual({
-        repo_id: "Qwen/Qwen2.5-7B-Instruct",
-        config: {
-          quantization: "q4_k_m",
-          kv_cache_dtype: "fp16",
-          context_length: 4096,
-          batch_size: 1,
-          runtime: "llama_cpp",
-          gpu_count: 1,
-          tensor_parallel_degree: 1,
-        },
-        hardware: {
-          name: "16 GB Custom Memory",
-          memory_bytes: 16 * 1024 * 1024 * 1024,
-          kind: "gpu",
-          reserved_memory_bytes: 0,
-          is_preset: false,
-        },
-      });
-    });
+    // Clear button clears repo selection
+    fireEvent.click(screen.getByRole("button", { name: /Clear/i }));
+    expect(screen.queryByText(/Selected:/)).toBeNull();
   });
 
-  it("rejects empty repo_id and does not fabricate model objects for param-count-only mode", async () => {
+  it("renders plain-text empty and error states in model search", async () => {
     const fetchMock = vi.fn<
       (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-    >(async () => {
-      return new Response(JSON.stringify([PRESET_GPU]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+    >(async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/api/hardware") && (!init?.method || init.method === "GET")) {
+        return new Response(JSON.stringify([PRESET_GPU]), { status: 200 });
+      }
+      if (url.includes("search=Empty")) {
+        return new Response(
+          JSON.stringify({ items: [], next_cursor: null, has_more: false }),
+          { status: 200 }
+        );
+      }
+      if (url.includes("search=Fail")) {
+        return new Response("Upstream error", { status: 502 });
+      }
+      return new Response("Not found", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -200,16 +290,27 @@ describe("buildEstimateRequestPayload & EstimatorForm POST /api/estimator", () =
       expect(screen.getByText(/NVIDIA GeForce RTX 4090/)).toBeDefined();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /Param Count/i }));
-    fireEvent.click(screen.getByRole("button", { name: /Calculate Memory Footprint/i }));
+    vi.useFakeTimers();
+    const searchInput = screen.getByRole("combobox", { name: /Model search/i });
+    fireEvent.change(searchInput, { target: { value: "Empty" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(310);
+    });
+    vi.useRealTimers();
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Parameter-count-only estimation is not supported/i)
-      ).toBeDefined();
+      expect(screen.getByText("No matching models found.")).toBeDefined();
     });
 
-    const postCalls = fetchMock.mock.calls.filter(([, init]) => init?.method === "POST");
-    expect(postCalls.length).toBe(0);
+    vi.useFakeTimers();
+    fireEvent.change(searchInput, { target: { value: "Fail" } });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(310);
+    });
+    vi.useRealTimers();
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to fetch models: 502/)).toBeDefined();
+    });
   });
 });

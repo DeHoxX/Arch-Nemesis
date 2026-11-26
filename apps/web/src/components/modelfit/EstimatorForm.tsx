@@ -8,8 +8,13 @@ import {
   buildEstimateRequestPayload,
   estimateMemory,
   fetchHardwareProfiles,
+  fetchModels,
 } from "@/lib/modelfit/api";
-import type { EstimationResult, HardwareProfile } from "@/lib/modelfit/schemas";
+import type {
+  EstimationResult,
+  HardwareProfile,
+  ModelSummary,
+} from "@/lib/modelfit/schemas";
 import { EstimationResultCard } from "./EstimationResultCard";
 
 interface EstimatorFormProps {
@@ -26,18 +31,20 @@ const QUANT_OPTIONS = [
 
 export function EstimatorForm({
   initialModelId = "",
-  initialParamsB,
 }: EstimatorFormProps) {
   const [hardwareList, setHardwareList] = useState<HardwareProfile[]>([]);
   const [selectedHardwareId, setSelectedHardwareId] = useState<string>("");
   const [customMemoryGb, setCustomMemoryGb] = useState<number>(16);
   const [isCustomHardware, setIsCustomHardware] = useState<boolean>(false);
 
-  const [modelId, setModelId] = useState<string>(initialModelId);
-  const [paramBillions, setParamBillions] = useState<string>(
-    initialParamsB ? String(initialParamsB) : "7"
-  );
-  const [useModelId, setUseModelId] = useState<boolean>(true);
+  const [selectedRepoId, setSelectedRepoId] = useState<string>(initialModelId);
+  const [searchQuery, setSearchQuery] = useState<string>(initialModelId);
+  const [searchDirty, setSearchDirty] = useState<boolean>(false);
+  const [searchResults, setSearchResults] = useState<ModelSummary[]>([]);
+  const [searchLoading, setSearchLoading] = useState<boolean>(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
 
   const [quantization, setQuantization] = useState<string>("q4_k_m");
   const [contextLength, setContextLength] = useState<number>(4096);
@@ -51,7 +58,6 @@ export function EstimatorForm({
       .then((hw) => {
         setHardwareList(hw);
         if (hw.length > 0 && !selectedHardwareId) {
-          // Default to first preset GPU (e.g. RTX 4090 or T4)
           setSelectedHardwareId(hw[0]?.id || "");
         }
       })
@@ -60,20 +66,113 @@ export function EstimatorForm({
       });
   }, [selectedHardwareId]);
 
+  useEffect(() => {
+    if (!searchDirty) {
+      return;
+    }
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const timer = setTimeout(() => {
+      fetchModels({ search: trimmed, limit: 10 })
+        .then((res) => {
+          if (cancelled) return;
+          setSearchResults(res.items);
+          setHighlightedIndex(res.items.length > 0 ? 0 : -1);
+          setSearchError(null);
+          setSearchLoading(false);
+        })
+        .catch((err: unknown) => {
+          if (cancelled) return;
+          setSearchResults([]);
+          setSearchError(
+            err instanceof Error ? err.message : "Failed to search models"
+          );
+          setSearchLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [searchQuery, searchDirty]);
+
+  const handleSelectModel = (model: ModelSummary) => {
+    setSelectedRepoId(model.id);
+    setSearchQuery(model.id);
+    setSearchDirty(false);
+    setIsDropdownOpen(false);
+    setHighlightedIndex(-1);
+    setSearchError(null);
+  };
+
+  const handleClearModel = () => {
+    setSelectedRepoId("");
+    setSearchQuery("");
+    setSearchDirty(false);
+    setSearchResults([]);
+    setSearchError(null);
+    setIsDropdownOpen(false);
+    setHighlightedIndex(-1);
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!isDropdownOpen && searchQuery.trim()) {
+        setIsDropdownOpen(true);
+      }
+      if (searchResults.length > 0) {
+        setHighlightedIndex((prev) =>
+          prev < searchResults.length - 1 ? prev + 1 : 0
+        );
+      }
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (searchResults.length > 0) {
+        setHighlightedIndex((prev) =>
+          prev > 0 ? prev - 1 : searchResults.length - 1
+        );
+      }
+    } else if (e.key === "Enter") {
+      if (
+        isDropdownOpen &&
+        highlightedIndex >= 0 &&
+        highlightedIndex < searchResults.length
+      ) {
+        e.preventDefault();
+        const item = searchResults[highlightedIndex];
+        if (item) {
+          handleSelectModel(item);
+        }
+      }
+    } else if (e.key === "Escape") {
+      setIsDropdownOpen(false);
+      setHighlightedIndex(-1);
+    }
+  };
+
   const handleEstimate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
     try {
-      if (!useModelId) {
-        throw new Error(
-          "Parameter-count-only estimation is not supported by the current backend schema; please enter a Hugging Face Repo ID."
-        );
+      const repoId = selectedRepoId.trim();
+      if (!repoId) {
+        throw new Error("Please search and select a model before estimating.");
       }
-      const chosenHardware = hardwareList.find((h) => h.id === selectedHardwareId);
+
+      const chosenHardware = hardwareList.find(
+        (h) => h.id === selectedHardwareId
+      );
       const payload = buildEstimateRequestPayload({
-        repoId: modelId,
+        repoId,
         quantization,
         contextLength,
         selectedHardware: isCustomHardware ? null : chosenHardware,
@@ -89,10 +188,16 @@ export function EstimatorForm({
     }
   };
 
-  const selectedHardware = hardwareList.find((h) => h.id === selectedHardwareId);
+  const selectedHardware = hardwareList.find(
+    (h) => h.id === selectedHardwareId
+  );
   const hardwareLabel = isCustomHardware
     ? `${customMemoryGb} GB Custom Memory`
     : selectedHardware?.name || "Selected Hardware";
+
+  const showDropdown =
+    isDropdownOpen &&
+    (searchLoading || searchError !== null || searchQuery.trim().length > 0);
 
   return (
     <div className="space-y-6">
@@ -109,66 +214,134 @@ export function EstimatorForm({
           </p>
         </div>
 
-        {/* Model Spec */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <Label className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-              Model Specification
-            </Label>
-            <div className="flex items-center gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => setUseModelId(true)}
-                className={`px-2 py-0.5 rounded font-mono transition-colors ${
-                  useModelId
-                    ? "bg-primary text-primary-foreground font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Repo ID
-              </button>
-              <button
-                type="button"
-                onClick={() => setUseModelId(false)}
-                className={`px-2 py-0.5 rounded font-mono transition-colors ${
-                  !useModelId
-                    ? "bg-primary text-primary-foreground font-semibold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                Param Count
-              </button>
-            </div>
+        {/* Searchable Model Picker */}
+        <div className="space-y-2 relative">
+          <Label
+            htmlFor="estimator-model-search"
+            className="text-xs font-mono uppercase tracking-wider text-muted-foreground"
+          >
+            Model Specification
+          </Label>
+
+          <div className="flex items-center gap-2">
+            <Input
+              id="estimator-model-search"
+              role="combobox"
+              aria-label="Model search"
+              aria-expanded={showDropdown}
+              aria-controls="estimator-model-listbox"
+              aria-autocomplete="list"
+              value={searchQuery}
+              onChange={(e) => {
+                const nextVal = e.target.value;
+                setSearchQuery(nextVal);
+                setSelectedRepoId("");
+                setSearchDirty(true);
+                setIsDropdownOpen(true);
+                setHighlightedIndex(-1);
+                setSearchError(null);
+                if (nextVal.trim()) {
+                  setSearchLoading(true);
+                } else {
+                  setSearchResults([]);
+                  setSearchLoading(false);
+                }
+              }}
+              onFocus={() => {
+                if (searchQuery.trim() && !selectedRepoId) {
+                  setIsDropdownOpen(true);
+                }
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Search Hugging Face models (e.g. Qwen, Llama)..."
+              className="bg-surface-input font-mono text-xs border-border/80 flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleClearModel}
+              disabled={!searchQuery && !selectedRepoId}
+              className="font-mono text-xs shrink-0"
+            >
+              Clear
+            </Button>
           </div>
 
-          {useModelId ? (
-            <div>
-              <Input
-                value={modelId}
-                onChange={(e) => setModelId(e.target.value)}
-                placeholder="e.g. Qwen/Qwen2.5-7B-Instruct or meta-llama/Llama-3.1-8B"
-                className="bg-surface-input font-mono text-xs border-border/80"
-              />
-              <p className="text-[11px] text-muted-foreground mt-1">
-                Reads exact architectural weights & tensor shapes from model cache or Hugging Face config.
-              </p>
-            </div>
-          ) : (
-            <div>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  step="0.1"
-                  min="0.1"
-                  max="1000"
-                  value={paramBillions}
-                  onChange={(e) => setParamBillions(e.target.value)}
-                  className="bg-surface-input font-mono text-xs w-32 border-border/80"
-                />
-                <span className="text-xs font-mono text-muted-foreground">Billion Parameters (e.g. 7 for 7B)</span>
-              </div>
+          {selectedRepoId && (
+            <p className="text-[11px] font-mono text-muted-foreground">
+              Selected: <span className="text-foreground">{selectedRepoId}</span>
+            </p>
+          )}
+
+          {showDropdown && (
+            <div
+              id="estimator-model-listbox"
+              role="listbox"
+              aria-label="Model search results"
+              className="rounded-lg border border-border/80 bg-card shadow-md max-h-60 overflow-y-auto divide-y divide-border/50"
+            >
+              {searchLoading ? (
+                <div className="p-3 text-xs font-mono text-muted-foreground">
+                  Searching models...
+                </div>
+              ) : searchError ? (
+                <div className="p-3 text-xs font-mono text-destructive bg-destructive/10">
+                  {searchError}
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="p-3 text-xs font-mono text-muted-foreground">
+                  No matching models found.
+                </div>
+              ) : (
+                searchResults.map((item, idx) => {
+                  const isActive = idx === highlightedIndex;
+                  const paramsLabel =
+                    item.total_params !== null &&
+                    item.total_params !== undefined &&
+                    item.total_params > 0
+                      ? `${(item.total_params / 1e9).toFixed(1)}B params`
+                      : null;
+
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      role="option"
+                      aria-selected={isActive}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        handleSelectModel(item);
+                      }}
+                      className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between gap-2 ${
+                        isActive
+                          ? "bg-accent text-accent-foreground"
+                          : "hover:bg-accent/50 text-foreground"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold truncate">
+                          {item.model_name}
+                        </div>
+                        <div className="text-[11px] font-mono text-muted-foreground truncate">
+                          {item.author}
+                        </div>
+                      </div>
+                      {paramsLabel && (
+                        <span className="text-[11px] font-mono text-muted-foreground shrink-0">
+                          {paramsLabel}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
             </div>
           )}
+
+          <p className="text-[11px] text-muted-foreground">
+            Searches the catalog via Hugging Face Hub and reads exact model metadata by Repo ID.
+          </p>
         </div>
 
         {/* Hardware Spec */}
@@ -214,7 +387,7 @@ export function EstimatorForm({
                 className="bg-surface-input font-mono text-xs w-32 border-border/80"
               />
               <span className="text-xs font-mono text-muted-foreground">
-                GB Total Memory (5% reserved for OS runtime)
+                GB Total Memory (0 GiB reserved by default)
               </span>
             </div>
           ) : (
