@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Bot, Layers, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { SuggestedModelsSection } from "./SuggestedModelsSection";
 import type { ArchitectureSpec, ConstraintSpec, EdgeSpec, NodeSpec, UnionArchitectureSpec } from "@/lib/types";
 
 export interface BlockLayerSelection {
@@ -15,6 +16,8 @@ export interface BlockDetailPanelProps {
   edge?: EdgeSpec | null;
   layer?: BlockLayerSelection | null;
   spec: ArchitectureSpec | UnionArchitectureSpec;
+  designId?: string;
+  versionNo?: number;
   onClose?: () => void;
   onSelectNode?: (nodeId: string) => void;
   onSelectLayer?: (layerName: string) => void;
@@ -36,6 +39,8 @@ export function BlockDetailPanel({
   edge,
   layer,
   spec,
+  designId,
+  versionNo,
   onClose,
   onSelectNode,
   onSelectLayer,
@@ -405,27 +410,35 @@ export function BlockDetailPanel({
 
         {/* AI model statement */}
         {node.needs_model && (
-          <div className="space-y-2 rounded-md border border-line bg-surface-elevated text-foreground p-2.5 text-xs">
-            <div>This part uses an AI model.</div>
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="w-full h-7 text-xs font-mono border-line text-foreground hover:bg-hover"
-            >
-              <Link
-                href="/models/advisor"
-                onClick={() => {
-                  if (typeof window !== "undefined") {
-                    const prompt = `What are the best open-source models for '${node.name}' (role: ${node.role}) on consumer/cloud hardware?`;
-                    window.sessionStorage.setItem("advisor_prefill_prompt", prompt);
-                  }
-                }}
+          <div className="space-y-3 rounded-md border border-line bg-surface-elevated text-foreground p-2.5 text-xs">
+            <div className="space-y-2">
+              <div>This part uses an AI model.</div>
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="w-full h-7 text-xs font-mono border-line text-foreground hover:bg-hover"
               >
-                <Bot className="size-3 mr-1.5" />
-                Ask Advisor about models
-              </Link>
-            </Button>
+                <Link
+                  href="/models/advisor"
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      const prompt = `What are the best open-source models for '${node.name}' (role: ${node.role}) on consumer/cloud hardware?`;
+                      window.sessionStorage.setItem("advisor_prefill_prompt", prompt);
+                    }
+                  }}
+                >
+                  <Bot className="size-3 mr-1.5" />
+                  Ask Advisor about models
+                </Link>
+              </Button>
+            </div>
+
+            <SuggestedModelsSection
+              designId={designId}
+              versionNo={versionNo}
+              nodeId={node.id}
+            />
           </div>
         )}
       </div>

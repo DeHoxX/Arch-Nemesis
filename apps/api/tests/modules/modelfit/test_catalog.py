@@ -1,13 +1,17 @@
 """Unit tests for model catalog classification, normalization, and rate limiting."""
 
+from typing import Any
+
 import httpx
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from archnemesis.errors import AppError
 from archnemesis.modules.modelfit.catalog.classifier import classify_model_support
 from archnemesis.modules.modelfit.catalog.hf_client import HubClient
 from archnemesis.modules.modelfit.catalog.normalizer import normalize_hf_config
 from archnemesis.modules.modelfit.catalog.schemas import SupportStatus
+from archnemesis.modules.modelfit.catalog.service import CatalogService
 from archnemesis.modules.modelfit.estimator.schemas import ArchitectureCategory
 
 
@@ -103,3 +107,193 @@ async def test_hub_client_converts_httpx_timeout_and_network_error_to_app_error(
             await hub.list_models()
         assert exc_info.value.code == "UPSTREAM_UNAVAILABLE"
         assert exc_info.value.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_get_model_detail_single_file_404_with_safetensors_total_in_info(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/api/models/org/test-sharded"):
+            return httpx.Response(
+                200,
+                json={
+                    "pipeline_tag": "text-generation",
+                    "downloads": 500,
+                    "likes": 50,
+                    "gated": False,
+                    "safetensors": {"total": 14_000_000_000},
+                },
+            )
+        elif url.endswith("/org/test-sharded/raw/main/config.json"):
+            return httpx.Response(
+                200,
+                json={
+                    "architectures": ["Qwen2ForCausalLM"],
+                    "num_hidden_layers": 28,
+                    "hidden_size": 3584,
+                    "num_attention_heads": 28,
+                },
+            )
+        elif url.endswith("/org/test-sharded/resolve/main/model.safetensors"):
+            return httpx.Response(404, json={"error": "Entry not found"})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        hub = HubClient(client=client)
+        svc = CatalogService(hub_client=hub)
+        async with temp_db_session_factory() as session:
+            detail = await svc.get_model_detail(session, "org/test-sharded")
+            assert detail.param_provenance == "safetensors"
+            assert detail.normalized_model.total_params == 14_000_000_000
+            assert detail.is_supported is True
+            assert detail.downloads == 500
+
+
+@pytest.mark.asyncio
+async def test_get_model_detail_single_file_404_no_total_falls_back_to_derived(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/api/models/org/test-dim"):
+            return httpx.Response(
+                200,
+                json={
+                    "pipeline_tag": "text-generation",
+                    "downloads": 100,
+                    "likes": 10,
+                    "gated": False,
+                },
+            )
+        elif url.endswith("/org/test-dim/raw/main/config.json"):
+            return httpx.Response(
+                200,
+                json={
+                    "architectures": ["LlamaForCausalLM"],
+                    "num_hidden_layers": 32,
+                    "hidden_size": 4096,
+                    "num_attention_heads": 32,
+                },
+            )
+        elif url.endswith("/org/test-dim/resolve/main/model.safetensors"):
+            return httpx.Response(404, json={"error": "Entry not found"})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        hub = HubClient(client=client)
+        svc = CatalogService(hub_client=hub)
+        async with temp_db_session_factory() as session:
+            detail = await svc.get_model_detail(session, "org/test-dim")
+            assert detail.param_provenance == "derived"
+            assert detail.normalized_model.total_params is not None
+            assert detail.normalized_model.total_params > 0
+
+
+@pytest.mark.asyncio
+async def test_inspect_safetensors_header_429_and_5xx_propagate() -> None:
+    def handler_429(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, headers={"Retry-After": "30"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler_429)) as client:
+        hub = HubClient(client=client)
+        with pytest.raises(AppError) as exc_429:
+            await hub.inspect_safetensors_header("org/model-429")
+        assert exc_429.value.code == "HF_RATE_LIMITED"
+        assert exc_429.value.status_code == 429
+
+    def handler_502(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(502, json={"error": "Bad Gateway"})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler_502)) as client:
+        hub = HubClient(client=client)
+        with pytest.raises(AppError) as exc_502:
+            await hub.inspect_safetensors_header("org/model-502")
+        assert exc_502.value.code == "UPSTREAM_UNAVAILABLE"
+        assert exc_502.value.status_code == 502
+
+
+@pytest.mark.asyncio
+async def test_get_model_detail_sharded_fixture_with_index(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/api/models/org/sharded-model"):
+            return httpx.Response(
+                200,
+                json={
+                    "pipeline_tag": "text-generation",
+                    "downloads": 1000,
+                    "likes": 80,
+                    "gated": False,
+                    "safetensors": {"total": 32_000_000_000},
+                },
+            )
+        elif url.endswith("/org/sharded-model/raw/main/config.json"):
+            return httpx.Response(
+                200,
+                json={
+                    "architectures": ["Qwen2ForCausalLM"],
+                    "num_hidden_layers": 32,
+                    "hidden_size": 4096,
+                    "num_attention_heads": 32,
+                },
+            )
+        elif url.endswith("/org/sharded-model/resolve/main/model.safetensors.index.json"):
+            return httpx.Response(200, json={"metadata": {"total_size": 64_000_000_000}})
+        elif url.endswith("/org/sharded-model/resolve/main/model.safetensors"):
+            return httpx.Response(404, json={"error": "Entry not found"})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        hub = HubClient(client=client)
+        svc = CatalogService(hub_client=hub)
+        async with temp_db_session_factory() as session:
+            detail = await svc.get_model_detail(session, "org/sharded-model")
+            assert detail.param_provenance == "safetensors"
+            assert detail.normalized_model.total_params == 32_000_000_000
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("invalid_total", ["14000000000", 0, -100, True, False])
+async def test_get_model_detail_safetensors_total_invalid_types_ignored(
+    temp_db_session_factory: async_sessionmaker[AsyncSession],
+    invalid_total: Any,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/api/models/org/invalid-total"):
+            return httpx.Response(
+                200,
+                json={
+                    "pipeline_tag": "text-generation",
+                    "downloads": 50,
+                    "likes": 5,
+                    "gated": False,
+                    "safetensors": {"total": invalid_total},
+                },
+            )
+        elif url.endswith("/org/invalid-total/raw/main/config.json"):
+            return httpx.Response(
+                200,
+                json={
+                    "architectures": ["LlamaForCausalLM"],
+                    "num_hidden_layers": 16,
+                    "hidden_size": 2048,
+                    "num_attention_heads": 16,
+                },
+            )
+        elif url.endswith("/org/invalid-total/resolve/main/model.safetensors"):
+            return httpx.Response(404, json={"error": "Entry not found"})
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        hub = HubClient(client=client)
+        svc = CatalogService(hub_client=hub)
+        async with temp_db_session_factory() as session:
+            detail = await svc.get_model_detail(session, "org/invalid-total")
+            assert detail.param_provenance == "derived"
+            assert detail.normalized_model.total_params is not None
+            assert detail.normalized_model.total_params > 0

@@ -16,11 +16,11 @@ from archnemesis.modules.models.selection import (
 def test_classify_size_band_threshold_edges() -> None:
     # Small (< 3B)
     assert classify_size_band(2_999_999_999) == SizeBand.SMALL
-    # Medium boundary (3B..10B)
+    # Medium boundary (3B..14B)
     assert classify_size_band(3_000_000_000) == SizeBand.MEDIUM
-    assert classify_size_band(10_000_000_000) == SizeBand.MEDIUM
-    # Large (> 10B)
-    assert classify_size_band(10_000_000_001) == SizeBand.LARGE
+    assert classify_size_band(14_000_000_000) == SizeBand.MEDIUM
+    # Large (> 14B)
+    assert classify_size_band(14_000_000_001) == SizeBand.LARGE
     # Missing / None -> UNKNOWN
     assert classify_size_band(None) == SizeBand.UNKNOWN
 

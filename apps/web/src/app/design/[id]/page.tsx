@@ -807,6 +807,8 @@ function DesignContent(): React.ReactElement {
                           edge={selectedBlockEdge}
                           layer={selectedBlockLayer}
                           spec={activeDesign?.spec ?? displaySpec}
+                          designId={id}
+                          versionNo={activeVersion}
                           onClose={() => {
                             setSelectedBlockNodeId(null);
                             setSelectedBlockEdgeId(null);
@@ -910,6 +912,8 @@ function DesignContent(): React.ReactElement {
                           node={selectedNode}
                           edge={selectedEdge}
                           spec={activeDesign?.spec ?? displaySpec}
+                          designId={id}
+                          versionNo={activeVersion}
                           onClose={() => {
                             setSelectedNodeId(null);
                             setSelectedEdgeId(null);

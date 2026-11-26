@@ -1,4 +1,4 @@
-"""Data schemas and types for model suggestions (Stage 6A/6B, D-401, D-404)."""
+"""Data schemas and types for model suggestions (Stage 6A/6B, D-401, D-404, D-423)."""
 
 from enum import StrEnum
 from typing import Literal
@@ -53,6 +53,7 @@ class ModelSuggestionItem(BaseModel):
     size_band: SizeBand
     downloads: int = 0
     likes: int = 0
+    needs_strong_hardware: bool = False
 
 
 class ModelSuggestionItemResponse(BaseModel):
@@ -70,6 +71,7 @@ class ModelSuggestionItemResponse(BaseModel):
     likes: int = 0
     details_url: str | None = None
     browse_url: str | None = None
+    needs_strong_hardware: bool = False
 
 
 class ModelSuggestionsResponse(BaseModel):

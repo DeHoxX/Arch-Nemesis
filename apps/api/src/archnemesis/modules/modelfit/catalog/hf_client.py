@@ -1,9 +1,12 @@
 """Asynchronous HTTP client for interacting with the Hugging Face Hub API using pure httpx."""
 
+import asyncio
 import json
 import math
 import re
 import struct
+import time
+from collections.abc import Callable
 from typing import Any, cast
 from urllib.parse import unquote
 
@@ -17,6 +20,32 @@ logger = structlog.get_logger(__name__)
 
 HF_API_BASE = "https://huggingface.co/api"
 HF_HUB_BASE = "https://huggingface.co"
+
+
+class HFPacer:
+    """Enforces minimum interval pacing between external Hugging Face network calls (Stage 1, D-422)."""
+
+    def __init__(
+        self,
+        min_interval_seconds: float = 2.1,
+        time_fn: Callable[[], float] = time.monotonic,
+        sleep_fn: Callable[[float], Any] = asyncio.sleep,
+    ) -> None:
+        self.min_interval = min_interval_seconds
+        self.time_fn = time_fn
+        self.sleep_fn = sleep_fn
+        self.last_call_time: float = 0.0
+        self.call_count: int = 0
+
+    async def wait(self) -> None:
+        now = self.time_fn()
+        if self.last_call_time > 0.0:
+            elapsed = now - self.last_call_time
+            if elapsed < self.min_interval:
+                to_sleep = self.min_interval - elapsed
+                await self.sleep_fn(to_sleep)
+        self.last_call_time = self.time_fn()
+        self.call_count += 1
 
 
 class HubClient:
@@ -252,6 +281,11 @@ class HubClient:
                     total_params += math.prod(shape)
 
             return total_params if total_params > 0 else None
+        except AppError as exc:
+            if exc.status_code == 404 and exc.code == "MODEL_NOT_FOUND":
+                logger.debug("safetensors_header_not_found", repo_id=repo_id)
+                return None
+            raise
         except (json.JSONDecodeError, ValueError, struct.error, OSError) as exc:
             logger.debug("safetensors_header_inspection_failed", repo_id=repo_id, error=str(exc))
             return None

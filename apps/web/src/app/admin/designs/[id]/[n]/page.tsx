@@ -463,6 +463,8 @@ function AdminDesignInspectionContent(): React.ReactElement {
                             node={selectedNode}
                             edge={selectedEdge}
                             spec={data.spec}
+                            designId={designId}
+                            versionNo={Number.parseInt(versionRaw, 10) || 1}
                             onClose={() => {
                               setSelectedNodeId(null);
                               setSelectedEdgeId(null);

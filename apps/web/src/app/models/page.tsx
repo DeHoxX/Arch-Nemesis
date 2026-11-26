@@ -136,7 +136,7 @@ export default function ModelsCatalogPage() {
           ))}
         </div>
       ) : isError ? (
-        <div className="rounded-xl border border-rose-600/30 bg-rose-500/10 p-5 text-xs text-rose-500 font-mono">
+        <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-5 text-xs text-destructive font-mono">
           {error instanceof Error ? error.message : "Failed to load models"}
         </div>
       ) : models.length === 0 ? (

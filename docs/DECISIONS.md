@@ -4381,15 +4381,110 @@ Decided by: user instructed
 Status: active
 
 
+### D-420 — Phase M completion — Suggested models UI, advisor loop max round message, detail page full parity, and semantic theme cleanup
+What:
+1. Suggested models UI: Add `modelSuggestionItemSchema`, `modelSuggestionsResponseSchema`, and `postNodeModelSuggestions` in `apps/web/src/lib/api.ts`. Create `SuggestedModelsSection.tsx` component with on-demand loading, elapsed-seconds timer (`can take up to 30 seconds`), `status="ok"` rendering model details link, size band, and parameter counts, and `unavailable`/`empty` status messages with retry capability. Mount into `DetailPanel.tsx` and `BlockDetailPanel.tsx` for `needs_model` nodes. Pass `designId` and `versionNo` from `design/[id]/page.tsx` and `admin/designs/[id]/[n]/page.tsx`.
+2. Advisor Loop fallback message: In `AdvisorService.process_chat`, when `rounds >= MAX_TOOL_ROUNDS` and a tool call was issued, emit `ChatSSEEvent(event="message", data={"delta": "I could not finish this answer. Please rephrase."})` before the `done` event. Support both `delta` and `text` properties in `AdvisorChat.tsx`. Add test assertion in `test_advisor.py`.
+3. Model detail page parity: Upgrade `apps/web/src/app/models/[...repoId]/page.tsx` to full parity with ModelFit original (`E:\CanItRunAI\apps\web\src\app\models\[...repoId]\page.tsx`), adding stale cache warning banner, unsupported/incomplete architecture alert banner, 4-item stats bar, 11-field normalized architecture specifications grid, provenance/gated/support badges, and estimation CTA banner alongside integrated estimator form. Update `NormalizedModelSchema` and `ModelDetailResponseSchema` in `schemas.ts` with `head_dim`, `num_experts`, `experts_per_token`, `sliding_window_size`, and `warning`.
+4. Theme token cleanup: Remove all hardcoded colors (`rose-500`, `rose-600`, `emerald-500`) in `AdvisorChat.tsx`, `EstimationResultCard.tsx`, `EstimatorForm.tsx`, `models/page.tsx`, and `models/[...repoId]/page.tsx`, substituting semantic tokens (`destructive`, `primary`, `surface`, `line`).
+5. Advisor from node & recommendation links: Verified node prompt passes solely via `sessionStorage` and is deleted immediately upon reading, displaying focus model ID when `?repo_id` is query-parameterized; verified recommendation card links directly to `/models/advisor?repo_id=<encoded id>`.
+Why: Completes the ModelFit merge to deliver full functional parity, strict theme compliance, responsive architecture node intelligence, and graceful advisor limits.
+Alternatives considered:
+1. Automatic eager loading of model suggestions in node detail panel: Rejected to prevent unsolicited background API requests and unnecessary latency when clicking around nodes.
+2. Direct inline Markdown rendering in AdvisorChat: Rejected per Rule 5 (untrusted text rendered as plain text).
+If we removed it: Suggested models would remain absent from node inspection, hitting tool round limits would terminate without explanation, model details would lack complete specs and warnings, and hardcoded colors would break theme consistency.
+Decided by: user instructed
+Status: active
 
+### D-421 — Phase M fix — Restore amber classes in DetailPanel and document dark appearance token shifts
+What:
+1. Revert `text-brand-accent` substitutions on `DetailPanel.tsx` (Condition heading, Condition body, Suggestions heading, Lock icon) back to `text-amber-700 dark:text-amber-500`, preserving dark theme visual appearance and fixing `DetailPanel.test.tsx:462`.
+2. Document dark appearance color shift in modelfit/models/estimator components from hardcoded Tailwind rose-500 (`#f43f5e`) to semantic destructive token (`oklch(0.704 0.191 22.216)`).
+Why: Replacing `text-amber-700 dark:text-amber-500` with `text-brand-accent` changed the dark theme appearance (where `--brand-accent` is `#b7c6c2` grey-green rather than amber `#f59e0b`), violating the rule that dark theme must not change, and breaking existing vitest assertions.
+Alternatives considered:
+1. Modifying the vitest assertion to expect `text-brand-accent`: Strictly rejected because test assertions must not be weakened or altered to fit unauthorized theme changes.
+If we removed it: Condition and constraint indicators would appear grey-green in dark mode instead of amber warning tones, and `DetailPanel.test.tsx` would fail.
+Decided by: user instructed
+Status: active
 
+### D-422 — Phase M-Perf — model_shortlists table and script-only refresh
+What:
+1. Create `model_shortlists` database table and migration `0009_model_shortlists` (revising `0008_modelfit_tables`) with schema: `id` (UUID PK), `task_tag` (String 50, indexed), `repo_id` (String 255), `author` (String 100), `model_name` (String 150), `total_params` (BigInteger NOT NULL, extracted strictly from `normalized_model.total_params`), `size_band` (String 20), `downloads` (Integer), `likes` (Integer), `rank_order` (Integer), `refreshed_at` (String 30), and `expires_at` (String 30), with unique constraint on `(task_tag, repo_id)`. Migration truncates `model_suggestions` to clear stale entries.
+2. In `repo.py`, add `get_model_shortlist(db, task_tag)` and `save_model_shortlist(db, task_tag, items)`.
+3. Create standalone CLI script `scripts/refresh_model_shortlists.py` executed exclusively out-of-band by operator/cron (Option 2 approved, no background tasks in API). Per closed pipeline tag, lists catalogue, probes candidates, rejects null parameters, gated repos, or failed probes, and paces outgoing requests to Hugging Face with a minimum interval of 2.1 s between every network call (accounting for model info, config, and safetensors calls). Prints progress, summary table, and elapsed time.
+4. Update `service.get_or_generate_model_suggestions` to query `model_shortlists` directly. If the shortlist is empty for the tag, return `status="unavailable"` with a message directing the operator to run the refresh script. Zero external network calls occur on the user click path.
+Why: Cold-path model suggestion generation previously executed 20 sequential external network calls taking 23–33 seconds per click. Storing a pre-probed, non-gated shortlist with verified numeric parameter counts in SQLite reduces user-facing recommendation latency to sub-second database reads while eliminating upstream Hugging Face rate-limit pressure and failure modes on the critical path.
+Alternatives considered:
+1. In-process background refresh task on API startup: Rejected per user instruction (Option 2) to keep the API server lightweight and eliminate background concurrency.
+2. Caching raw candidate lists without detail probing: Rejected because total_params is null in HF list responses and parameter counts are required for size-band and responsibility tiering.
+If we removed it: Suggestion clicks would continue to take 23–33 s, frequently timing out or exhausting rate limits on upstream Hugging Face APIs.
+Decided by: user instructed
+Status: active
 
+### D-423 — Phase M-Quality — High-responsibility tiering and 14B medium threshold
+What:
+1. In `selection.py`, implement responsibility-based tiering:
+   - Identify high-responsibility nodes via whole-word regex matching on name or role (`orchestrator`, `validator`, `reviewer`, `decision`, `fraud`, `audit`, `planner`), restricted strictly to AI nodes (`needs_model` is True or `ai_role` not in (None, 'none')). Non-AI nodes (e.g., 'audit store') remain normal tier.
+   - For high-responsibility nodes: allocate 2 slots for models >= 30B (`model_size_high_responsibility_min_params = 30_000_000_000`) from different model families (family = author prefix, e.g. Qwen vs meta-llama), plus 1 medium slot. If the task tag has no 30B+ model in the catalogue, return the highest available models without padding and provide an informative message.
+   - For normal-responsibility nodes: apply fit-based selection (small and medium models).
+   - Flag `needs_strong_hardware: bool = False` (set to True when `total_params >= 30_000_000_000`) added to `ModelSuggestionItem` and `ModelSuggestionItemResponse`.
+2. In `settings.py`, update `model_size_medium_max_params = 14_000_000_000` (superseding the 10B limit of D-402) to correctly classify popular 14B models (e.g. Qwen 14B) as medium rather than large, and add `model_size_high_responsibility_min_params = 30_000_000_000`.
+Why: Orchestrators, validators, reviewers, and decision-making agents require greater reasoning capability and should be paired with 30B+ foundation models from diverse model families to avoid vendor monoculture, while specialized tasks (e.g. classification, extraction) operate effectively on smaller models. Updating the medium threshold to 14B accurately reflects current open-source model sizing tiers where 7B–14B models run comfortably on single consumer/prosumer GPUs.
+Alternatives considered:
+1. Forcing 30B minimum on all nodes: Rejected because lightweight extraction and routing nodes do not require 30B+ parameters.
+2. Padding with duplicate models when no 30B+ models exist: Rejected per Rule 1 and user instructions to report clean status without synthetic padding.
+If we removed it: Complex orchestrators would receive underpowered 1B–3B models, and 14B models would be miscategorized as large enterprise models.
+Decided by: user instructed
+Status: active
 
+### D-424 — Phase M-Probe — Safetensors metadata extraction, 404 fallback, and shortlist persistence refinement
+What:
+1. In `hf_client.py` (`inspect_safetensors_header`), catch `AppError` when `exc.code == "MODEL_NOT_FOUND"` (HTTP 404) and return `None`. Other `AppError` exceptions (429, 5xx, `UPSTREAM_UNAVAILABLE`) continue to propagate.
+2. In `service.py` (`get_model_detail`), when `safetensors_params` is `None`, inspect `info.get("safetensors")`. If it is a dictionary and contains a positive integer `total` (`isinstance(total, int) and not isinstance(total, bool) and total > 0`), assign it to `safetensors_params` and pass it to `normalize_hf_config`. Parameter provenance remains `"safetensors"`. Existing normalizer fallbacks (`config`, `derived`) remain intact if still `None`.
+3. In `scripts/refresh_model_shortlists.py`, persist only models with a verified integer `total_params` and non-derived provenance (`param_provenance != "derived"`). Skip models with derived/estimated parameters and count them as `skipped_derived`.
+4. In `scripts/refresh_model_shortlists.py`, add one summary line per tag reporting: `valid`, `skipped_derived`, `gated`, `errors`. Implement retry for network errors (`getaddrinfo`, connection timeout/errors, `UPSTREAM_UNAVAILABLE`) up to 2 times with a 5-second wait before counting as an error.
+Why: Sharded safetensors models (including 14B+ models) lack a single `model.safetensors` file on Hugging Face Hub, causing range requests to return 404. Restoring non-raising 404 handling in `inspect_safetensors_header` and extracting Hugging Face's pre-computed `safetensors.total` from repo metadata allows sharded models to be correctly probed without extra HTTP requests or full shard downloads. Restricting shortlist persistence to verified parameters ensures only reliable, non-heuristic parameter numbers are stored in the shortlist database.
+Alternatives considered:
+1. Downloading and parsing `model.safetensors.index.json` over HTTP: Rejected because HF model-info metadata already provides `safetensors.total`, making extra network calls redundant.
+2. Guessing parameters from model name regex: Strictly rejected per Rule 1 and Rule 4 (code produces numbers, no invented values).
+3. Persisting derived/estimated parameters into `model_shortlists`: Rejected because shortlist sizing bands and hardware requirements require verified parameter counts.
+If we removed it: Probes for sharded models (all 14B+ models) would fail with 404, preventing high-responsibility 30B+ models from being populated in shortlists.
+Decided by: user instructed
+Status: active
 
+### D-425 — Phase M-Probe Fix — Atomic shortlist replacement, intra-batch deduplication, and per-tag error isolation
+What:
+1. In `apps/api/src/archnemesis/modules/models/repo.py` (`save_model_shortlist`), replace ORM row-by-row `session.delete()` with an explicit SQLAlchemy Core `delete(ModelShortlistTable).where(ModelShortlistTable.task_tag == task_tag)` executed before inserting new rows, wrapped in `try/except` with `await db.rollback()` on failure before re-raising.
+2. Deduplicate `items` by `repo_id` inside `save_model_shortlist` (first occurrence wins) and reassign sequential `rank_order` (`1..N`) so intra-batch duplicates cannot trigger a `UNIQUE` constraint failure.
+3. In `scripts/refresh_model_shortlists.py`, isolate per-tag probe and save failures so one tag error logs `tag`, exception class, and the first 200 characters of the error, continues processing remaining tags, prints a failed-tags summary, and exits with code 1 if any tag failed.
+Why: SQLAlchemy's unit-of-work flushes `INSERT`s before ORM `session.delete()`s when no FK dependency orders them, causing `sqlite3.IntegrityError: UNIQUE constraint failed: model_shortlists.task_tag, model_shortlists.repo_id` when re-seeding an existing tag. Executing Core `delete()` first guarantees `DELETE` runs before `INSERT` within the same transaction.
+Alternatives considered:
+1. Calling `await db.flush()` after ORM `db.delete(row)`: Rejected because Core `delete()` is a single bulk statement, avoids loading old ORM rows, and is order-deterministic.
+2. Catching `IntegrityError` and ignoring: Rejected because it masks real failures and leaves stale data.
+If we removed it: Re-running `scripts/refresh_model_shortlists.py` on a populated database would crash on the first overlapping `(task_tag, repo_id)` and abort remaining tags.
+Decided by: user instructed
+Status: active
 
+### D-426 — Phase M-Estimator Fix — Align frontend POST /api/estimator payload with EstimateRequest schema
+What:
+1. Update `apps/web/src/lib/modelfit/api.ts` (`EstimateRequestPayload`, `EstimationConfigPayload`, `HardwareProfileInputPayload`, `buildEstimateRequestPayload`) and `apps/web/src/components/modelfit/EstimatorForm.tsx` to emit the nested `{ repo_id, config, hardware }` request body expected by `EstimateRequest` (`extra="forbid"`).
+2. Normalize `quantization` values in `EstimatorForm.tsx` (`QUANT_OPTIONS`) to lowercase `QuantizationFormat` strings (`q4_k_m`, `q5_k_m`, `q8_0`, `fp16`) and populate required `EstimationConfig` defaults (`kv_cache_dtype: "fp16"`, `batch_size: 1`, `runtime: "llama_cpp"`, `gpu_count: 1`, `tensor_parallel_degree: 1`).
+3. Leave parameter-count-only (`total_params`) estimation disabled/rejected on submit with a clear message instead of fabricating an incomplete `NormalizedModel` object.
+Why: `EstimatorForm.tsx` previously sent a flat legacy payload (`model_id`, `hardware_profile_id`, `quantization`, `context_length`), causing `POST /api/estimator` to fail with HTTP 422 (`config: Field required`, `hardware: Field required`, `extra_forbidden`).
+Alternatives considered:
+1. Modifying backend `EstimateRequest` to accept flat fields or a `total_params`-only model: Rejected to preserve the strict `EstimateRequest` contract (`NormalizedModel` + `EstimationConfig` + `HardwareProfileInput`).
+2. Constructing a synthetic `NormalizedModel` from `paramBillions` in the frontend: Rejected because layer/head dimensions cannot be known from parameter count alone.
+If we removed it: Every `/estimator` calculation from the UI would fail with HTTP 422.
+Decided by: operator prompt
+Status: active
 
-
-
-
-
-
+### D-427 — Phase M-Hardware Draft — Unverified GPU and Apple Silicon candidate catalog draft
+What:
+1. Create `docs/gpu_candidates.json` listing 28 unverified hardware candidates (`name`, `vendor`, `category`, `memory_gb`, `source_url`, `"unverified": true`) across `consumer`, `datacenter`, and `apple_unified`.
+2. Set `source_url` to `null` on all draft entries and `memory_gb` to `null` whenever memory size is not explicitly part of the requested variant name, pending manual verification against vendor datasheets.
+Why: Establish an explicit, unverified hardware expansion candidate list without guessing hardware specifications or modifying seeded `hardware_profiles` prematurely.
+Alternatives considered:
+1. Adding candidates directly into an Alembic migration or `hardware_presets.json` with guessed specs: Rejected because unverified specs and reserved-memory assumptions must not be persisted into verified presets without datasheet verification.
+If we removed it: No staged draft list of target NVIDIA, AMD, Intel, and Apple Silicon profiles would exist for vendor verification.
+Decided by: operator prompt
+Status: active

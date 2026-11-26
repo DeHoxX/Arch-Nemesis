@@ -4,10 +4,15 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from archnemesis.db.tables import DesignTable, DesignVersionTable, ModelSuggestionTable
+from archnemesis.db.tables import (
+    DesignTable,
+    DesignVersionTable,
+    ModelShortlistTable,
+    ModelSuggestionTable,
+)
 from archnemesis.modules.models.schemas import ModelSuggestionItem
 
 
@@ -70,3 +75,43 @@ async def save_model_suggestions(
     await db.commit()
     await db.refresh(record)
     return record
+
+
+async def get_model_shortlist(
+    db: AsyncSession,
+    task_tag: str,
+) -> list[ModelShortlistTable]:
+    """Retrieve all shortlist models for a given task tag ordered by rank_order asc."""
+    stmt = (
+        select(ModelShortlistTable)
+        .where(ModelShortlistTable.task_tag == task_tag)
+        .order_by(ModelShortlistTable.rank_order.asc())
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def save_model_shortlist(
+    db: AsyncSession,
+    task_tag: str,
+    items: list[ModelShortlistTable],
+) -> None:
+    """Atomically replace all shortlist models for a given task tag."""
+    seen_repo_ids: set[str] = set()
+    deduped_items: list[ModelShortlistTable] = []
+    for item in items:
+        if item.repo_id in seen_repo_ids:
+            continue
+        seen_repo_ids.add(item.repo_id)
+        item.rank_order = len(deduped_items) + 1
+        deduped_items.append(item)
+
+    try:
+        await db.execute(
+            delete(ModelShortlistTable).where(ModelShortlistTable.task_tag == task_tag)
+        )
+        db.add_all(deduped_items)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise

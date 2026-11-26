@@ -6,7 +6,7 @@ from typing import Literal
 import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from archnemesis.errors import AppError, NodeNotAIError, NotFoundError
+from archnemesis.errors import NodeNotAIError, NotFoundError
 from archnemesis.llm.base import LLMClient, LLMTask
 from archnemesis.modules.models import repo
 from archnemesis.modules.models.client import ModelFitClient, ModelFitUnavailable
@@ -16,7 +16,12 @@ from archnemesis.modules.models.schemas import (
     ModelSuggestionsResponse,
     ModelTagOutput,
 )
-from archnemesis.modules.models.selection import partition_candidates, select_model_suggestions
+from archnemesis.modules.models.selection import (
+    is_high_responsibility_node,
+    partition_candidates,
+    select_from_shortlist,
+    select_model_suggestions,
+)
 from archnemesis.modules.models.tags import (
     CLOSED_PIPELINE_TAGS,
     fallback_pipeline_tag,
@@ -60,6 +65,7 @@ def _format_response(
                 likes=item.likes,
                 details_url=details_url,
                 browse_url=browse_url,
+                needs_strong_hardware=item.needs_strong_hardware,
             )
         )
 
@@ -171,8 +177,26 @@ async def get_or_generate_model_suggestions(
             tag=tag_val,
         )
 
-    # 7. Query ModelFit Catalogue and Probe Gate Status
-    if client is not None:
+    # 7. Query Stored Model Shortlist (Stage 1, D-422, zero HF calls on click path)
+    shortlist_entries = await repo.get_model_shortlist(db, tag_val)
+    selection_message: str | None = None
+
+    if shortlist_entries:
+        is_high_resp = is_high_responsibility_node(
+            name=target_node.name,
+            role=target_node.role,
+            needs_model=bool(target_node.needs_model),
+            ai_role=target_node.ai_role,
+        )
+        selected, selection_message = select_from_shortlist(
+            items=shortlist_entries,
+            is_high_responsibility=is_high_resp,
+            target_count=3,
+            small_max_params=settings.model_size_small_max_params,
+            medium_max_params=settings.model_size_medium_max_params,
+            high_min_params=settings.model_size_high_responsibility_min_params,
+        )
+    elif client is not None:
         try:
             raw_models = await client.list_models(tag=tag_val)
             candidates = partition_candidates(
@@ -198,54 +222,23 @@ async def get_or_generate_model_suggestions(
                 status="unavailable",
                 task_tag=tag_val,
                 items=[],
-                message="Model suggestions are not available right now.",
+                message="Model suggestions are not available right now. Please run the shortlist refresh script.",
             )
     else:
-        from archnemesis.modules.modelfit.catalog.service import CatalogService
-        from archnemesis.modules.models.schemas import ModelProbeDetail, ProbeResult
+        logger.info(
+            "models_shortlist_empty",
+            design_id=design_id,
+            node_id=node_id,
+            tag=tag_val,
+        )
+        return ModelSuggestionsResponse(
+            status="unavailable",
+            task_tag=tag_val,
+            items=[],
+            message="Model suggestions are not available right now. Please run the shortlist refresh script.",
+        )
 
-        cat_service = CatalogService()
-        try:
-            catalog_res = await cat_service.list_models(
-                session=db,
-                pipeline_tag=tag_val,
-                limit=50,
-            )
-            raw_models = [m.model_dump() for m in catalog_res.items]
-            candidates = partition_candidates(raw_models, tag=tag_val)
-
-            async def in_proc_probe(r_id: str) -> ModelProbeDetail:
-                try:
-                    d = await cat_service.get_model_detail(db, r_id)
-                    s = ProbeResult.OPEN if not d.gated else ProbeResult.GATED
-                    tp = d.normalized_model.total_params if d.normalized_model else None
-                    return ModelProbeDetail(status=s, total_params=tp)
-                except (AppError, ValueError, KeyError):
-                    return ModelProbeDetail(status=ProbeResult.UNKNOWN, total_params=None)
-
-            selected = await select_model_suggestions(
-                candidates,
-                probe_fn=in_proc_probe,
-                max_probes=settings.max_gate_probes_per_node,
-                target_count=3,
-                small_max_params=settings.model_size_small_max_params,
-                medium_max_params=settings.model_size_medium_max_params,
-            )
-        except (AppError, ValueError, KeyError) as exc:
-            logger.warning(
-                "models_fetch_unavailable",
-                design_id=design_id,
-                node_id=node_id,
-                reason=str(exc),
-            )
-            return ModelSuggestionsResponse(
-                status="unavailable",
-                task_tag=tag_val,
-                items=[],
-                message="Model suggestions are not available right now.",
-            )
-
-    # 9. Handle Empty Results (do not persist empty responses)
+    # 8. Handle Empty Results (do not persist empty responses)
     if not selected:
         logger.info(
             "models_empty_results",
@@ -282,4 +275,5 @@ async def get_or_generate_model_suggestions(
         status="ok",
         task_tag=tag_val,
         items=selected,
+        message=selection_message,
     )

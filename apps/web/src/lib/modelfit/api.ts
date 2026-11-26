@@ -77,14 +77,92 @@ export async function fetchHardwareProfiles(): Promise<HardwareProfile[]> {
   return HardwareProfileSchema.array().parse(raw);
 }
 
+export interface EstimationConfigPayload {
+  quantization: string;
+  kv_cache_dtype: "fp16" | "bf16" | "fp8" | "int8";
+  context_length: number;
+  batch_size: number;
+  runtime: "llama_cpp" | "vllm" | "transformers";
+  gpu_count: number;
+  tensor_parallel_degree: number;
+}
+
+export interface HardwareProfileInputPayload {
+  name: string;
+  memory_bytes: number;
+  kind: "gpu" | "apple_unified" | "cpu_ram";
+  reserved_memory_bytes: number;
+  is_preset: boolean;
+}
+
 export interface EstimateRequestPayload {
-  model_id?: string;
-  total_params?: number;
-  hardware_profile_id?: string;
-  hardware_custom_memory_gb?: number;
-  quantization?: string;
-  context_length?: number;
-  batch_size?: number;
+  repo_id?: string | null;
+  config: EstimationConfigPayload;
+  hardware: HardwareProfileInputPayload;
+}
+
+export interface BuildEstimatePayloadInput {
+  repoId: string;
+  quantization: string;
+  contextLength: number;
+  selectedHardware?: HardwareProfile | null;
+  customMemoryGb?: number | null;
+}
+
+const GIB_TO_BYTES = 1024 * 1024 * 1024;
+
+function normalizeHardwareKind(kind: string | undefined): "gpu" | "apple_unified" | "cpu_ram" {
+  if (kind === "apple_unified" || kind === "cpu_ram") {
+    return kind;
+  }
+  return "gpu";
+}
+
+export function buildEstimateRequestPayload(
+  input: BuildEstimatePayloadInput
+): EstimateRequestPayload {
+  const repoId = input.repoId.trim();
+  if (!repoId) {
+    throw new Error("A Hugging Face Repo ID is required for memory estimation.");
+  }
+
+  let hardware: HardwareProfileInputPayload;
+  if (input.selectedHardware) {
+    hardware = {
+      name: input.selectedHardware.name,
+      memory_bytes: input.selectedHardware.memory_bytes,
+      kind: normalizeHardwareKind(input.selectedHardware.kind),
+      reserved_memory_bytes: input.selectedHardware.reserved_memory_bytes ?? 0,
+      is_preset: true,
+    };
+  } else if (input.customMemoryGb !== undefined && input.customMemoryGb !== null) {
+    if (!Number.isFinite(input.customMemoryGb) || input.customMemoryGb <= 0) {
+      throw new Error("Custom memory budget must be greater than 0 GB.");
+    }
+    hardware = {
+      name: `${input.customMemoryGb} GB Custom Memory`,
+      memory_bytes: Math.round(input.customMemoryGb * GIB_TO_BYTES),
+      kind: "gpu",
+      reserved_memory_bytes: 0,
+      is_preset: false,
+    };
+  } else {
+    throw new Error("Please select a hardware profile or enter a custom memory budget.");
+  }
+
+  return {
+    repo_id: repoId,
+    config: {
+      quantization: input.quantization.toLowerCase(),
+      kv_cache_dtype: "fp16",
+      context_length: input.contextLength,
+      batch_size: 1,
+      runtime: "llama_cpp",
+      gpu_count: 1,
+      tensor_parallel_degree: 1,
+    },
+    hardware,
+  };
 }
 
 export async function estimateMemory(

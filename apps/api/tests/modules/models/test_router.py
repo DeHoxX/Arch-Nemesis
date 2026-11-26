@@ -9,7 +9,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from archnemesis.db.tables import ModelSuggestionTable
+from archnemesis.db.tables import ModelShortlistTable, ModelSuggestionTable
 from archnemesis.dependencies import get_db_session, get_llm_client
 from archnemesis.errors import AppError
 from archnemesis.llm.base import LLMClient
@@ -182,6 +182,23 @@ async def test_post_models_success_stores_ok_status(
 
     async with temp_db_session_factory() as db:
         await seed_design_chain(db, design_id="d-router-ok", version_no=1)
+        db.add(
+            ModelShortlistTable(
+                id="shortlist-1",
+                task_tag="text-generation",
+                repo_id="org/model-1",
+                author="org",
+                model_name="model-1",
+                total_params=1_000_000_000,
+                size_band="small",
+                downloads=1000,
+                likes=50,
+                rank_order=1,
+                refreshed_at="2026-11-24T00:00:00Z",
+                expires_at="2026-12-01T00:00:00Z",
+            )
+        )
+        await db.commit()
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"

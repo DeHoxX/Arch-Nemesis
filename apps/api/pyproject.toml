@@ -115,9 +115,6 @@ modules = [
     "archnemesis.modules.models",
     "archnemesis.modules.modelfit",
 ]
-ignore_imports = [
-    "archnemesis.modules.models.service -> archnemesis.modules.modelfit.catalog.service",
-]
 
 [[tool.importlinter.contracts]]
 name = "Estimator is pure"

@@ -291,6 +291,18 @@ class CatalogService:
             # Inspect safetensors header range without downloading weights
             safetensors_params = await self.hub_client.inspect_safetensors_header(repo_id)
 
+            # Fallback to repo metadata safetensors total if single-file header inspection yielded None
+            if safetensors_params is None:
+                st_meta = info.get("safetensors")
+                if isinstance(st_meta, dict):
+                    st_total = st_meta.get("total")
+                    if (
+                        isinstance(st_total, int)
+                        and not isinstance(st_total, bool)
+                        and st_total > 0
+                    ):
+                        safetensors_params = st_total
+
             # Classify support status deterministically
             support_status, support_reason_code, support_reason_message = classify_model_support(
                 pipeline_tag=info.get("pipeline_tag"),

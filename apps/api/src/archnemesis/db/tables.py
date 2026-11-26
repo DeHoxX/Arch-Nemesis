@@ -208,3 +208,26 @@ class HardwareProfileTable(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(30), nullable=False)
     updated_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+
+class ModelShortlistTable(Base):
+    """Database record for pre-probed model shortlists by task tag (Stage 1, D-422)."""
+
+    __tablename__ = "model_shortlists"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    task_tag: Mapped[str] = mapped_column(String(50), index=True, nullable=False)
+    repo_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    author: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_name: Mapped[str] = mapped_column(String(150), nullable=False)
+    total_params: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    size_band: Mapped[str] = mapped_column(String(20), nullable=False)
+    downloads: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    likes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    rank_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    refreshed_at: Mapped[str] = mapped_column(String(30), nullable=False)
+    expires_at: Mapped[str] = mapped_column(String(30), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("task_tag", "repo_id", name="uq_model_shortlists_task_tag_repo_id"),
+    )

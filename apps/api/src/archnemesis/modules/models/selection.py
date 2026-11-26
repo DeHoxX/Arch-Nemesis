@@ -1,10 +1,12 @@
-"""Pure candidate partitioning, size-band assignment, and gate probe selection (Stage 6A, D-401)."""
+"""Pure candidate partitioning, size-band assignment, and gate probe selection (Stage 6A, D-401, D-423)."""
 
+import re
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 import structlog
 
+from archnemesis.db.tables import ModelShortlistTable
 from archnemesis.modules.models.schemas import (
     ModelProbeDetail,
     ModelSuggestionItem,
@@ -13,6 +15,11 @@ from archnemesis.modules.models.schemas import (
 )
 
 logger = structlog.get_logger(__name__)
+
+HIGH_RESPONSIBILITY_REGEX = re.compile(
+    r"\b(?:orchestrat(?:or|ors|ion)?|validat(?:or|ors|ion)?|review(?:er|ers)?|decision|fraud|audit(?:or|ors)?|planner(?:s)?)\b",
+    re.IGNORECASE,
+)
 
 
 def _sanitize_string(val: Any) -> str:
@@ -25,7 +32,7 @@ def _sanitize_string(val: Any) -> str:
 def classify_size_band(
     total_params: int | None,
     small_max_params: int = 3_000_000_000,
-    medium_max_params: int = 10_000_000_000,
+    medium_max_params: int = 14_000_000_000,
 ) -> SizeBand:
     """Classify total_params into SizeBand strictly based on numeric value."""
     if total_params is None:
@@ -35,6 +42,180 @@ def classify_size_band(
     if total_params <= medium_max_params:
         return SizeBand.MEDIUM
     return SizeBand.LARGE
+
+
+def is_high_responsibility_node(
+    name: str,
+    role: str,
+    needs_model: bool = False,
+    ai_role: str | None = None,
+) -> bool:
+    """Check if a node qualifies as high responsibility (Stage 1, D-423).
+
+    Rule:
+    - Whole-word regex matching on name or role text.
+    - Restricted strictly to AI nodes (needs_model true or ai_role is set and not 'none').
+    - Non-AI nodes (e.g. 'audit store') remain normal tier.
+    - AI nodes (e.g. 'validator agent') go to high tier.
+    """
+    is_ai = bool(needs_model or (ai_role and ai_role != "none"))
+    if not is_ai:
+        return False
+    combined_text = f"{name} {role}"
+    return bool(HIGH_RESPONSIBILITY_REGEX.search(combined_text))
+
+
+def extract_model_family(repo_id: str, author: str) -> str:
+    """Extract model family prefix (e.g. 'qwen' or 'meta-llama')."""
+    if "/" in repo_id:
+        return repo_id.split("/")[0].strip().lower()
+    if author:
+        return author.strip().lower()
+    return repo_id.strip().lower()
+
+
+def select_from_shortlist(
+    items: list[ModelShortlistTable],
+    is_high_responsibility: bool,
+    target_count: int = 3,
+    small_max_params: int = 3_000_000_000,
+    medium_max_params: int = 14_000_000_000,
+    high_min_params: int = 30_000_000_000,
+) -> tuple[list[ModelSuggestionItem], str | None]:
+    """Select model suggestions from pre-probed shortlist items (Stage 1, D-422, D-423).
+
+    Rules:
+    - High responsibility:
+        * 2 slots >= 30B from DIFFERENT model families (family = author prefix).
+        * 1 medium slot.
+        * If tag has no 30B+ model: pick highest available without padding, set informative message.
+    - Normal responsibility:
+        * Fit-based (small/medium).
+    - Flag needs_strong_hardware is True when total_params >= 30B.
+    """
+    if not items:
+        return [], None
+
+    task_tag = items[0].task_tag
+    selected_table_items: list[ModelShortlistTable] = []
+    message: str | None = None
+
+    if is_high_responsibility:
+        high_models = [m for m in items if m.total_params >= high_min_params]
+        if not high_models:
+            # Tag has no 30B+ model: pick highest available without padding
+            sorted_by_params = sorted(
+                items, key=lambda m: (-m.total_params, -m.downloads, m.repo_id)
+            )
+            selected_table_items = sorted_by_params[:target_count]
+            message = (
+                f"No 30B+ models are currently catalogued for task '{task_tag}'. "
+                "Showing highest available models."
+            )
+        else:
+            chosen_ids: set[str] = set()
+            chosen_families: set[str] = set()
+
+            # Slot 1: First high model
+            high_1 = high_models[0]
+            selected_table_items.append(high_1)
+            chosen_ids.add(high_1.repo_id)
+            chosen_families.add(extract_model_family(high_1.repo_id, high_1.author))
+
+            # Slot 2: High model from a different family
+            high_2 = next(
+                (
+                    m
+                    for m in high_models
+                    if m.repo_id not in chosen_ids
+                    and extract_model_family(m.repo_id, m.author) not in chosen_families
+                ),
+                None,
+            )
+            if high_2:
+                selected_table_items.append(high_2)
+                chosen_ids.add(high_2.repo_id)
+                chosen_families.add(extract_model_family(high_2.repo_id, high_2.author))
+
+            # Slot 3: Medium model (or small if no medium)
+            medium_cand = next(
+                (
+                    m
+                    for m in items
+                    if m.repo_id not in chosen_ids
+                    and small_max_params <= m.total_params <= medium_max_params
+                ),
+                None,
+            )
+            if medium_cand:
+                selected_table_items.append(medium_cand)
+                chosen_ids.add(medium_cand.repo_id)
+
+            # Fill remaining slots up to target_count from remaining items in rank order
+            for m in items:
+                if len(selected_table_items) >= target_count:
+                    break
+                if m.repo_id not in chosen_ids:
+                    selected_table_items.append(m)
+                    chosen_ids.add(m.repo_id)
+    else:
+        # Normal responsibility: fit-based (small/medium)
+        chosen_ids = set()
+
+        # Try to pick 1 small model
+        small_cand = next(
+            (m for m in items if m.total_params < small_max_params),
+            None,
+        )
+        if small_cand and len(selected_table_items) < target_count:
+            selected_table_items.append(small_cand)
+            chosen_ids.add(small_cand.repo_id)
+
+        # Try to pick 1 medium model
+        medium_cand = next(
+            (
+                m
+                for m in items
+                if m.repo_id not in chosen_ids
+                and small_max_params <= m.total_params <= medium_max_params
+            ),
+            None,
+        )
+        if medium_cand and len(selected_table_items) < target_count:
+            selected_table_items.append(medium_cand)
+            chosen_ids.add(medium_cand.repo_id)
+
+        # Fill remaining slots from items in rank order
+        for m in items:
+            if len(selected_table_items) >= target_count:
+                break
+            if m.repo_id not in chosen_ids:
+                selected_table_items.append(m)
+                chosen_ids.add(m.repo_id)
+
+    # Convert to ModelSuggestionItem schemas
+    result_items: list[ModelSuggestionItem] = []
+    for m in selected_table_items:
+        band = classify_size_band(
+            total_params=m.total_params,
+            small_max_params=small_max_params,
+            medium_max_params=medium_max_params,
+        )
+        result_items.append(
+            ModelSuggestionItem(
+                id=m.repo_id,
+                author=m.author,
+                model_name=m.model_name,
+                task_tag=m.task_tag,
+                total_params=m.total_params,
+                size_band=band,
+                downloads=m.downloads,
+                likes=m.likes,
+                needs_strong_hardware=bool(m.total_params >= high_min_params),
+            )
+        )
+
+    return result_items, message
 
 
 def partition_candidates(

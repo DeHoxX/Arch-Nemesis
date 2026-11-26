@@ -143,6 +143,8 @@ async def test_advisor_service_tool_call_loop_caps_at_max_rounds() -> None:
             events.append(ev)
 
         assert len(fake_llm.stream_calls) == MAX_TOOL_ROUNDS
+        assert events[-2].event == "message"
+        assert events[-2].data["delta"] == "I could not finish this answer. Please rephrase."
         assert events[-1].event == "done"
 
     await engine.dispose()

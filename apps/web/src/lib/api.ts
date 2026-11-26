@@ -646,5 +646,45 @@ export async function postSuggestions(
   return handleResponse(res, suggestionsResponseSchema);
 }
 
+// ---------------------------------------------------------------------------
+// Model Suggestions API Client Helpers (Stage 6B, D-404, D-420)
+// ---------------------------------------------------------------------------
+
+export const modelSuggestionItemSchema = z.object({
+  id: z.string(),
+  author: z.string(),
+  model_name: z.string(),
+  task_tag: z.string(),
+  total_params: z.number().int().nullable().optional(),
+  size_band: z.enum(["small", "medium", "large", "unknown"]),
+  downloads: z.number().int().default(0),
+  likes: z.number().int().default(0),
+  details_url: z.string().nullable().optional(),
+  browse_url: z.string().nullable().optional(),
+});
+export type ModelSuggestionItem = z.infer<typeof modelSuggestionItemSchema>;
+
+export const modelSuggestionsResponseSchema = z.object({
+  status: z.enum(["ok", "unavailable", "empty"]),
+  task_tag: z.string().nullable().optional(),
+  items: z.array(modelSuggestionItemSchema).default([]),
+  message: z.string().nullable().optional(),
+});
+export type ModelSuggestionsResponse = z.infer<typeof modelSuggestionsResponseSchema>;
+
+export async function postNodeModelSuggestions(
+  designId: string,
+  versionNo: number,
+  nodeId: string,
+): Promise<ModelSuggestionsResponse> {
+  const res = await fetch(
+    `/api/designs/${encodeURIComponent(designId)}/versions/${encodeURIComponent(versionNo)}/nodes/${encodeURIComponent(nodeId)}/models`,
+    {
+      method: "POST",
+    },
+  );
+  return handleResponse(res, modelSuggestionsResponseSchema);
+}
+
 
 

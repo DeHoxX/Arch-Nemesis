@@ -161,7 +161,7 @@ export function EstimationResultCard({
       )}
 
       {result.errors.length > 0 && (
-        <div className="text-xs text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded p-2">
+        <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded p-2">
           {result.errors.join(", ")}
         </div>
       )}

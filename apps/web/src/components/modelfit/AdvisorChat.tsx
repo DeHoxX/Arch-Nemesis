@@ -93,7 +93,8 @@ export function AdvisorChat({ initialRepoId, initialPrompt }: AdvisorChatProps) 
           updatedMessages,
           (event: SSEEventData) => {
             if (event.event === "message") {
-              const chunk = (event.data.text as string) || "";
+              const chunk =
+                ((event.data.text ?? event.data.delta) as string) || "";
               accumulatedText += chunk;
               setMessages((prev) => {
                 const next = [...prev];
@@ -282,7 +283,7 @@ export function AdvisorChat({ initialRepoId, initialPrompt }: AdvisorChatProps) 
         )}
 
         {errorMessage && (
-          <div className="flex items-center gap-2 text-xs text-rose-500 bg-rose-500/10 border border-rose-500/20 rounded-md p-3">
+          <div className="flex items-center gap-2 text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-md p-3">
             <AlertCircle className="size-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>

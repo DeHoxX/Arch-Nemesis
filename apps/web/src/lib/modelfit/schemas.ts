@@ -44,8 +44,12 @@ export const NormalizedModelSchema = z.object({
   num_kv_heads: z.number().int().nullable().optional(),
   num_key_value_heads: z.number().int().nullable().optional(),
   attention_variant: z.string().optional(),
+  head_dim: z.number().int().nullable().optional(),
   vocab_size: z.number().int().nullable().optional(),
   intermediate_size: z.number().int().nullable().optional(),
+  num_experts: z.number().int().nullable().optional(),
+  experts_per_token: z.number().int().nullable().optional(),
+  sliding_window_size: z.number().int().nullable().optional(),
   dtype: z.string().default("bfloat16"),
   param_provenance: z.string().default("derived"),
 });
@@ -54,7 +58,7 @@ export type NormalizedModel = z.infer<typeof NormalizedModelSchema>;
 
 export const ModelDetailResponseSchema = z.object({
   id: z.string(),
-  hf_model_id: z.string(),
+  hf_model_id: z.string().optional(),
   author: z.string(),
   model_name: z.string(),
   pipeline_tag: z.string().nullable().optional(),
@@ -71,6 +75,7 @@ export const ModelDetailResponseSchema = z.object({
   updated_at: z.string().optional(),
   raw_config: z.record(z.string(), z.unknown()).default({}),
   normalized_model: NormalizedModelSchema,
+  warning: z.string().nullable().optional(),
 });
 
 export type ModelDetailResponse = z.infer<typeof ModelDetailResponseSchema>;

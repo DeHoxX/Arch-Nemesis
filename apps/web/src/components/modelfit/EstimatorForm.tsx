@@ -4,7 +4,11 @@ import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { estimateMemory, fetchHardwareProfiles } from "@/lib/modelfit/api";
+import {
+  buildEstimateRequestPayload,
+  estimateMemory,
+  fetchHardwareProfiles,
+} from "@/lib/modelfit/api";
 import type { EstimationResult, HardwareProfile } from "@/lib/modelfit/schemas";
 import { EstimationResultCard } from "./EstimationResultCard";
 
@@ -14,10 +18,10 @@ interface EstimatorFormProps {
 }
 
 const QUANT_OPTIONS = [
-  { value: "Q4_K_M", label: "4-bit (Q4_K_M) - Recommended" },
-  { value: "Q5_K_M", label: "5-bit (Q5_K_M) - Balanced" },
-  { value: "Q8_0", label: "8-bit (Q8_0) - High Quality" },
-  { value: "FP16", label: "16-bit (FP16/BF16) - Native" },
+  { value: "q4_k_m", label: "4-bit (Q4_K_M) - Recommended" },
+  { value: "q5_k_m", label: "5-bit (Q5_K_M) - Balanced" },
+  { value: "q8_0", label: "8-bit (Q8_0) - High Quality" },
+  { value: "fp16", label: "16-bit (FP16/BF16) - Native" },
 ];
 
 export function EstimatorForm({
@@ -33,9 +37,9 @@ export function EstimatorForm({
   const [paramBillions, setParamBillions] = useState<string>(
     initialParamsB ? String(initialParamsB) : "7"
   );
-  const [useModelId, setUseModelId] = useState<boolean>(Boolean(initialModelId));
+  const [useModelId, setUseModelId] = useState<boolean>(true);
 
-  const [quantization, setQuantization] = useState<string>("Q4_K_M");
+  const [quantization, setQuantization] = useState<string>("q4_k_m");
   const [contextLength, setContextLength] = useState<number>(4096);
 
   const [loading, setLoading] = useState<boolean>(false);
@@ -62,26 +66,19 @@ export function EstimatorForm({
     setError(null);
 
     try {
-      const payload: Parameters<typeof estimateMemory>[0] = {
+      if (!useModelId) {
+        throw new Error(
+          "Parameter-count-only estimation is not supported by the current backend schema; please enter a Hugging Face Repo ID."
+        );
+      }
+      const chosenHardware = hardwareList.find((h) => h.id === selectedHardwareId);
+      const payload = buildEstimateRequestPayload({
+        repoId: modelId,
         quantization,
-        context_length: contextLength,
-      };
-
-      if (isCustomHardware) {
-        payload.hardware_custom_memory_gb = customMemoryGb;
-      } else if (selectedHardwareId) {
-        payload.hardware_profile_id = selectedHardwareId;
-      }
-
-      if (useModelId && modelId.trim()) {
-        payload.model_id = modelId.trim();
-      } else {
-        const pNum = parseFloat(paramBillions);
-        if (isNaN(pNum) || pNum <= 0) {
-          throw new Error("Please enter a valid parameter count in billions.");
-        }
-        payload.total_params = Math.round(pNum * 1e9);
-      }
+        contextLength,
+        selectedHardware: isCustomHardware ? null : chosenHardware,
+        customMemoryGb: isCustomHardware ? customMemoryGb : null,
+      });
 
       const res = await estimateMemory(payload);
       setResult(res);
@@ -285,7 +282,7 @@ export function EstimatorForm({
         </div>
 
         {error && (
-          <div className="rounded-md border border-rose-600/30 bg-rose-500/10 p-3 text-xs text-rose-500">
+          <div className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
             {error}
           </div>
         )}

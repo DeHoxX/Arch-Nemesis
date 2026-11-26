@@ -53,9 +53,10 @@ class Settings(BaseSettings):
     rate_limit_leads_per_hour: int = 5
     rate_limit_trusted_proxies: list[str] = ["127.0.0.1", "::1"]
 
-    # ModelFit integration (Stage 6A, D-402, Phase M, D-408-D-412)
+    # ModelFit integration (Stage 6A, D-402, Phase M, D-408-D-412, D-422, D-423)
     model_size_small_max_params: int = 3_000_000_000
-    model_size_medium_max_params: int = 10_000_000_000
+    model_size_medium_max_params: int = 14_000_000_000
+    model_size_high_responsibility_min_params: int = 30_000_000_000
     max_gate_probes_per_node: int = 6
 
     # ModelFit native settings (Phase M, D-408-D-412)

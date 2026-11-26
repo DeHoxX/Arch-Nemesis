@@ -179,6 +179,12 @@ class AdvisorService:
                     )
                 )
 
+        if rounds >= MAX_TOOL_ROUNDS and has_tool_call:
+            yield ChatSSEEvent(
+                event="message",
+                data={"delta": "I could not finish this answer. Please rephrase."},
+            )
+
         duration = time.monotonic() - start_time
         logger.info("advisor_chat_completed", rounds=rounds, duration=duration, status="success")
         yield ChatSSEEvent(event="done", data={})
