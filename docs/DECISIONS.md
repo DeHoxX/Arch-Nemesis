@@ -4488,3 +4488,16 @@ Alternatives considered:
 If we removed it: No staged draft list of target NVIDIA, AMD, Intel, and Apple Silicon profiles would exist for vendor verification.
 Decided by: operator prompt
 Status: active
+
+### D-428 — Phase M-Hardware — Seed 26 vendor-verified hardware profiles in migration 0010
+What:
+1. Create Alembic migration `apps/api/alembic/versions/0010_more_hardware_profiles.py` (`down_revision = "0009_model_shortlists"`) inserting 26 verified hardware profiles (`14` consumer GPUs, `7` datacenter GPUs, `5` Apple Silicon unified memory tiers) into `hardware_profiles` using the existing `0008` binary GiB (`1024^3`) convention and UUID hex `id` format.
+2. Enforce idempotency by `name` in `upgrade()` (skipping rows whose `name` already exists) and targeted deletion by `name` in `downgrade()` so the 6 original `0008` rows remain untouched.
+3. Set `is_verified = False` (`0`) on the 26 new rows because their `reserved_memory_bytes` values (`1 GiB` consumer, `0` datacenter, `3 GiB` for 8GB Apple unified, `4 GiB` for >=24GB Apple unified) are explicitly labelled assumptions rather than vendor specifications, and update `docs/gpu_candidates.json` (`unverified: false` for these 26 entries; keeping `NVIDIA T4` and `AMD Radeon RX 7900 XTX` held back as unverified with `null` fields).
+Why: Expand `hardware_profiles` with vendor-verified memory capacities and cited source URLs while keeping unverified specs out of the database and keeping reserve assumptions clearly labelled.
+Alternatives considered:
+1. Editing `0008` or `hardware_presets.json` in place: Rejected because applied migrations must not be rewritten and existing 6 rows must remain unchanged.
+2. Adding held-back GPUs (`NVIDIA T4`, `AMD RX 7900 XTX`) with unverified capacities: Rejected per strict source-verification rule.
+If we removed it: The hardware selector and estimator presets would remain limited to the initial 6 GPUs seeded in migration `0008`.
+Decided by: agent proposed, user approved
+Status: active

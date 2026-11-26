@@ -3,129 +3,129 @@
     "name": "NVIDIA GeForce RTX 3070",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 8,
+    "source_url": "https://www.nvidia.com/en-ph/geforce/graphics-cards/30-series/modules/",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 3080 10GB",
     "vendor": "NVIDIA",
     "category": "consumer",
     "memory_gb": 10,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.nvidia.com/en-ph/geforce/graphics-cards/30-series/modules/",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 3080 12GB",
     "vendor": "NVIDIA",
     "category": "consumer",
     "memory_gb": 12,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.nvidia.com/en-ph/geforce/graphics-cards/30-series/modules/",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 3090",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 24,
+    "source_url": "https://www.nvidia.com/en-ph/geforce/graphics-cards/30-series/modules/",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 4060",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 8,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 4060 Ti 8GB",
     "vendor": "NVIDIA",
     "category": "consumer",
     "memory_gb": 8,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 4060 Ti 16GB",
     "vendor": "NVIDIA",
     "category": "consumer",
     "memory_gb": 16,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 4070",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 12,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 4070 Ti Super",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 16,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 4080",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 16,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 5070",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 12,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 5080",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 16,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA GeForce RTX 5090",
     "vendor": "NVIDIA",
     "category": "consumer",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 32,
+    "source_url": "https://www.nvidia.com/en-us/geforce/graphics-cards/compare",
+    "unverified": false
   },
   {
     "name": "NVIDIA L4",
     "vendor": "NVIDIA",
     "category": "datacenter",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 24,
+    "source_url": "https://www.pny.com/File Library/Company/Support/linecards/data-center-gpus/nvidia-data-center-gpu-linecard.pdf",
+    "unverified": false
   },
   {
     "name": "NVIDIA L40S",
     "vendor": "NVIDIA",
     "category": "datacenter",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 48,
+    "source_url": "https://www.pny.com/File Library/Company/Support/Product Brochures/NVIDIA Data Center GPUs/l40s-datasheet.pdf",
+    "unverified": false
   },
   {
     "name": "NVIDIA A10",
     "vendor": "NVIDIA",
     "category": "datacenter",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 24,
+    "source_url": "https://www.nvidia.com/a10",
+    "unverified": false
   },
   {
     "name": "NVIDIA T4",
@@ -140,24 +140,24 @@
     "vendor": "NVIDIA",
     "category": "datacenter",
     "memory_gb": 16,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://images.nvidia.com/content/technologies/volta/pdf/tesla-volta-v100-datasheet.pdf",
+    "unverified": false
   },
   {
     "name": "NVIDIA V100 32GB",
     "vendor": "NVIDIA",
     "category": "datacenter",
     "memory_gb": 32,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://images.nvidia.com/content/technologies/volta/pdf/tesla-volta-v100-datasheet.pdf",
+    "unverified": false
   },
   {
     "name": "NVIDIA H200",
     "vendor": "NVIDIA",
     "category": "datacenter",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 141,
+    "source_url": "https://www.nvidia.com/en-au/data-center/h200/",
+    "unverified": false
   },
   {
     "name": "AMD Radeon RX 7900 XTX",
@@ -171,56 +171,56 @@
     "name": "AMD Instinct MI300X",
     "vendor": "AMD",
     "category": "datacenter",
-    "memory_gb": null,
-    "source_url": null,
-    "unverified": true
+    "memory_gb": 192,
+    "source_url": "https://amd.com/en/products/accelerators/instinct/mi300.html",
+    "unverified": false
   },
   {
     "name": "Intel Arc A770 16GB",
     "vendor": "Intel",
     "category": "consumer",
     "memory_gb": 16,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.intel.com/content/www/us/en/products/sku/229151/specifications.html",
+    "unverified": false
   },
   {
     "name": "Apple Silicon 8GB Unified",
     "vendor": "Apple",
     "category": "apple_unified",
     "memory_gb": 8,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.apple.com/uk/mac/compare/",
+    "unverified": false
   },
   {
     "name": "Apple Silicon 24GB Unified",
     "vendor": "Apple",
     "category": "apple_unified",
     "memory_gb": 24,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.apple.com/uk/mac/compare/",
+    "unverified": false
   },
   {
     "name": "Apple Silicon 64GB Unified",
     "vendor": "Apple",
     "category": "apple_unified",
     "memory_gb": 64,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.apple.com/uk/mac/compare/",
+    "unverified": false
   },
   {
     "name": "Apple Silicon 96GB Unified",
     "vendor": "Apple",
     "category": "apple_unified",
     "memory_gb": 96,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.apple.com/uk/mac/compare/",
+    "unverified": false
   },
   {
     "name": "Apple Silicon 128GB Unified",
     "vendor": "Apple",
     "category": "apple_unified",
     "memory_gb": 128,
-    "source_url": null,
-    "unverified": true
+    "source_url": "https://www.apple.com/uk/mac/compare/",
+    "unverified": false
   }
 ]
